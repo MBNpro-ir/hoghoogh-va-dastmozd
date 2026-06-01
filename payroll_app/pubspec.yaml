@@ -1,0 +1,60 @@
+name: payroll_app
+description: "برنامه محاسبه حقوق و دستمزد فرایند کود و سم بافق - سال 1405"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Database
+  sqflite_common_ffi: ^2.3.3
+  sqflite: ^2.3.3
+  path: ^1.9.0
+  path_provider: ^2.1.4
+
+  # State management
+  provider: ^6.1.2
+
+  # Persian / Date
+  shamsi_date: ^1.0.4
+  intl: ^0.20.2
+
+  # PDF / Printing
+  pdf: ^3.11.1
+  printing: ^5.13.2
+
+  # File operations
+  file_picker: ^8.1.2
+  open_file: ^3.5.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/fonts/
+
+  fonts:
+    - family: Vazirmatn
+      fonts:
+        - asset: assets/fonts/Vazirmatn-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Vazirmatn-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Vazirmatn-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Vazirmatn-Light.ttf
+          weight: 300
