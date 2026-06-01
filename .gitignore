@@ -43,4 +43,5 @@ app.*.map.json
 /android/app/release
 
 # Windows build output
-windows/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+**/build/
