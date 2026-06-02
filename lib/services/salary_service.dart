@@ -7,8 +7,10 @@ class SalaryService {
 
   Future<List<SalaryRecord>> getAll() async {
     final db = await _db.database;
-    final rows = await db.query('salary_records',
-        orderBy: 'year DESC, month DESC, employee_id ASC');
+    final rows = await db.query(
+      'salary_records',
+      orderBy: 'year DESC, month DESC, employee_id ASC',
+    );
     return rows.map(SalaryRecord.fromMap).toList();
   }
 
@@ -34,7 +36,11 @@ class SalaryService {
     return rows.map(SalaryRecord.fromMap).toList();
   }
 
-  Future<SalaryRecord?> getByEmployeeYearMonth(int employeeId, int year, int month) async {
+  Future<SalaryRecord?> getByEmployeeYearMonth(
+    int employeeId,
+    int year,
+    int month,
+  ) async {
     final db = await _db.database;
     final rows = await db.query(
       'salary_records',
@@ -48,7 +54,11 @@ class SalaryService {
 
   Future<int> insertOrUpdate(SalaryRecord record) async {
     final db = await _db.database;
-    final existing = await getByEmployeeYearMonth(record.employeeId, record.year, record.month);
+    final existing = await getByEmployeeYearMonth(
+      record.employeeId,
+      record.year,
+      record.month,
+    );
     if (existing != null) {
       final map = record.toMap()..remove('id');
       await db.update(
@@ -69,7 +79,11 @@ class SalaryService {
     return await db.delete('salary_records', where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<int> deleteByEmployeeYearMonth(int employeeId, int year, int month) async {
+  Future<int> deleteByEmployeeYearMonth(
+    int employeeId,
+    int year,
+    int month,
+  ) async {
     final db = await _db.database;
     return await db.delete(
       'salary_records',
@@ -82,7 +96,8 @@ class SalaryService {
   Future<List<(int year, int month)>> getRecordedMonths() async {
     final db = await _db.database;
     final rows = await db.rawQuery(
-        'SELECT DISTINCT year, month FROM salary_records ORDER BY year DESC, month DESC');
+      'SELECT DISTINCT year, month FROM salary_records ORDER BY year DESC, month DESC',
+    );
     return rows.map((r) => (r['year'] as int, r['month'] as int)).toList();
   }
 }

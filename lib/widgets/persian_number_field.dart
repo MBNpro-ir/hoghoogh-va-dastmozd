@@ -79,7 +79,9 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
-        prefixIcon: widget.prefixIcon != null ? Icon(widget.prefixIcon, size: 20) : null,
+        prefixIcon: widget.prefixIcon != null
+            ? Icon(widget.prefixIcon, size: 20)
+            : null,
         suffixText: widget.suffix ?? (widget.isCurrency ? 'ریال' : null),
         suffixStyle: const TextStyle(fontSize: 12, color: Colors.grey),
       ),
@@ -100,8 +102,9 @@ class _ThousandsSeparatorFormatter extends TextInputFormatter {
   ) {
     if (newValue.text.isEmpty) return newValue;
     // تبدیل ارقام به انگلیسی و حذف کاما
-    String cleaned =
-        PersianNumberFormatter.toEnglish(newValue.text).replaceAll(',', '').replaceAll('،', '');
+    String cleaned = PersianNumberFormatter.toEnglish(
+      newValue.text,
+    ).replaceAll(',', '').replaceAll('،', '');
     if (cleaned.isEmpty) return newValue.copyWith(text: '');
     // اگر عدد اعشاری دارد، فقط بخش صحیح را فرمت کن
     String intPart = cleaned;

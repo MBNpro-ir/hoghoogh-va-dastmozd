@@ -45,10 +45,14 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
     _startDateCtrl = TextEditingController(text: l?.startDate ?? '1405/01/01');
     _notesCtrl = TextEditingController(text: l?.notes ?? '');
     _installmentsCtrl = TextEditingController(
-      text: l != null ? PersianNumberFormatter.toPersian(l.totalInstallments.toString()) : '',
+      text: l != null
+          ? PersianNumberFormatter.toPersian(l.totalInstallments.toString())
+          : '',
     );
     _paidCtrl = TextEditingController(
-      text: l != null ? PersianNumberFormatter.toPersian(l.paidInstallments.toString()) : '0',
+      text: l != null
+          ? PersianNumberFormatter.toPersian(l.paidInstallments.toString())
+          : '0',
     );
     if (l != null) {
       _amount = l.amount;
@@ -81,7 +85,8 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
 
   void _autoCalculateInstallment() {
     final installments = int.tryParse(
-        PersianNumberFormatter.toEnglish(_installmentsCtrl.text).trim());
+      PersianNumberFormatter.toEnglish(_installmentsCtrl.text).trim(),
+    );
     if (installments != null && installments > 0 && _amount > 0) {
       _installmentAmount = (_amount / installments).roundToDouble();
       setState(() {});
@@ -101,11 +106,13 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
 
     setState(() => _saving = true);
 
-    final totalInstallments = int.tryParse(
-            PersianNumberFormatter.toEnglish(_installmentsCtrl.text).trim()) ??
+    final totalInstallments =
+        int.tryParse(
+          PersianNumberFormatter.toEnglish(_installmentsCtrl.text).trim(),
+        ) ??
         0;
-    final paidInstallments = int.tryParse(
-            PersianNumberFormatter.toEnglish(_paidCtrl.text).trim()) ??
+    final paidInstallments =
+        int.tryParse(PersianNumberFormatter.toEnglish(_paidCtrl.text).trim()) ??
         0;
 
     int loanNum = _loanNumber;
@@ -188,8 +195,8 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                 child: Text(
                   'ابتدا حداقل یک کارمند ثبت کنید',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             )
@@ -216,14 +223,17 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                                 prefixIcon: Icon(Icons.badge_rounded),
                               ),
                               items: _employees
-                                  .map((e) => DropdownMenuItem(
-                                        value: e,
-                                        child: Text(
-                                          '${PersianNumberFormatter.toPersian(e.personnelCode.toString())} - ${e.fullName}',
-                                        ),
-                                      ))
+                                  .map(
+                                    (e) => DropdownMenuItem(
+                                      value: e,
+                                      child: Text(
+                                        '${PersianNumberFormatter.toPersian(e.personnelCode.toString())} - ${e.fullName}',
+                                      ),
+                                    ),
+                                  )
                                   .toList(),
-                              onChanged: (v) => setState(() => _selectedEmployee = v),
+                              onChanged: (v) =>
+                                  setState(() => _selectedEmployee = v),
                               validator: (v) =>
                                   v == null ? 'انتخاب کارمند الزامی است' : null,
                             ),
@@ -245,8 +255,9 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                                 _amount = v?.toDouble() ?? 0;
                                 _autoCalculateInstallment();
                               },
-                              validator: (v) =>
-                                  v == null || v.trim().isEmpty ? 'الزامی است' : null,
+                              validator: (v) => v == null || v.trim().isEmpty
+                                  ? 'الزامی است'
+                                  : null,
                             ),
                             const SizedBox(height: 12),
                             Row(
@@ -259,13 +270,17 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                                       labelText: 'تعداد کل اقساط *',
                                       prefixIcon: Icon(Icons.numbers_rounded),
                                     ),
-                                    onChanged: (_) => _autoCalculateInstallment(),
+                                    onChanged: (_) =>
+                                        _autoCalculateInstallment(),
                                     validator: (v) {
                                       if (v == null || v.trim().isEmpty) {
                                         return 'الزامی است';
                                       }
                                       final num = int.tryParse(
-                                          PersianNumberFormatter.toEnglish(v).trim());
+                                        PersianNumberFormatter.toEnglish(
+                                          v,
+                                        ).trim(),
+                                      );
                                       if (num == null || num <= 0) {
                                         return 'عدد نامعتبر';
                                       }
@@ -293,16 +308,21 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                               isCurrency: true,
                               prefixIcon: Icons.calculate_rounded,
                               initialValue: _installmentAmount,
-                              onChanged: (v) =>
-                                  setState(() => _installmentAmount = v?.toDouble() ?? 0),
+                              onChanged: (v) => setState(
+                                () => _installmentAmount = v?.toDouble() ?? 0,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             if (_amount > 0 && _installmentAmount > 0)
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: scheme.primaryContainer.withValues(alpha: 0.4),
-                                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                                  color: scheme.primaryContainer.withValues(
+                                    alpha: 0.4,
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusMd,
+                                  ),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,18 +332,22 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                                       context,
                                       'جمع اقساط:',
                                       _installmentAmount *
-                                          (int.tryParse(PersianNumberFormatter.toEnglish(
-                                                      _installmentsCtrl.text)
-                                                  .trim()) ??
+                                          (int.tryParse(
+                                                PersianNumberFormatter.toEnglish(
+                                                  _installmentsCtrl.text,
+                                                ).trim(),
+                                              ) ??
                                               0),
                                     ),
                                     _summaryRow(
                                       context,
                                       'پرداخت‌شده تاکنون:',
                                       _installmentAmount *
-                                          (int.tryParse(PersianNumberFormatter.toEnglish(
-                                                      _paidCtrl.text)
-                                                  .trim()) ??
+                                          (int.tryParse(
+                                                PersianNumberFormatter.toEnglish(
+                                                  _paidCtrl.text,
+                                                ).trim(),
+                                              ) ??
                                               0),
                                     ),
                                   ],
@@ -346,8 +370,9 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                                 prefixIcon: Icon(Icons.calendar_today_rounded),
                                 hintText: '1405/01/01',
                               ),
-                              validator: (v) =>
-                                  v == null || v.trim().isEmpty ? 'الزامی است' : null,
+                              validator: (v) => v == null || v.trim().isEmpty
+                                  ? 'الزامی است'
+                                  : null,
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
@@ -360,7 +385,9 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                             ),
                             const SizedBox(height: 12),
                             SwitchListTile(
-                              title: const Text('وام فعال (در حال کسر از حقوق)'),
+                              title: const Text(
+                                'وام فعال (در حال کسر از حقوق)',
+                              ),
                               value: _isActive,
                               onChanged: (v) => setState(() => _isActive = v),
                               secondary: Icon(
@@ -373,51 +400,57 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                           ],
                         ),
                         const SizedBox(height: 24),
-                        LayoutBuilder(builder: (context, constraints) {
-                          final responsive = Responsive.of(context);
-                          if (responsive.isCompact) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final responsive = Responsive.of(context);
+                            if (responsive.isCompact) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () => Navigator.pop(context),
+                                    icon: const Icon(Icons.close_rounded),
+                                    label: const Text('انصراف'),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  FilledButton.icon(
+                                    onPressed: _saving ? null : _save,
+                                    icon: const Icon(Icons.save_rounded),
+                                    label: Text(
+                                      widget.loan == null
+                                          ? 'افزودن وام'
+                                          : 'ذخیره تغییرات',
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }
+                            return Row(
                               children: [
-                                OutlinedButton.icon(
-                                  onPressed: () => Navigator.pop(context),
-                                  icon: const Icon(Icons.close_rounded),
-                                  label: const Text('انصراف'),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () => Navigator.pop(context),
+                                    icon: const Icon(Icons.close_rounded),
+                                    label: const Text('انصراف'),
+                                  ),
                                 ),
-                                const SizedBox(height: 12),
-                                FilledButton.icon(
-                                  onPressed: _saving ? null : _save,
-                                  icon: const Icon(Icons.save_rounded),
-                                  label: Text(widget.loan == null
-                                      ? 'افزودن وام'
-                                      : 'ذخیره تغییرات'),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: FilledButton.icon(
+                                    onPressed: _saving ? null : _save,
+                                    icon: const Icon(Icons.save_rounded),
+                                    label: Text(
+                                      widget.loan == null
+                                          ? 'افزودن وام'
+                                          : 'ذخیره تغییرات',
+                                    ),
+                                  ),
                                 ),
                               ],
                             );
-                          }
-                          return Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () => Navigator.pop(context),
-                                  icon: const Icon(Icons.close_rounded),
-                                  label: const Text('انصراف'),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 2,
-                                child: FilledButton.icon(
-                                  onPressed: _saving ? null : _save,
-                                  icon: const Icon(Icons.save_rounded),
-                                  label: Text(widget.loan == null
-                                      ? 'افزودن وام'
-                                      : 'ذخیره تغییرات'),
-                                ),
-                              ),
-                            ],
-                          );
-                        }),
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -468,12 +501,24 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Text(label, style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
+          Text(
+            label,
+            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+          ),
           const Spacer(),
-          CurrencyText(value,
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: scheme.onSurface)),
+          CurrencyText(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: scheme.onSurface,
+            ),
+          ),
           const SizedBox(width: 4),
-          Text('ریال', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+          Text(
+            'ریال',
+            style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+          ),
         ],
       ),
     );

@@ -37,32 +37,32 @@ class Loan {
       (amount - deductedAmount).clamp(0, double.infinity);
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'employee_id': employeeId,
-        'loan_number': loanNumber,
-        'amount': amount,
-        'installment_amount': installmentAmount,
-        'total_installments': totalInstallments,
-        'paid_installments': paidInstallments,
-        'start_date': startDate,
-        'end_date': endDate,
-        'notes': notes,
-        'is_active': isActive ? 1 : 0,
-      };
+    'id': id,
+    'employee_id': employeeId,
+    'loan_number': loanNumber,
+    'amount': amount,
+    'installment_amount': installmentAmount,
+    'total_installments': totalInstallments,
+    'paid_installments': paidInstallments,
+    'start_date': startDate,
+    'end_date': endDate,
+    'notes': notes,
+    'is_active': isActive ? 1 : 0,
+  };
 
   factory Loan.fromMap(Map<String, dynamic> map) => Loan(
-        id: map['id'] as int?,
-        employeeId: map['employee_id'] as int,
-        loanNumber: map['loan_number'] as int? ?? 1,
-        amount: (map['amount'] as num).toDouble(),
-        installmentAmount: (map['installment_amount'] as num).toDouble(),
-        totalInstallments: map['total_installments'] as int,
-        paidInstallments: map['paid_installments'] as int? ?? 0,
-        startDate: map['start_date'] as String,
-        endDate: map['end_date'] as String?,
-        notes: map['notes'] as String?,
-        isActive: (map['is_active'] as int? ?? 1) == 1,
-      );
+    id: map['id'] as int?,
+    employeeId: map['employee_id'] as int,
+    loanNumber: map['loan_number'] as int? ?? 1,
+    amount: (map['amount'] as num).toDouble(),
+    installmentAmount: (map['installment_amount'] as num).toDouble(),
+    totalInstallments: map['total_installments'] as int,
+    paidInstallments: map['paid_installments'] as int? ?? 0,
+    startDate: map['start_date'] as String,
+    endDate: map['end_date'] as String?,
+    notes: map['notes'] as String?,
+    isActive: (map['is_active'] as int? ?? 1) == 1,
+  );
 
   Loan copyWith({
     int? id,
@@ -76,18 +76,17 @@ class Loan {
     String? endDate,
     String? notes,
     bool? isActive,
-  }) =>
-      Loan(
-        id: id ?? this.id,
-        employeeId: employeeId ?? this.employeeId,
-        loanNumber: loanNumber ?? this.loanNumber,
-        amount: amount ?? this.amount,
-        installmentAmount: installmentAmount ?? this.installmentAmount,
-        totalInstallments: totalInstallments ?? this.totalInstallments,
-        paidInstallments: paidInstallments ?? this.paidInstallments,
-        startDate: startDate ?? this.startDate,
-        endDate: endDate ?? this.endDate,
-        notes: notes ?? this.notes,
-        isActive: isActive ?? this.isActive,
-      );
+  }) => Loan(
+    id: id ?? this.id,
+    employeeId: employeeId ?? this.employeeId,
+    loanNumber: loanNumber ?? this.loanNumber,
+    amount: amount ?? this.amount,
+    installmentAmount: installmentAmount ?? this.installmentAmount,
+    totalInstallments: totalInstallments ?? this.totalInstallments,
+    paidInstallments: paidInstallments ?? this.paidInstallments,
+    startDate: startDate ?? this.startDate,
+    endDate: endDate ?? this.endDate,
+    notes: notes ?? this.notes,
+    isActive: isActive ?? this.isActive,
+  );
 }

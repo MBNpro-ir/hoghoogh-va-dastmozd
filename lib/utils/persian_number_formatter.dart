@@ -64,7 +64,11 @@ class PersianNumberFormatter {
   }
 
   /// فرمت مقدار ریالی
-  static String formatRial(num value, {bool persian = true, bool showUnit = false}) {
+  static String formatRial(
+    num value, {
+    bool persian = true,
+    bool showUnit = false,
+  }) {
     final formatted = formatNumber(value, persian: persian);
     return showUnit ? '$formatted ریال' : formatted;
   }
@@ -72,7 +76,9 @@ class PersianNumberFormatter {
   /// تبدیل متن فارسی/انگلیسی به عدد
   static num? parseNumber(String input) {
     if (input.trim().isEmpty) return null;
-    String cleaned = toEnglish(input).replaceAll(',', '').replaceAll('،', '').trim();
+    String cleaned = toEnglish(
+      input,
+    ).replaceAll(',', '').replaceAll('،', '').trim();
     return num.tryParse(cleaned);
   }
 }

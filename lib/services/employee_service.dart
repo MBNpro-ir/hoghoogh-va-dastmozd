@@ -18,15 +18,24 @@ class EmployeeService {
 
   Future<Employee?> getById(int id) async {
     final db = await _db.database;
-    final rows = await db.query('employees', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await db.query(
+      'employees',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
     if (rows.isEmpty) return null;
     return Employee.fromMap(rows.first);
   }
 
   Future<Employee?> getByPersonnelCode(int code) async {
     final db = await _db.database;
-    final rows = await db.query('employees',
-        where: 'personnel_code = ?', whereArgs: [code], limit: 1);
+    final rows = await db.query(
+      'employees',
+      where: 'personnel_code = ?',
+      whereArgs: [code],
+      limit: 1,
+    );
     if (rows.isEmpty) return null;
     return Employee.fromMap(rows.first);
   }
@@ -53,8 +62,9 @@ class EmployeeService {
 
   Future<int> getNextPersonnelCode() async {
     final db = await _db.database;
-    final result =
-        await db.rawQuery('SELECT MAX(personnel_code) as max_code FROM employees');
+    final result = await db.rawQuery(
+      'SELECT MAX(personnel_code) as max_code FROM employees',
+    );
     final max = result.first['max_code'] as int? ?? 0;
     return max + 1;
   }

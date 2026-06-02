@@ -29,7 +29,12 @@ class SettingsService {
     final db = await _db.database;
     final map = settings.toMap()..remove('id');
     if (settings.id != null) {
-      return await db.update('app_settings', map, where: 'id = ?', whereArgs: [settings.id]);
+      return await db.update(
+        'app_settings',
+        map,
+        where: 'id = ?',
+        whereArgs: [settings.id],
+      );
     } else {
       return await db.update(
         'app_settings',
@@ -44,6 +49,9 @@ class SettingsService {
     final db = await _db.database;
     final targetYear = year ?? AppConstants.currentYear;
     await db.delete('app_settings', where: 'year = ?', whereArgs: [targetYear]);
-    await db.insert('app_settings', AppSettings(year: targetYear).toMap()..remove('id'));
+    await db.insert(
+      'app_settings',
+      AppSettings(year: targetYear).toMap()..remove('id'),
+    );
   }
 }

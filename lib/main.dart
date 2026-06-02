@@ -34,10 +34,7 @@ class PayrollApp extends StatelessWidget {
             theme: AppTheme.lightTheme(),
             darkTheme: AppTheme.darkTheme(),
             locale: const Locale('fa', 'IR'),
-            supportedLocales: const [
-              Locale('fa', 'IR'),
-              Locale('en', 'US'),
-            ],
+            supportedLocales: const [Locale('fa', 'IR'), Locale('en', 'US')],
             localizationsDelegates: const [
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
@@ -46,10 +43,12 @@ class PayrollApp extends StatelessWidget {
             builder: (context, child) {
               // اعمال ضریب مقیاس فونت بر اساس دسترسی‌پذیری و پلتفرم
               final mq = MediaQuery.of(context);
-              final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+              final isAndroid =
+                  Theme.of(context).platform == TargetPlatform.android;
               final baseScale = themeController.textScale;
               // برای موبایل اندروید ضریب کمی کمتر شود
-              final adjustedScale = (isAndroid && mq.size.width < Responsive.compact)
+              final adjustedScale =
+                  (isAndroid && mq.size.width < Responsive.compact)
                   ? baseScale * 0.92
                   : baseScale;
               return MediaQuery(

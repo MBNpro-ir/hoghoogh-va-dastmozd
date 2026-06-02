@@ -1,7 +1,7 @@
 /// ثابت‌های برنامه - مقادیر پیش‌فرض حقوق و دستمزد 1405
 class AppConstants {
   static const String appName = 'حقوق و دستمزد فرایند کود و سم بافق';
-  static const String appVersion = '0.0.2 alpha';
+  static const String appVersion = '0.0.3 alpha';
   static const String fontFamily = 'Vazirmatn';
 
   // سال محاسبات
@@ -11,8 +11,9 @@ class AppConstants {
   static const double defaultDailyWage = 5541850; // دستمزد روزانه پایه
   static const double defaultMonthlyFood = 22000000; // بن (ماهانه)
   static const double defaultMonthlyHousing = 30000000; // حق مسکن (ماهانه)
-  static const double defaultMonthlyMarriage = 16625550; // حق تاهل (ماهانه)
-  static const double defaultMonthlyChild = 5000000; // حق فرزند (ماهانه)
+  static const double defaultMonthlyMarriage = 5000000; // حق تاهل (ماهانه)
+  static const double defaultMonthlyChild =
+      16625550; // حق فرزند (ماهانه - هر فرزند)
   static const double defaultDailySeniority = 166667; // پایه سنوات (روزانه)
 
   static const double salaryRateA = 1.45; // درصد سایر سطوح روزانه
@@ -36,12 +37,11 @@ class AppConstants {
   ];
 
   // ----- معافیت دو هفتم (برای صنایع سخت) -----
-  // ضریب اعمال بر حقوق پایه برای محاسبه معافیت
+  // در اکسل، معافیت مالیات برابر است با دو هفتم حق بیمه کارگر.
   static const double twoSevenRate = 2 / 7;
 
-  // اعمال معافیت روی این درصد از حقوق پایه (تنظیم قابل تغییر)
-  // در فایل اکسل ارسالی، نسبت کلی حدود 1.85% است
-  static const double twoSevenBaseRate = 0.0186;
+  // ضریب قابل تغییر برای اعمال روی حق بیمه.
+  static const double twoSevenBaseRate = twoSevenRate;
 
   // ----- روزهای استاندارد ماه -----
   static const int standardMonthDays = 30;
@@ -51,5 +51,9 @@ class AppConstants {
 
   // ----- ضرایب اضافه‌کاری و نوبت‌کاری -----
   static const double overtimeMultiplier = 1.40; // 140% اضافه‌کاری
+  static const double dailyWorkHours = 7.33; // ساعت کار روزانه مطابق فرمول اکسل
+  static const double shiftWorkRate = 0.15; // 15% نوبت‌کاری مطابق اکسل
+  static const double insuranceCapMultiplier =
+      7; // سقف بیمه = حداقل دستمزد روزانه * 7 * کارکرد
   static const double nightShiftMultiplier = 0.35; // 35% نوبت‌کاری شب
 }

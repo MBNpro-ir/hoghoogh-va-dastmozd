@@ -30,7 +30,10 @@ class AppSidebar extends StatelessWidget {
             const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 itemCount: items.length,
                 itemBuilder: (context, i) {
                   final item = items[i];
@@ -90,7 +93,9 @@ class _SidebarTile extends StatelessWidget {
                 Icon(
                   item.icon,
                   size: 22,
-                  color: isActive ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+                  color: isActive
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -100,14 +105,19 @@ class _SidebarTile extends StatelessWidget {
                       fontFamily: 'Vazirmatn',
                       fontSize: 14,
                       fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                      color: isActive ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+                      color: isActive
+                          ? scheme.onPrimaryContainer
+                          : scheme.onSurfaceVariant,
                     ),
                   ),
                 ),
                 if (item.badge != null) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: scheme.secondaryContainer,
                       borderRadius: BorderRadius.circular(999),

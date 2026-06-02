@@ -21,7 +21,8 @@ class SalaryCalculationScreen extends StatefulWidget {
   const SalaryCalculationScreen({super.key});
 
   @override
-  State<SalaryCalculationScreen> createState() => _SalaryCalculationScreenState();
+  State<SalaryCalculationScreen> createState() =>
+      _SalaryCalculationScreenState();
 }
 
 class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
@@ -53,6 +54,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
 
   bool _useAutoLoanInstallment = true;
   bool _useAutoOtherBenefits = true;
+  bool _useAutoShiftWork = false;
+  bool _useAutoHourlyBenefits = true;
+  bool _insuranceExempt = false;
+  bool _taxExempt = false;
 
   SalaryCalculationResult? _result;
 
@@ -74,7 +79,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     if (emp != null && emp.id != null) {
       _employeeLoans = await _loanService.getActiveLoansForEmployee(emp.id!);
       if (_useAutoLoanInstallment) {
-        _loanInstallment = _employeeLoans.fold(0, (s, l) => s + l.installmentAmount);
+        _loanInstallment = _employeeLoans.fold(
+          0,
+          (s, l) => s + l.installmentAmount,
+        );
       }
       await _checkExistingRecord();
     }
@@ -95,10 +103,15 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         _overtimeHours = existing.overtimeHours;
         _shiftWork = existing.shiftWork;
         _hourlyBenefitsAmount = existing.hourlyBenefitsAmount;
+        _useAutoShiftWork = false;
+        _useAutoHourlyBenefits = false;
         _otherBenefitsOverride = existing.otherBenefits;
         _useAutoOtherBenefits = false;
         _loanInstallment = existing.loanInstallment;
         _useAutoLoanInstallment = false;
+        _insuranceExempt =
+            existing.insuranceBase == 0 && existing.totalEarnings > 0;
+        _taxExempt = existing.tax == 0 && existing.totalEarnings > 400000000;
         _advance = existing.advance;
         _otherDeductions = existing.otherDeductions;
       });
@@ -109,10 +122,17 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         _overtimeHours = 0;
         _shiftWork = 0;
         _hourlyBenefitsAmount = 0;
+        _useAutoShiftWork = false;
+        _useAutoHourlyBenefits = true;
         _otherBenefitsOverride = -1;
         _useAutoOtherBenefits = true;
         _useAutoLoanInstallment = true;
-        _loanInstallment = _employeeLoans.fold(0, (s, l) => s + l.installmentAmount);
+        _loanInstallment = _employeeLoans.fold(
+          0,
+          (s, l) => s + l.installmentAmount,
+        );
+        _insuranceExempt = false;
+        _taxExempt = false;
         _advance = 0;
         _otherDeductions = 0;
       });
@@ -130,7 +150,13 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       overtimeHours: _overtimeHours,
       shiftWork: _shiftWork,
       hourlyBenefitsAmount: _hourlyBenefitsAmount,
-      otherBenefitsOverride: _useAutoOtherBenefits ? -1 : _otherBenefitsOverride,
+      autoShiftWork: _useAutoShiftWork,
+      autoHourlyBenefits: _useAutoHourlyBenefits,
+      insuranceExempt: _insuranceExempt,
+      taxExempt: _taxExempt,
+      otherBenefitsOverride: _useAutoOtherBenefits
+          ? -1
+          : _otherBenefitsOverride,
       loanInstallment: _loanInstallment,
       advance: _advance,
       otherDeductions: _otherDeductions,
@@ -189,7 +215,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         ),
       );
       if (!mounted) return;
-      _employeeLoans = await _loanService.getActiveLoansForEmployee(_selectedEmployee!.id!);
+      _employeeLoans = await _loanService.getActiveLoansForEmployee(
+        _selectedEmployee!.id!,
+      );
       if (mounted) setState(() {});
     } catch (e) {
       if (!mounted) return;
@@ -250,26 +278,29 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 padding: const EdgeInsets.all(32),
                 child: Text(
                   'ابتدا کارمندان را در منوی «مدیریت کارمندان» ثبت کنید',
-                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 16),
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 16,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),
             )
           : isWide
-              ? Row(
-                  children: [
-                    Expanded(flex: 5, child: _buildInputs()),
-                    VerticalDivider(width: 1, color: scheme.outlineVariant),
-                    Expanded(flex: 4, child: _buildResults()),
-                  ],
-                )
-              : Column(
-                  children: [
-                    Expanded(flex: 3, child: _buildInputs()),
-                    Divider(height: 1, color: scheme.outlineVariant),
-                    Expanded(flex: 2, child: _buildResults()),
-                  ],
-                ),
+          ? Row(
+              children: [
+                Expanded(flex: 5, child: _buildInputs()),
+                VerticalDivider(width: 1, color: scheme.outlineVariant),
+                Expanded(flex: 4, child: _buildResults()),
+              ],
+            )
+          : Column(
+              children: [
+                Expanded(flex: 3, child: _buildInputs()),
+                Divider(height: 1, color: scheme.outlineVariant),
+                Expanded(flex: 2, child: _buildResults()),
+              ],
+            ),
     );
   }
 
@@ -292,11 +323,14 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                   prefixIcon: Icon(Icons.badge_rounded),
                 ),
                 items: _employees
-                    .map((e) => DropdownMenuItem(
-                          value: e,
-                          child: Text(
-                              '${PersianNumberFormatter.toPersian(e.personnelCode.toString())} - ${e.fullName}'),
-                        ))
+                    .map(
+                      (e) => DropdownMenuItem(
+                        value: e,
+                        child: Text(
+                          '${PersianNumberFormatter.toPersian(e.personnelCode.toString())} - ${e.fullName}',
+                        ),
+                      ),
+                    )
                     .toList(),
                 onChanged: _onEmployeeChanged,
               ),
@@ -321,7 +355,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                         if (v != null) {
                           setState(() {
                             _month = v;
-                            _totalDays = PersianDateHelper.daysInMonth(_year, v);
+                            _totalDays = PersianDateHelper.daysInMonth(
+                              _year,
+                              v,
+                            );
                           });
                           await _checkExistingRecord();
                           _calculate();
@@ -338,16 +375,23 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                         prefixIcon: Icon(Icons.event_rounded),
                       ),
                       items: [1404, 1405, 1406]
-                          .map((y) => DropdownMenuItem(
-                                value: y,
-                                child: Text(PersianNumberFormatter.toPersian(y.toString())),
-                              ))
+                          .map(
+                            (y) => DropdownMenuItem(
+                              value: y,
+                              child: Text(
+                                PersianNumberFormatter.toPersian(y.toString()),
+                              ),
+                            ),
+                          )
                           .toList(),
                       onChanged: (v) async {
                         if (v != null) {
                           setState(() {
                             _year = v;
-                            _totalDays = PersianDateHelper.daysInMonth(v, _month);
+                            _totalDays = PersianDateHelper.daysInMonth(
+                              v,
+                              _month,
+                            );
                           });
                           await _checkExistingRecord();
                           _calculate();
@@ -391,9 +435,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: _workDaysCard(),
-                  ),
+                  Expanded(child: _workDaysCard()),
                 ],
               ),
               const SizedBox(height: 12),
@@ -412,13 +454,13 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: PersianNumberField(
-                      label: 'مبلغ نوبت‌کاری (ریال)',
-                      isCurrency: true,
-                      prefixIcon: Icons.nightlight_round,
-                      initialValue: _shiftWork,
+                    child: SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('نوبت‌کاری خودکار'),
+                      subtitle: const Text('۱۵٪ حقوق ثابت، مطابق اکسل'),
+                      value: _useAutoShiftWork,
                       onChanged: (v) {
-                        _shiftWork = v?.toDouble() ?? 0;
+                        setState(() => _useAutoShiftWork = v);
                         _calculate();
                       },
                     ),
@@ -426,16 +468,43 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-              PersianNumberField(
-                label: 'مزایای ساعتی (مبلغ - مثل ۶۰-۶۴-۱۶۰ ساعته)',
-                isCurrency: true,
-                prefixIcon: Icons.access_time_filled_rounded,
-                initialValue: _hourlyBenefitsAmount,
+              if (!_useAutoShiftWork)
+                PersianNumberField(
+                  label: 'مبلغ نوبت‌کاری (ریال)',
+                  isCurrency: true,
+                  prefixIcon: Icons.nightlight_round,
+                  initialValue: _shiftWork,
+                  onChanged: (v) {
+                    _shiftWork = v?.toDouble() ?? 0;
+                    _calculate();
+                  },
+                ),
+              if (!_useAutoShiftWork) const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('محاسبه خودکار مزایای ساعتی قرارداد'),
+                subtitle: Text(
+                  _selectedEmployee == null
+                      ? 'بعد از انتخاب کارمند، ساعت قرارداد خوانده می‌شود'
+                      : 'ساعت قرارداد: ${PersianNumberFormatter.toPersian(_selectedEmployee!.hourlyBenefits.toString())}',
+                ),
+                value: _useAutoHourlyBenefits,
                 onChanged: (v) {
-                  _hourlyBenefitsAmount = v?.toDouble() ?? 0;
+                  setState(() => _useAutoHourlyBenefits = v);
                   _calculate();
                 },
               ),
+              if (!_useAutoHourlyBenefits)
+                PersianNumberField(
+                  label: 'مزایای ساعتی (مبلغ دستی)',
+                  isCurrency: true,
+                  prefixIcon: Icons.access_time_filled_rounded,
+                  initialValue: _hourlyBenefitsAmount,
+                  onChanged: (v) {
+                    _hourlyBenefitsAmount = v?.toDouble() ?? 0;
+                    _calculate();
+                  },
+                ),
             ],
           ),
           _buildSection(
@@ -445,7 +514,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
             accent: Theme.of(context).colorScheme.secondary,
             children: [
               SwitchListTile(
-                title: const Text('محاسبه خودکار سایر مزایا (روزانه × کارکرد خالص)'),
+                title: const Text(
+                  'محاسبه خودکار سایر مزایا (روزانه × کل کارکرد)',
+                ),
                 value: _useAutoOtherBenefits,
                 onChanged: (v) {
                   setState(() => _useAutoOtherBenefits = v);
@@ -457,7 +528,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                   label: 'مبلغ سایر مزایا (ریال) - دستی',
                   isCurrency: true,
                   prefixIcon: Icons.edit_rounded,
-                  initialValue: _otherBenefitsOverride >= 0 ? _otherBenefitsOverride : 0,
+                  initialValue: _otherBenefitsOverride >= 0
+                      ? _otherBenefitsOverride
+                      : 0,
                   onChanged: (v) {
                     _otherBenefitsOverride = v?.toDouble() ?? 0;
                     _calculate();
@@ -476,13 +549,17 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 subtitle: _employeeLoans.isEmpty
                     ? const Text('وام فعالی برای این کارمند ثبت نشده')
                     : Text(
-                        'تعداد وام فعال: ${PersianNumberFormatter.toPersian(_employeeLoans.length.toString())}'),
+                        'تعداد وام فعال: ${PersianNumberFormatter.toPersian(_employeeLoans.length.toString())}',
+                      ),
                 value: _useAutoLoanInstallment,
                 onChanged: (v) {
                   setState(() {
                     _useAutoLoanInstallment = v;
                     if (v) {
-                      _loanInstallment = _employeeLoans.fold(0, (s, l) => s + l.installmentAmount);
+                      _loanInstallment = _employeeLoans.fold(
+                        0,
+                        (s, l) => s + l.installmentAmount,
+                      );
                     }
                   });
                   _calculate();
@@ -502,6 +579,32 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 ),
               if (_useAutoLoanInstallment && _employeeLoans.isNotEmpty)
                 _employeeLoansList(),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('عدم شمول بیمه برای این فیش'),
+                subtitle: const Text(
+                  'برای ردیف‌هایی که در اکسل مبنای بیمه آن‌ها صفر ثبت شده است',
+                ),
+                value: _insuranceExempt,
+                onChanged: (v) {
+                  setState(() => _insuranceExempt = v);
+                  _calculate();
+                },
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('عدم شمول مالیات برای این فیش'),
+                subtitle: const Text(
+                  'برای ردیف‌هایی که در اکسل مالیات آن‌ها صفر ثبت شده است',
+                ),
+                value: _taxExempt,
+                onChanged: (v) {
+                  setState(() => _taxExempt = v);
+                  _calculate();
+                },
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -536,7 +639,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
-            onPressed: _saving || _selectedEmployee == null ? null : _saveAndShowPayslip,
+            onPressed: _saving || _selectedEmployee == null
+                ? null
+                : _saveAndShowPayslip,
             icon: _saving
                 ? const SizedBox(
                     width: 18,
@@ -552,7 +657,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               padding: const EdgeInsets.symmetric(vertical: 16),
               backgroundColor: AppTheme.successColor,
               foregroundColor: Colors.white,
-              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              textStyle: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -567,9 +675,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       decoration: BoxDecoration(
         color: AppTheme.successColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        border: Border.all(
-          color: AppTheme.successColor.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: AppTheme.successColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -600,39 +706,54 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       decoration: BoxDecoration(
         color: AppTheme.warningColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-        border: Border.all(
-          color: AppTheme.warningColor.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: AppTheme.warningColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('وام‌های فعال:', style: TextStyle(fontWeight: FontWeight.w700)),
+          const Text(
+            'وام‌های فعال:',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 8),
-          ..._employeeLoans.map((l) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Text(
-                      'وام #${PersianNumberFormatter.toPersian(l.loanNumber.toString())}: ',
-                      style: const TextStyle(fontSize: 13),
+          ..._employeeLoans.map(
+            (l) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Text(
+                    'وام #${PersianNumberFormatter.toPersian(l.loanNumber.toString())}: ',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  CurrencyText(
+                    l.installmentAmount,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const Text(' ریال', style: TextStyle(fontSize: 11)),
+                  const Spacer(),
+                  Text(
+                    'قسط ${PersianNumberFormatter.toPersian((l.paidInstallments + 1).toString())} '
+                    'از ${PersianNumberFormatter.toPersian(l.totalInstallments.toString())}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant,
                     ),
-                    CurrencyText(l.installmentAmount, style: const TextStyle(fontSize: 13)),
-                    const Text(' ریال', style: TextStyle(fontSize: 11)),
-                    const Spacer(),
-                    Text(
-                      'قسط ${PersianNumberFormatter.toPersian((l.paidInstallments + 1).toString())} '
-                      'از ${PersianNumberFormatter.toPersian(l.totalInstallments.toString())}',
-                      style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              )),
+                  ),
+                ],
+              ),
+            ),
+          ),
           Divider(height: 16, color: scheme.outlineVariant),
           Row(
             children: [
-              const Text('جمع کل: ', style: TextStyle(fontWeight: FontWeight.w700)),
-              CurrencyText(_loanInstallment, style: const TextStyle(fontWeight: FontWeight.w700)),
+              const Text(
+                'جمع کل: ',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              CurrencyText(
+                _loanInstallment,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
               const Text(' ریال', style: TextStyle(fontSize: 12)),
             ],
           ),
@@ -650,7 +771,11 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.touch_app_rounded, size: 64, color: scheme.outlineVariant),
+              Icon(
+                Icons.touch_app_rounded,
+                size: 64,
+                color: scheme.outlineVariant,
+              ),
               const SizedBox(height: 16),
               Text(
                 'کارمندی را برای محاسبه انتخاب کنید',
@@ -761,7 +886,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppTheme.successColor, AppTheme.successColor.withValues(alpha: 0.7)],
+          colors: [
+            AppTheme.successColor,
+            AppTheme.successColor.withValues(alpha: 0.7),
+          ],
         ),
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
       ),
@@ -769,7 +897,12 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         children: [
           _resultRow('خالص حقوق', _result!.netSalary, white: true, bold: false),
           if (_result!.rounding != 0)
-            _resultRow('رند حقوق', _result!.rounding.toDouble(), white: true, bold: false),
+            _resultRow(
+              'رند حقوق',
+              _result!.rounding.toDouble(),
+              white: true,
+              bold: false,
+            ),
           Divider(color: Colors.white.withValues(alpha: 0.4), height: 24),
           Row(
             children: [
@@ -791,8 +924,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              const Text('ریال',
-                  style: TextStyle(color: Colors.white70, fontSize: 14)),
+              const Text(
+                'ریال',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
             ],
           ),
         ],
@@ -858,8 +993,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     required ValueChanged<int> onChanged,
   }) {
     return TextFormField(
-      controller: TextEditingController(text: PersianNumberFormatter.toPersian(value.toString()))
-        ..selection = TextSelection.collapsed(offset: value.toString().length),
+      controller: TextEditingController(
+        text: PersianNumberFormatter.toPersian(value.toString()),
+      )..selection = TextSelection.collapsed(offset: value.toString().length),
       textDirection: TextDirection.ltr,
       decoration: InputDecoration(
         labelText: label,
@@ -903,15 +1039,29 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 children: [
                   Text(
                     totalLabel,
-                    style: TextStyle(fontWeight: FontWeight.w700, color: color, fontSize: 14),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                      fontSize: 14,
+                    ),
                   ),
                   const Spacer(),
                   CurrencyText(
                     total,
-                    style: TextStyle(fontWeight: FontWeight.w900, color: color, fontSize: 15),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: color,
+                      fontSize: 15,
+                    ),
                   ),
                   const SizedBox(width: 4),
-                  Text('ریال', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                  Text(
+                    'ریال',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -921,7 +1071,12 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     );
   }
 
-  Widget _resultRow(String label, double value, {bool white = false, bool bold = false}) {
+  Widget _resultRow(
+    String label,
+    double value, {
+    bool white = false,
+    bool bold = false,
+  }) {
     if (value == 0) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
     final color = white ? Colors.white : scheme.onSurface;
@@ -931,7 +1086,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 13, color: color.withValues(alpha: 0.85)),
+            style: TextStyle(
+              fontSize: 13,
+              color: color.withValues(alpha: 0.85),
+            ),
           ),
           const Spacer(),
           CurrencyText(

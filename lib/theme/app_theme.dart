@@ -125,31 +125,35 @@ class AppTheme {
 
   // -------- سایه‌های اتمسفری --------
   static List<BoxShadow> elevation1(Color shadowColor) => [
-        BoxShadow(
-          color: shadowColor.withValues(alpha: 0.05),
-          blurRadius: 4,
-          offset: const Offset(0, 2),
-        ),
-      ];
+    BoxShadow(
+      color: shadowColor.withValues(alpha: 0.05),
+      blurRadius: 4,
+      offset: const Offset(0, 2),
+    ),
+  ];
 
   static List<BoxShadow> elevation2(Color shadowColor) => [
-        BoxShadow(
-          color: shadowColor.withValues(alpha: 0.08),
-          blurRadius: 16,
-          offset: const Offset(0, 8),
-        ),
-      ];
+    BoxShadow(
+      color: shadowColor.withValues(alpha: 0.08),
+      blurRadius: 16,
+      offset: const Offset(0, 8),
+    ),
+  ];
 
   static List<BoxShadow> elevation3(Color shadowColor) => [
-        BoxShadow(
-          color: shadowColor.withValues(alpha: 0.15),
-          blurRadius: 32,
-          offset: const Offset(0, 12),
-        ),
-      ];
+    BoxShadow(
+      color: shadowColor.withValues(alpha: 0.15),
+      blurRadius: 32,
+      offset: const Offset(0, 12),
+    ),
+  ];
 
   // -------- تم روشن --------
-  static ThemeData lightTheme() {
+  static ThemeData lightTheme({
+    bool highContrast = false,
+    bool largeControls = false,
+    bool extraSpacing = false,
+  }) {
     const family = AppConstants.fontFamily;
     final colorScheme = const ColorScheme(
       brightness: Brightness.light,
@@ -197,7 +201,18 @@ class AppTheme {
       fontFamily: family,
     );
 
-    return base.copyWith(
+    final controlPadding = largeControls
+        ? const EdgeInsets.symmetric(horizontal: 30, vertical: 18)
+        : const EdgeInsets.symmetric(horizontal: 20, vertical: 11);
+    final inputPadding = largeControls
+        ? const EdgeInsets.symmetric(horizontal: 18, vertical: 18)
+        : const EdgeInsets.symmetric(horizontal: 14, vertical: 12);
+    final density = extraSpacing
+        ? const VisualDensity(horizontal: 1, vertical: 1)
+        : VisualDensity.standard;
+
+    final theme = base.copyWith(
+      visualDensity: density,
       textTheme: _persianTextTheme(base.textTheme, lightOnSurface),
       primaryTextTheme: _persianTextTheme(base.primaryTextTheme, Colors.white),
       iconTheme: const IconThemeData(color: lightOnSurfaceVariant),
@@ -224,9 +239,11 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: lightPrimary,
           foregroundColor: lightOnPrimary,
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+          padding: controlPadding,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusFull)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusFull),
+          ),
           textStyle: const TextStyle(
             fontFamily: family,
             fontSize: 15,
@@ -238,8 +255,10 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: lightPrimary,
           foregroundColor: lightOnPrimary,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusFull)),
+          padding: controlPadding,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusFull),
+          ),
           textStyle: const TextStyle(
             fontFamily: family,
             fontSize: 15,
@@ -249,10 +268,12 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          padding: controlPadding,
           foregroundColor: lightPrimary,
           side: const BorderSide(color: lightOutline, width: 1.2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusFull)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusFull),
+          ),
           textStyle: const TextStyle(
             fontFamily: family,
             fontSize: 14,
@@ -273,7 +294,7 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: lightSurfaceContainerLowest,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: inputPadding,
         labelStyle: TextStyle(
           fontFamily: family,
           fontSize: 14,
@@ -326,7 +347,9 @@ class AppTheme {
         backgroundColor: lightSurfaceContainerLowest,
         surfaceTintColor: Colors.transparent,
         elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusLg)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusLg),
+        ),
         titleTextStyle: TextStyle(
           fontFamily: family,
           fontSize: 20,
@@ -347,7 +370,9 @@ class AppTheme {
           color: lightInverseOnSurface,
         ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
       ),
       tabBarTheme: TabBarThemeData(
         labelColor: lightPrimary,
@@ -372,8 +397,12 @@ class AppTheme {
           fontSize: 13,
           color: lightOnSurface,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusFull)),
+        padding: extraSpacing
+            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 9)
+            : const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusFull),
+        ),
         side: BorderSide.none,
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
@@ -407,14 +436,18 @@ class AppTheme {
       listTileTheme: ListTileThemeData(
         iconColor: lightOnSurfaceVariant,
         textColor: lightOnSurface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: lightSurfaceContainerLowest,
         surfaceTintColor: Colors.transparent,
         elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
         textStyle: TextStyle(
           fontFamily: family,
           fontSize: 14,
@@ -433,10 +466,15 @@ class AppTheme {
         ),
       ),
     );
+    return highContrast ? _highContrast(theme) : theme;
   }
 
   // -------- تم تاریک --------
-  static ThemeData darkTheme() {
+  static ThemeData darkTheme({
+    bool highContrast = false,
+    bool largeControls = false,
+    bool extraSpacing = false,
+  }) {
     const family = AppConstants.fontFamily;
     final colorScheme = const ColorScheme(
       brightness: Brightness.dark,
@@ -484,7 +522,18 @@ class AppTheme {
       fontFamily: family,
     );
 
-    return base.copyWith(
+    final controlPadding = largeControls
+        ? const EdgeInsets.symmetric(horizontal: 30, vertical: 18)
+        : const EdgeInsets.symmetric(horizontal: 20, vertical: 11);
+    final inputPadding = largeControls
+        ? const EdgeInsets.symmetric(horizontal: 18, vertical: 18)
+        : const EdgeInsets.symmetric(horizontal: 14, vertical: 12);
+    final density = extraSpacing
+        ? const VisualDensity(horizontal: 1, vertical: 1)
+        : VisualDensity.standard;
+
+    final theme = base.copyWith(
+      visualDensity: density,
       textTheme: _persianTextTheme(base.textTheme, darkOnSurface),
       primaryTextTheme: _persianTextTheme(base.primaryTextTheme, darkOnPrimary),
       iconTheme: const IconThemeData(color: darkOnSurfaceVariant),
@@ -511,9 +560,11 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: darkPrimary,
           foregroundColor: darkOnPrimary,
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+          padding: controlPadding,
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusFull)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusFull),
+          ),
           textStyle: const TextStyle(
             fontFamily: family,
             fontSize: 15,
@@ -525,8 +576,10 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: darkPrimary,
           foregroundColor: darkOnPrimary,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusFull)),
+          padding: controlPadding,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusFull),
+          ),
           textStyle: const TextStyle(
             fontFamily: family,
             fontSize: 15,
@@ -536,10 +589,12 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          padding: controlPadding,
           foregroundColor: darkPrimary,
           side: const BorderSide(color: darkOutline, width: 1.2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusFull)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radiusFull),
+          ),
           textStyle: const TextStyle(
             fontFamily: family,
             fontSize: 14,
@@ -560,7 +615,7 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: darkSurfaceContainerLowest,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: inputPadding,
         labelStyle: TextStyle(
           fontFamily: family,
           fontSize: 14,
@@ -613,7 +668,9 @@ class AppTheme {
         backgroundColor: darkSurfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
         elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusLg)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusLg),
+        ),
         titleTextStyle: TextStyle(
           fontFamily: family,
           fontSize: 20,
@@ -634,7 +691,9 @@ class AppTheme {
           color: darkInverseOnSurface,
         ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
       ),
       tabBarTheme: TabBarThemeData(
         labelColor: darkPrimary,
@@ -659,8 +718,12 @@ class AppTheme {
           fontSize: 13,
           color: darkOnSurface,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusFull)),
+        padding: extraSpacing
+            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 9)
+            : const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusFull),
+        ),
         side: BorderSide.none,
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
@@ -694,14 +757,18 @@ class AppTheme {
       listTileTheme: ListTileThemeData(
         iconColor: darkOnSurfaceVariant,
         textColor: darkOnSurface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: darkSurfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
         elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMd)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
         textStyle: TextStyle(
           fontFamily: family,
           fontSize: 14,
@@ -720,27 +787,158 @@ class AppTheme {
         ),
       ),
     );
+    return highContrast ? _highContrast(theme) : theme;
   }
 
   // -------- مقیاس تایپوگرافی (DESIGN.md) --------
+  static ThemeData _highContrast(ThemeData theme) {
+    final dark = theme.brightness == Brightness.dark;
+    final scheme = theme.colorScheme.copyWith(
+      primary: dark ? const Color(0xFFD7E3FF) : const Color(0xFF002F69),
+      onPrimary: dark ? const Color(0xFF001B3F) : Colors.white,
+      secondary: dark ? const Color(0xFFFFDAD6) : const Color(0xFF8C0009),
+      tertiary: dark ? const Color(0xFFA2EFFD) : const Color(0xFF00363D),
+      surface: dark ? Colors.black : Colors.white,
+      onSurface: dark ? Colors.white : Colors.black,
+      onSurfaceVariant: dark
+          ? const Color(0xFFE6E6E6)
+          : const Color(0xFF101010),
+      outline: dark ? Colors.white : Colors.black,
+      outlineVariant: dark ? const Color(0xFFBDBDBD) : const Color(0xFF303030),
+    );
+    final borderColor = scheme.outlineVariant;
+    return theme.copyWith(
+      colorScheme: scheme,
+      scaffoldBackgroundColor: scheme.surface,
+      dividerTheme: DividerThemeData(color: borderColor, thickness: 1),
+      cardTheme: theme.cardTheme.copyWith(
+        color: scheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusLg),
+          side: BorderSide(color: borderColor, width: 1.2),
+        ),
+      ),
+      inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+          borderSide: BorderSide(color: borderColor, width: 1.2),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+          borderSide: BorderSide(color: scheme.primary, width: 2.4),
+        ),
+      ),
+    );
+  }
+
   static TextTheme _persianTextTheme(TextTheme base, Color color) {
     const family = AppConstants.fontFamily;
     return base.copyWith(
-      displayLarge: TextStyle(fontFamily: family, fontSize: 36, fontWeight: FontWeight.w700, color: color, height: 1.2),
-      displayMedium: TextStyle(fontFamily: family, fontSize: 30, fontWeight: FontWeight.w700, color: color, height: 1.25),
-      displaySmall: TextStyle(fontFamily: family, fontSize: 26, fontWeight: FontWeight.w700, color: color, height: 1.3),
-      headlineLarge: TextStyle(fontFamily: family, fontSize: 32, fontWeight: FontWeight.w700, color: color, height: 1.35),
-      headlineMedium: TextStyle(fontFamily: family, fontSize: 24, fontWeight: FontWeight.w600, color: color, height: 1.4),
-      headlineSmall: TextStyle(fontFamily: family, fontSize: 22, fontWeight: FontWeight.w600, color: color, height: 1.4),
-      titleLarge: TextStyle(fontFamily: family, fontSize: 20, fontWeight: FontWeight.w500, color: color, height: 1.5),
-      titleMedium: TextStyle(fontFamily: family, fontSize: 16, fontWeight: FontWeight.w600, color: color, height: 1.5),
-      titleSmall: TextStyle(fontFamily: family, fontSize: 14, fontWeight: FontWeight.w600, color: color, height: 1.5),
-      bodyLarge: TextStyle(fontFamily: family, fontSize: 16, fontWeight: FontWeight.w400, color: color, height: 1.55),
-      bodyMedium: TextStyle(fontFamily: family, fontSize: 14, fontWeight: FontWeight.w400, color: color, height: 1.5),
-      bodySmall: TextStyle(fontFamily: family, fontSize: 12, fontWeight: FontWeight.w400, color: color, height: 1.5),
-      labelLarge: TextStyle(fontFamily: family, fontSize: 14, fontWeight: FontWeight.w600, color: color, letterSpacing: 0.1),
-      labelMedium: TextStyle(fontFamily: family, fontSize: 12, fontWeight: FontWeight.w500, color: color, letterSpacing: 0.3),
-      labelSmall: TextStyle(fontFamily: family, fontSize: 11, fontWeight: FontWeight.w500, color: color, letterSpacing: 0.5),
+      displayLarge: TextStyle(
+        fontFamily: family,
+        fontSize: 36,
+        fontWeight: FontWeight.w700,
+        color: color,
+        height: 1.2,
+      ),
+      displayMedium: TextStyle(
+        fontFamily: family,
+        fontSize: 30,
+        fontWeight: FontWeight.w700,
+        color: color,
+        height: 1.25,
+      ),
+      displaySmall: TextStyle(
+        fontFamily: family,
+        fontSize: 26,
+        fontWeight: FontWeight.w700,
+        color: color,
+        height: 1.3,
+      ),
+      headlineLarge: TextStyle(
+        fontFamily: family,
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+        color: color,
+        height: 1.35,
+      ),
+      headlineMedium: TextStyle(
+        fontFamily: family,
+        fontSize: 24,
+        fontWeight: FontWeight.w600,
+        color: color,
+        height: 1.4,
+      ),
+      headlineSmall: TextStyle(
+        fontFamily: family,
+        fontSize: 22,
+        fontWeight: FontWeight.w600,
+        color: color,
+        height: 1.4,
+      ),
+      titleLarge: TextStyle(
+        fontFamily: family,
+        fontSize: 20,
+        fontWeight: FontWeight.w500,
+        color: color,
+        height: 1.5,
+      ),
+      titleMedium: TextStyle(
+        fontFamily: family,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: color,
+        height: 1.5,
+      ),
+      titleSmall: TextStyle(
+        fontFamily: family,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: color,
+        height: 1.5,
+      ),
+      bodyLarge: TextStyle(
+        fontFamily: family,
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+        color: color,
+        height: 1.55,
+      ),
+      bodyMedium: TextStyle(
+        fontFamily: family,
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        color: color,
+        height: 1.5,
+      ),
+      bodySmall: TextStyle(
+        fontFamily: family,
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: color,
+        height: 1.5,
+      ),
+      labelLarge: TextStyle(
+        fontFamily: family,
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: color,
+        letterSpacing: 0.1,
+      ),
+      labelMedium: TextStyle(
+        fontFamily: family,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: color,
+        letterSpacing: 0.3,
+      ),
+      labelSmall: TextStyle(
+        fontFamily: family,
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        color: color,
+        letterSpacing: 0.5,
+      ),
     );
   }
 }

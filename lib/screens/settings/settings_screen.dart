@@ -4,11 +4,14 @@ import 'package:provider/provider.dart';
 import '../../models/app_settings.dart';
 import '../../providers/theme_controller.dart';
 import '../../services/appearance_service.dart';
+import '../../services/backup_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/animations.dart';
+import '../../utils/constants.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/persian_number_field.dart';
+import '../help/help_support_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -19,6 +22,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _service = SettingsService();
+  final _backupService = BackupService();
   final _formKey = GlobalKey<FormState>();
 
   AppSettings? _settings;
@@ -103,7 +107,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطا: $e'), backgroundColor: Theme.of(context).colorScheme.error),
+        SnackBar(
+          content: Text('خطا: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -115,11 +122,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('بازنشانی تنظیمات'),
-        content: const Text('آیا از بازنشانی تنظیمات به مقادیر پیش‌فرض ۱۴۰۵ مطمئن هستید؟'),
+        content: const Text(
+          'آیا از بازنشانی تنظیمات به مقادیر پیش‌فرض ۱۴۰۵ مطمئن هستید؟',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('انصراف')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('انصراف'),
+          ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('بازنشانی'),
           ),
@@ -130,10 +144,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await _service.resetToDefaults();
       await _load();
       if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تنظیمات بازنشانی شد')));
+    }
+  }
+
+  Future<void> _backup() async {
+    try {
+      final path = await _backupService.backupDatabase();
+      if (!mounted || path == null) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('بکاپ ذخیره شد: $path')));
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تنظیمات بازنشانی شد')),
+        SnackBar(
+          content: Text('خطا در بکاپ: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
       );
     }
+  }
+
+  Future<void> _restore() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('بازیابی بکاپ'),
+        content: const Text(
+          'با ریستور بکاپ، دیتابیس فعلی جایگزین می‌شود. بهتر است قبل از ادامه از دیتای فعلی بکاپ بگیرید.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('انتخاب بکاپ'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      final path = await _backupService.restoreDatabase();
+      if (!mounted || path == null) return;
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('بکاپ بازیابی شد: $path')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطا در بازیابی: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  void _openHelp() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
+    );
   }
 
   @override
@@ -169,7 +251,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: const Icon(Icons.save_rounded, size: 18),
                 label: const Text('ذخیره'),
                 style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ),
@@ -225,7 +310,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             isCurrency: true,
                             prefixIcon: Icons.workspace_premium_rounded,
                             initialValue: _dailySeniority,
-                            onChanged: (v) => _dailySeniority = v?.toDouble() ?? 0,
+                            onChanged: (v) =>
+                                _dailySeniority = v?.toDouble() ?? 0,
                           ),
                         ]),
                         const SizedBox(height: 14),
@@ -235,7 +321,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             isCurrency: true,
                             prefixIcon: Icons.home_rounded,
                             initialValue: _monthlyHousing,
-                            onChanged: (v) => _monthlyHousing = v?.toDouble() ?? 0,
+                            onChanged: (v) =>
+                                _monthlyHousing = v?.toDouble() ?? 0,
                           ),
                           PersianNumberField(
                             label: 'حق خواروبار / بن (ماهانه)',
@@ -252,14 +339,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             isCurrency: true,
                             prefixIcon: Icons.favorite_rounded,
                             initialValue: _monthlyMarriage,
-                            onChanged: (v) => _monthlyMarriage = v?.toDouble() ?? 0,
+                            onChanged: (v) =>
+                                _monthlyMarriage = v?.toDouble() ?? 0,
                           ),
                           PersianNumberField(
                             label: 'حق فرزند (ماهانه - هر فرزند)',
                             isCurrency: true,
                             prefixIcon: Icons.child_care_rounded,
                             initialValue: _monthlyChild,
-                            onChanged: (v) => _monthlyChild = v?.toDouble() ?? 0,
+                            onChanged: (v) =>
+                                _monthlyChild = v?.toDouble() ?? 0,
                           ),
                         ]),
                       ],
@@ -276,16 +365,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.tertiaryContainer.withValues(alpha: 0.25),
-                            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .tertiaryContainer
+                                .withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusMd,
+                            ),
                             border: Border.all(
-                              color: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.3),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.tertiary.withValues(alpha: 0.3),
                             ),
                           ),
                           child: Row(
                             textDirection: TextDirection.rtl,
                             children: [
-                              Icon(Icons.info_rounded, color: Theme.of(context).colorScheme.tertiary),
+                              Icon(
+                                Icons.info_rounded,
+                                color: Theme.of(context).colorScheme.tertiary,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -293,7 +392,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   style: TextStyle(
                                     fontFamily: 'Vazirmatn',
                                     fontSize: 13,
-                                    color: Theme.of(context).colorScheme.onSurface,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                   ),
                                 ),
                               ),
@@ -339,13 +440,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             label: 'سهم کارمند (۰.۰۷ = ۷٪)',
                             prefixIcon: Icons.person_rounded,
                             initialValue: _employeeInsuranceRate,
-                            onChanged: (v) => _employeeInsuranceRate = v?.toDouble() ?? 0,
+                            onChanged: (v) =>
+                                _employeeInsuranceRate = v?.toDouble() ?? 0,
                           ),
                           PersianNumberField(
                             label: 'سهم کارفرما (۰.۲۰ = ۲۰٪)',
                             prefixIcon: Icons.business_rounded,
                             initialValue: _employerInsuranceRate,
-                            onChanged: (v) => _employerInsuranceRate = v?.toDouble() ?? 0,
+                            onChanged: (v) =>
+                                _employerInsuranceRate = v?.toDouble() ?? 0,
                           ),
                         ]),
                         const SizedBox(height: 14),
@@ -353,7 +456,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           label: 'بیمه بیکاری (۰.۰۳ = ۳٪)',
                           prefixIcon: Icons.work_off_rounded,
                           initialValue: _unemploymentInsuranceRate,
-                          onChanged: (v) => _unemploymentInsuranceRate = v?.toDouble() ?? 0,
+                          onChanged: (v) =>
+                              _unemploymentInsuranceRate = v?.toDouble() ?? 0,
                         ),
                       ],
                     ),
@@ -369,24 +473,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primaryContainer
+                                .withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusMd,
+                            ),
                             border: Border.all(
-                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.3),
                             ),
                           ),
                           child: Row(
                             textDirection: TextDirection.rtl,
                             children: [
-                              Icon(Icons.info_rounded, color: Theme.of(context).colorScheme.primary),
+                              Icon(
+                                Icons.info_rounded,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'این معافیت برای شاغلین در صنایع سخت اعمال می‌شود. ضریب طبق فایل اکسل ارسالی تقریباً ۰.۰۱۸۶ است.',
+                                  'این معافیت برای شاغلین در صنایع سخت اعمال می‌شود. طبق فایل اکسل، مبلغ معافیت برابر دو هفتم حق بیمه کارگر است.',
                                   style: TextStyle(
                                     fontFamily: 'Vazirmatn',
                                     fontSize: 13,
-                                    color: Theme.of(context).colorScheme.onSurface,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
                                   ),
                                 ),
                               ),
@@ -395,10 +511,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         const SizedBox(height: 14),
                         PersianNumberField(
-                          label: 'ضریب معافیت دو هفتم (مثلاً ۰.۰۱۸۶)',
+                          label: 'ضریب معافیت دو هفتم بیمه (مثلاً ۰.۲۸۵۷)',
                           prefixIcon: Icons.percent_rounded,
                           initialValue: _twoSevenBaseRate,
-                          onChanged: (v) => _twoSevenBaseRate = v?.toDouble() ?? 0,
+                          onChanged: (v) =>
+                              _twoSevenBaseRate = v?.toDouble() ?? 0,
                         ),
                       ],
                     ),
@@ -410,9 +527,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: 'جدول مالیات بر حقوق ۱۴۰۵',
                       icon: Icons.account_balance_rounded,
                       color: Theme.of(context).colorScheme.error,
-                      children: [
-                        _buildTaxBracketTable(),
-                      ],
+                      children: [_buildTaxBracketTable()],
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -423,7 +538,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 16),
                   FadeInUp(
                     delay: const Duration(milliseconds: 480),
-                    child: const _AboutSection(),
+                    child: _BackupSection(
+                      onBackup: _backup,
+                      onRestore: _restore,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 540),
+                    child: _AboutSection(onOpenHelp: _openHelp),
                   ),
                 ],
               ),
@@ -457,7 +580,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Icon(Icons.tune_rounded, color: Colors.white, size: 32),
+            child: const Icon(
+              Icons.tune_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -520,7 +647,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
       children: [
         TableRow(
-          decoration: BoxDecoration(color: scheme.errorContainer.withValues(alpha: 0.4)),
+          decoration: BoxDecoration(
+            color: scheme.errorContainer.withValues(alpha: 0.4),
+          ),
           children: const [
             _TaxCell('از (ریال)', isHeader: true),
             _TaxCell('تا (ریال)', isHeader: true),
@@ -528,14 +657,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _TaxCell('وضعیت', isHeader: true),
           ],
         ),
-        ...brackets.map((b) => TableRow(
-              children: [
-                _TaxCell(b.$1),
-                _TaxCell(b.$2),
-                _TaxCell(b.$3),
-                _TaxCell(b.$4),
-              ],
-            )),
+        ...brackets.map(
+          (b) => TableRow(
+            children: [
+              _TaxCell(b.$1),
+              _TaxCell(b.$2),
+              _TaxCell(b.$3),
+              _TaxCell(b.$4),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -608,7 +739,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           widgets.add(Expanded(child: children[i]));
           if (i < children.length - 1) widgets.add(const SizedBox(width: 14));
         }
-        return Row(textDirection: TextDirection.rtl, crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
+        return Row(
+          textDirection: TextDirection.rtl,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: widgets,
+        );
       },
     );
   }
@@ -664,7 +799,11 @@ class _AccessibilitySection extends StatelessWidget {
                     color: scheme.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(Icons.accessibility_new_rounded, color: scheme.primary, size: 22),
+                  child: Icon(
+                    Icons.accessibility_new_rounded,
+                    color: scheme.primary,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -679,7 +818,10 @@ class _AccessibilitySection extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: scheme.tertiaryContainer,
                     borderRadius: BorderRadius.circular(999),
@@ -735,7 +877,8 @@ class _AccessibilitySection extends StatelessWidget {
               title: 'دکمه‌های بزرگ',
               subtitle: 'افزایش اندازه دکمه‌ها و کنترل‌ها برای لمس راحت‌تر',
               value: a.largeControls,
-              onChanged: (v) => controller.updateAccessibility(largeControls: v),
+              onChanged: (v) =>
+                  controller.updateAccessibility(largeControls: v),
             ),
             _SwitchTile(
               icon: Icons.space_bar_rounded,
@@ -749,7 +892,8 @@ class _AccessibilitySection extends StatelessWidget {
               title: 'راهنمای صفحه‌خوان',
               subtitle: 'نمایش راهنما برای کاربران صفحه‌خوان',
               value: a.screenReaderHints,
-              onChanged: (v) => controller.updateAccessibility(screenReaderHints: v),
+              onChanged: (v) =>
+                  controller.updateAccessibility(screenReaderHints: v),
             ),
             _SwitchTile(
               icon: Icons.emoji_emotions_rounded,
@@ -760,7 +904,8 @@ class _AccessibilitySection extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             FilledButton.tonalIcon(
-              onPressed: () => controller.setAccessibility(const AccessibilitySettings()),
+              onPressed: () =>
+                  controller.setAccessibility(const AccessibilitySettings()),
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('بازنشانی تنظیمات دسترسی‌پذیری'),
             ),
@@ -795,7 +940,11 @@ class _TextScaleTile extends StatelessWidget {
                   color: scheme.primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(Icons.text_fields_rounded, color: scheme.primary, size: 20),
+                child: Icon(
+                  Icons.text_fields_rounded,
+                  color: scheme.primary,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -838,7 +987,10 @@ class _TextScaleTile extends StatelessWidget {
           Row(
             textDirection: TextDirection.rtl,
             children: [
-              Text('A', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+              Text(
+                'A',
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              ),
               Expanded(
                 child: Slider(
                   value: value,
@@ -849,7 +1001,14 @@ class _TextScaleTile extends StatelessWidget {
                   onChanged: onChanged,
                 ),
               ),
-              Text('A', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: scheme.onSurface)),
+              Text(
+                'A',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
+                ),
+              ),
             ],
           ),
         ],
@@ -914,9 +1073,103 @@ class _SwitchTile extends StatelessWidget {
   }
 }
 
+// -------- بخش بکاپ و بازیابی --------
+class _BackupSection extends StatelessWidget {
+  final VoidCallback onBackup;
+  final VoidCallback onRestore;
+
+  const _BackupSection({required this.onBackup, required this.onRestore});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: scheme.secondary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.backup_rounded,
+                    color: scheme.secondary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'بکاپ و بازیابی اطلاعات',
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'از کل دیتابیس برنامه شامل کارکنان، وام‌ها، تنظیمات و فیش‌های ثبت‌شده فایل بکاپ بگیرید یا فایل بکاپ قبلی را بازیابی کنید.',
+              style: TextStyle(color: scheme.onSurfaceVariant, height: 1.6),
+            ),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final narrow = constraints.maxWidth < 560;
+                final backupButton = FilledButton.icon(
+                  onPressed: onBackup,
+                  icon: const Icon(Icons.save_alt_rounded),
+                  label: const Text('گرفتن بکاپ'),
+                );
+                final restoreButton = FilledButton.tonalIcon(
+                  onPressed: onRestore,
+                  icon: const Icon(Icons.restore_page_rounded),
+                  label: const Text('ریستور بکاپ'),
+                );
+                if (narrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      backupButton,
+                      const SizedBox(height: 12),
+                      restoreButton,
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: backupButton),
+                    const SizedBox(width: 12),
+                    Expanded(child: restoreButton),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // -------- بخش درباره --------
 class _AboutSection extends StatelessWidget {
-  const _AboutSection();
+  final VoidCallback onOpenHelp;
+
+  const _AboutSection({required this.onOpenHelp});
 
   @override
   Widget build(BuildContext context) {
@@ -938,7 +1191,11 @@ class _AboutSection extends StatelessWidget {
                     color: scheme.tertiary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(Icons.info_rounded, color: scheme.tertiary, size: 22),
+                  child: Icon(
+                    Icons.info_rounded,
+                    color: scheme.tertiary,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -957,18 +1214,20 @@ class _AboutSection extends StatelessWidget {
             const SizedBox(height: 16),
             Divider(color: scheme.outlineVariant, height: 1),
             const SizedBox(height: 12),
-            _AboutRow(label: 'نام', value: 'حقوق و دستمزد فرایند کود و سم بافق'),
-            _AboutRow(label: 'نسخه', value: '۰.۰.۱ alpha'),
+            _AboutRow(
+              label: 'نام',
+              value: 'حقوق و دستمزد فرایند کود و سم بافق',
+            ),
+            _AboutRow(label: 'نسخه', value: AppConstants.appVersion),
             _AboutRow(label: 'سال مالی', value: '۱۴۰۵'),
-            _AboutRow(label: 'پلتفرم', value: 'Flutter (Windows, Android, Linux)'),
+            _AboutRow(
+              label: 'پلتفرم',
+              value: 'Flutter (Windows, Android, Linux)',
+            ),
             _AboutRow(label: 'فونت', value: 'Vazirmatn'),
             const SizedBox(height: 8),
             FilledButton.tonalIcon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('راهنما در حال تکمیل است')),
-                );
-              },
+              onPressed: onOpenHelp,
               icon: const Icon(Icons.menu_book_rounded),
               label: const Text('مشاهده راهنما'),
             ),

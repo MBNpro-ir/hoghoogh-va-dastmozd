@@ -8,7 +8,7 @@ import '../models/app_settings.dart';
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
   static const String _dbName = 'payroll.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -47,6 +47,7 @@ class DatabaseHelper {
       options: OpenDatabaseOptions(
         version: _dbVersion,
         onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
         onConfigure: (db) async {
           await db.execute('PRAGMA foreign_keys = ON;');
         },
@@ -73,7 +74,7 @@ class DatabaseHelper {
         daily_housing REAL DEFAULT 1000000,
         daily_food REAL DEFAULT 733333,
         daily_marriage REAL DEFAULT 0,
-        daily_child_allowance REAL DEFAULT 166667,
+        daily_child_allowance REAL DEFAULT 554185,
         daily_seniority REAL DEFAULT 0,
         other_benefits_daily REAL DEFAULT 0,
         hourly_benefits REAL DEFAULT 0,
@@ -170,8 +171,30 @@ class DatabaseHelper {
 
     // ایندکس برای سرعت
     await db.execute('CREATE INDEX idx_loans_employee ON loans(employee_id);');
-    await db.execute('CREATE INDEX idx_salary_employee ON salary_records(employee_id);');
-    await db.execute('CREATE INDEX idx_salary_year_month ON salary_records(year, month);');
+    await db.execute(
+      'CREATE INDEX idx_salary_employee ON salary_records(employee_id);',
+    );
+    await db.execute(
+      'CREATE INDEX idx_salary_year_month ON salary_records(year, month);',
+    );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      final defaults = AppSettings().toMap()..remove('id');
+      await db.update(
+        'app_settings',
+        defaults,
+        where: 'year = ?',
+        whereArgs: [AppSettings().year],
+      );
+      await db.update(
+        'employees',
+        {'daily_child_allowance': 554185},
+        where: 'daily_child_allowance = ?',
+        whereArgs: [166667],
+      );
+    }
   }
 
   Future<void> close() async {
@@ -182,10 +205,14 @@ class DatabaseHelper {
     }
   }
 
+  Future<String> get databasePath async {
+    final docsDir = await getApplicationDocumentsDirectory();
+    return p.join(docsDir.path, 'payroll_app', _dbName);
+  }
+
   /// حذف کل دیتابیس (برای reset)
   Future<void> resetDatabase() async {
-    final docsDir = await getApplicationDocumentsDirectory();
-    final dbPath = p.join(docsDir.path, 'payroll_app', _dbName);
+    final dbPath = await databasePath;
     await close();
     final file = File(dbPath);
     if (await file.exists()) {

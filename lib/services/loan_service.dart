@@ -16,9 +16,14 @@ class LoanService {
     return rows.map(Loan.fromMap).toList();
   }
 
-  Future<List<Loan>> getByEmployee(int employeeId, {bool onlyActive = false}) async {
+  Future<List<Loan>> getByEmployee(
+    int employeeId, {
+    bool onlyActive = false,
+  }) async {
     final db = await _db.database;
-    final where = onlyActive ? 'employee_id = ? AND is_active = ?' : 'employee_id = ?';
+    final where = onlyActive
+        ? 'employee_id = ? AND is_active = ?'
+        : 'employee_id = ?';
     final args = onlyActive ? [employeeId, 1] : [employeeId];
     final rows = await db.query(
       'loans',
@@ -31,7 +36,12 @@ class LoanService {
 
   Future<Loan?> getById(int id) async {
     final db = await _db.database;
-    final rows = await db.query('loans', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await db.query(
+      'loans',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
     if (rows.isEmpty) return null;
     return Loan.fromMap(rows.first);
   }
@@ -62,11 +72,13 @@ class LoanService {
     if (loan == null) return;
     final newPaid = loan.paidInstallments + 1;
     final stillActive = newPaid < loan.totalInstallments;
-    await update(loan.copyWith(
-      paidInstallments: newPaid,
-      isActive: stillActive,
-      endDate: stillActive ? null : DateTime.now().toIso8601String(),
-    ));
+    await update(
+      loan.copyWith(
+        paidInstallments: newPaid,
+        isActive: stillActive,
+        endDate: stillActive ? null : DateTime.now().toIso8601String(),
+      ),
+    );
   }
 
   /// محاسبه جمع اقساط ماهانه برای یک کارمند (وام‌های فعال)

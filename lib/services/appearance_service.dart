@@ -43,26 +43,25 @@ class AccessibilitySettings {
     bool? largeControls,
     bool? extraSpacing,
     bool? emojiLabels,
-  }) =>
-      AccessibilitySettings(
-        textScale: textScale ?? this.textScale,
-        highContrast: highContrast ?? this.highContrast,
-        reduceMotion: reduceMotion ?? this.reduceMotion,
-        screenReaderHints: screenReaderHints ?? this.screenReaderHints,
-        largeControls: largeControls ?? this.largeControls,
-        extraSpacing: extraSpacing ?? this.extraSpacing,
-        emojiLabels: emojiLabels ?? this.emojiLabels,
-      );
+  }) => AccessibilitySettings(
+    textScale: textScale ?? this.textScale,
+    highContrast: highContrast ?? this.highContrast,
+    reduceMotion: reduceMotion ?? this.reduceMotion,
+    screenReaderHints: screenReaderHints ?? this.screenReaderHints,
+    largeControls: largeControls ?? this.largeControls,
+    extraSpacing: extraSpacing ?? this.extraSpacing,
+    emojiLabels: emojiLabels ?? this.emojiLabels,
+  );
 
   Map<String, dynamic> toJson() => {
-        'textScale': textScale,
-        'highContrast': highContrast,
-        'reduceMotion': reduceMotion,
-        'screenReaderHints': screenReaderHints,
-        'largeControls': largeControls,
-        'extraSpacing': extraSpacing,
-        'emojiLabels': emojiLabels,
-      };
+    'textScale': textScale,
+    'highContrast': highContrast,
+    'reduceMotion': reduceMotion,
+    'screenReaderHints': screenReaderHints,
+    'largeControls': largeControls,
+    'extraSpacing': extraSpacing,
+    'emojiLabels': emojiLabels,
+  };
 
   factory AccessibilitySettings.fromJson(Map<String, dynamic> json) =>
       AccessibilitySettings(
@@ -129,7 +128,8 @@ class AppearanceService {
 
   Future<void> saveAccessibility(AccessibilitySettings s) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = 'ts=${s.textScale};hc=${s.highContrast ? 1 : 0};'
+    final raw =
+        'ts=${s.textScale};hc=${s.highContrast ? 1 : 0};'
         'rm=${s.reduceMotion ? 1 : 0};sr=${s.screenReaderHints ? 1 : 0};'
         'lc=${s.largeControls ? 1 : 0};es=${s.extraSpacing ? 1 : 0};'
         'el=${s.emojiLabels ? 1 : 0}';

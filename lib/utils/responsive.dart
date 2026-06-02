@@ -95,7 +95,11 @@ class ResponsiveBuilder extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final r = Responsive._raw(constraints.maxWidth, constraints.maxHeight, context);
+        final r = Responsive._raw(
+          constraints.maxWidth,
+          constraints.maxHeight,
+          context,
+        );
         return builder(context, r);
       },
     );

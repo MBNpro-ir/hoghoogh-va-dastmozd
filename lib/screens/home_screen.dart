@@ -8,6 +8,7 @@ import '../utils/constants.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_sidebar.dart';
 import 'employees/employees_list_screen.dart';
+import 'help/help_support_screen.dart';
 import 'loans/loans_list_screen.dart';
 import 'salary/salary_calculation_screen.dart';
 import 'salary/salary_records_screen.dart';
@@ -30,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const SalaryRecordsScreen(),
     const LoansListScreen(),
     const SettingsScreen(),
+    const HelpSupportScreen(),
   ];
 
   late final List<SidebarItem> _items = [
@@ -37,8 +39,15 @@ class _HomeScreenState extends State<HomeScreen> {
     const SidebarItem(label: 'مدیریت کارکنان', icon: Icons.groups_rounded),
     const SidebarItem(label: 'محاسبه حقوق', icon: Icons.calculate_rounded),
     const SidebarItem(label: 'فیش‌های حقوقی', icon: Icons.receipt_long_rounded),
-    const SidebarItem(label: 'وام و اقساط', icon: Icons.account_balance_wallet_rounded),
+    const SidebarItem(
+      label: 'وام و اقساط',
+      icon: Icons.account_balance_wallet_rounded,
+    ),
     const SidebarItem(label: 'تنظیمات سیستم', icon: Icons.settings_rounded),
+    const SidebarItem(
+      label: 'راهنما و پشتیبانی',
+      icon: Icons.support_agent_rounded,
+    ),
   ];
 
   @override
@@ -101,14 +110,29 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: _AnimatedPageSwitcher(child: _pages[_index]),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
+        selectedIndex: _index < 5 ? _index : 0,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.dashboard_rounded), label: 'داشبورد'),
-          NavigationDestination(icon: Icon(Icons.groups_rounded), label: 'کارکنان'),
-          NavigationDestination(icon: Icon(Icons.calculate_rounded), label: 'محاسبه'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_rounded), label: 'فیش‌ها'),
-          NavigationDestination(icon: Icon(Icons.account_balance_wallet_rounded), label: 'وام'),
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_rounded),
+            label: 'داشبورد',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.groups_rounded),
+            label: 'کارکنان',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calculate_rounded),
+            label: 'محاسبه',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_rounded),
+            label: 'فیش‌ها',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.account_balance_wallet_rounded),
+            label: 'وام',
+          ),
         ],
       ),
     );
@@ -136,10 +160,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _themeModeLabel(ThemeMode m) => switch (m) {
-        ThemeMode.system => 'تم سیستم',
-        ThemeMode.light => 'تم روشن',
-        ThemeMode.dark => 'تم تاریک',
-      };
+    ThemeMode.system => 'تم سیستم',
+    ThemeMode.light => 'تم روشن',
+    ThemeMode.dark => 'تم تاریک',
+  };
 }
 
 // -------- سوئیچ صفحه با انیمیشن --------
@@ -157,16 +181,15 @@ class _AnimatedPageSwitcher extends StatelessWidget {
         return FadeTransition(
           opacity: animation,
           child: SlideTransition(
-            position: Tween<Offset>(begin: const Offset(0.04, 0), end: Offset.zero)
-                .animate(animation),
+            position: Tween<Offset>(
+              begin: const Offset(0.04, 0),
+              end: Offset.zero,
+            ).animate(animation),
             child: child,
           ),
         );
       },
-      child: KeyedSubtree(
-        key: ValueKey(child.runtimeType),
-        child: child,
-      ),
+      child: KeyedSubtree(key: ValueKey(child.runtimeType), child: child),
     );
   }
 }
@@ -187,7 +210,11 @@ class _SidebarHeader extends StatelessWidget {
               color: scheme.primaryContainer,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Icon(Icons.account_balance_rounded, size: 32, color: scheme.onPrimaryContainer),
+            child: Icon(
+              Icons.account_balance_rounded,
+              size: 32,
+              color: scheme.onPrimaryContainer,
+            ),
           ),
           const SizedBox(height: 14),
           Text(
@@ -321,7 +348,9 @@ class _ThemeButton extends StatelessWidget {
                     fontFamily: 'Vazirmatn',
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: isActive ? scheme.onPrimary : scheme.onSurfaceVariant,
+                    color: isActive
+                        ? scheme.onPrimary
+                        : scheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -343,7 +372,12 @@ class _DashboardView extends StatelessWidget {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(r.pagePadding, r.pagePadding, r.pagePadding, 80),
+          padding: EdgeInsets.fromLTRB(
+            r.pagePadding,
+            r.pagePadding,
+            r.pagePadding,
+            80,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -457,7 +491,11 @@ class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
-  const _RoundIconButton({required this.icon, required this.tooltip, required this.onTap});
+  const _RoundIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -574,7 +612,11 @@ class _HeroBanner extends StatelessWidget {
             color: Colors.white.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(28),
           ),
-          child: Icon(Icons.account_balance_rounded, size: 48, color: scheme.onPrimary),
+          child: Icon(
+            Icons.account_balance_rounded,
+            size: 48,
+            color: scheme.onPrimary,
+          ),
         ),
         const SizedBox(width: 24),
         Expanded(
@@ -604,17 +646,6 @@ class _HeroBanner extends StatelessWidget {
             ],
           ),
         ),
-        FilledButton.icon(
-          onPressed: () {},
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: scheme.primary,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-          ),
-          icon: const Icon(Icons.rocket_launch_rounded, size: 18),
-          label: const Text('شروع سریع'),
-        ),
       ],
     );
   }
@@ -633,13 +664,7 @@ class _BlurredCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
-        boxShadow: [
-          BoxShadow(
-            color: color,
-            blurRadius: 80,
-            spreadRadius: 30,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: color, blurRadius: 80, spreadRadius: 30)],
       ),
     );
   }
@@ -692,7 +717,7 @@ class _BentoGrid extends StatelessWidget {
         subtitle: 'مستندات و راهنمای استفاده',
         icon: Icons.support_agent_rounded,
         gradient: const [Color(0xFF455A64), Color(0xFF263238)],
-        onTap: () {},
+        onTap: () => _navTo(context, 6),
         isLarge: true,
       ),
     ];
@@ -701,7 +726,7 @@ class _BentoGrid extends StatelessWidget {
       builder: (context, constraints) {
         final columns = r.bentoColumns;
         final gap = r.cardGap;
-        final aspectRatio = r.isMobileSize ? 1.6 : 1.5;
+        final aspectRatio = r.isMobileSize ? 2.3 : 2.6;
         return GridView.count(
           crossAxisCount: columns,
           crossAxisSpacing: gap,
@@ -786,13 +811,15 @@ class _BentoCardState extends State<_BentoCard> {
             borderRadius: BorderRadius.circular(AppTheme.radiusLg),
             boxShadow: [
               BoxShadow(
-                color: widget.item.gradient.first.withValues(alpha: _hovered ? 0.35 : 0.15),
+                color: widget.item.gradient.first.withValues(
+                  alpha: _hovered ? 0.35 : 0.15,
+                ),
                 blurRadius: _hovered ? 24 : 12,
                 offset: Offset(0, _hovered ? 12 : 6),
               ),
             ],
           ),
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(14),
           child: Stack(
             children: [
               Positioned(
@@ -811,15 +838,19 @@ class _BentoCardState extends State<_BentoCard> {
                 textDirection: TextDirection.rtl,
                 children: [
                   Container(
-                    width: 52,
-                    height: 52,
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(widget.item.icon, color: Colors.white, size: 28),
+                    child: Icon(
+                      widget.item.icon,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -831,7 +862,7 @@ class _BentoCardState extends State<_BentoCard> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontFamily: 'Vazirmatn',
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: Colors.white,
                             height: 1.3,
@@ -844,7 +875,7 @@ class _BentoCardState extends State<_BentoCard> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontFamily: 'Vazirmatn',
-                            fontSize: 12,
+                            fontSize: 11,
                             color: Colors.white.withValues(alpha: 0.85),
                             height: 1.4,
                           ),
@@ -898,7 +929,10 @@ class _AnalyticsSection extends StatelessWidget {
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: scheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(999),
@@ -1017,7 +1051,9 @@ class _StatCardState extends State<_StatCard> {
           color: scheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(AppTheme.radiusDefault),
           border: Border.all(color: scheme.outlineVariant, width: 0.5),
-          boxShadow: _hovered ? AppTheme.elevation2(scheme.shadow) : AppTheme.elevation1(scheme.shadow),
+          boxShadow: _hovered
+              ? AppTheme.elevation2(scheme.shadow)
+              : AppTheme.elevation1(scheme.shadow),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

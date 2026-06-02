@@ -21,24 +21,31 @@ class AppAnimations {
 
   // -------- Page Transitions --------
   static PageTransitionsTheme get pageTransitions => const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: _FadeThroughPageTransitionsBuilder(),
-          TargetPlatform.iOS: _FadeThroughPageTransitionsBuilder(),
-          TargetPlatform.windows: _FadeThroughPageTransitionsBuilder(),
-          TargetPlatform.macOS: _FadeThroughPageTransitionsBuilder(),
-          TargetPlatform.linux: _FadeThroughPageTransitionsBuilder(),
-          TargetPlatform.fuchsia: _FadeThroughPageTransitionsBuilder(),
-        },
-      );
+    builders: {
+      TargetPlatform.android: _FadeThroughPageTransitionsBuilder(),
+      TargetPlatform.iOS: _FadeThroughPageTransitionsBuilder(),
+      TargetPlatform.windows: _FadeThroughPageTransitionsBuilder(),
+      TargetPlatform.macOS: _FadeThroughPageTransitionsBuilder(),
+      TargetPlatform.linux: _FadeThroughPageTransitionsBuilder(),
+      TargetPlatform.fuchsia: _FadeThroughPageTransitionsBuilder(),
+    },
+  );
 
   // -------- Page Route با Fade Through Material 3 --------
-  static PageRoute<T> fadeThroughRoute<T>(WidgetBuilder builder, {Duration? duration}) {
+  static PageRoute<T> fadeThroughRoute<T>(
+    WidgetBuilder builder, {
+    Duration? duration,
+  }) {
     return PageRouteBuilder<T>(
       transitionDuration: duration ?? medium,
       reverseTransitionDuration: duration ?? short,
       pageBuilder: (context, anim, secondary) => builder(context),
       transitionsBuilder: (context, anim, secondary, child) {
-        final fadeIn = CurvedAnimation(parent: anim, curve: emphasizedDecelerate);
+        if (MediaQuery.of(context).disableAnimations) return child;
+        final fadeIn = CurvedAnimation(
+          parent: anim,
+          curve: emphasizedDecelerate,
+        );
         return FadeTransition(
           opacity: fadeIn,
           child: SlideTransition(
@@ -54,13 +61,19 @@ class AppAnimations {
   }
 
   /// انتقال کشویی از پایین (برای موبایل)
-  static PageRoute<T> bottomUpRoute<T>(WidgetBuilder builder, {Duration? duration}) {
+  static PageRoute<T> bottomUpRoute<T>(
+    WidgetBuilder builder, {
+    Duration? duration,
+  }) {
     return PageRouteBuilder<T>(
       transitionDuration: duration ?? long,
       reverseTransitionDuration: duration ?? short,
       pageBuilder: (context, anim, secondary) => builder(context),
       transitionsBuilder: (context, anim, secondary, child) {
-        final curve = CurvedAnimation(parent: anim, curve: emphasizedDecelerate);
+        final curve = CurvedAnimation(
+          parent: anim,
+          curve: emphasizedDecelerate,
+        );
         return SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(0, 1),
@@ -73,8 +86,12 @@ class AppAnimations {
   }
 
   /// انتقال مقیاس‌پذیر (برای کارت‌ها)
-  static Widget scaleIn(BuildContext context, Widget child,
-      {Duration delay = Duration.zero, double begin = 0.92}) {
+  static Widget scaleIn(
+    BuildContext context,
+    Widget child, {
+    Duration delay = Duration.zero,
+    double begin = 0.92,
+  }) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: begin, end: 1.0),
       duration: medium + delay,
@@ -102,6 +119,7 @@ class _FadeThroughPageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
+    if (MediaQuery.of(context).disableAnimations) return child;
     final fadeIn = CurvedAnimation(
       parent: animation,
       curve: AppAnimations.emphasizedDecelerate,
@@ -146,7 +164,8 @@ class FadeInUp extends StatefulWidget {
   State<FadeInUp> createState() => _FadeInUpState();
 }
 
-class _FadeInUpState extends State<FadeInUp> with SingleTickerProviderStateMixin {
+class _FadeInUpState extends State<FadeInUp>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
@@ -155,9 +174,14 @@ class _FadeInUpState extends State<FadeInUp> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: widget.duration);
-    _fade = CurvedAnimation(parent: _controller, curve: AppAnimations.emphasizedDecelerate);
-    _slide = Tween<Offset>(begin: Offset(0, widget.offset / 100), end: Offset.zero)
-        .animate(_fade);
+    _fade = CurvedAnimation(
+      parent: _controller,
+      curve: AppAnimations.emphasizedDecelerate,
+    );
+    _slide = Tween<Offset>(
+      begin: Offset(0, widget.offset / 100),
+      end: Offset.zero,
+    ).animate(_fade);
     Future.delayed(widget.delay, () {
       if (mounted) _controller.forward();
     });
@@ -171,6 +195,7 @@ class _FadeInUpState extends State<FadeInUp> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.of(context).disableAnimations) return widget.child;
     return FadeTransition(
       opacity: _fade,
       child: SlideTransition(position: _slide, child: widget.child),
@@ -202,6 +227,9 @@ class _BounceOnTapState extends State<BounceOnTap> {
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.of(context).disableAnimations) {
+      return GestureDetector(onTap: widget.onTap, child: widget.child);
+    }
     return GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) => setState(() => _pressed = false),

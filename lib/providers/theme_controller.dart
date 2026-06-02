@@ -18,10 +18,18 @@ class ThemeController extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   /// تم روشن
-  ThemeData get lightTheme => AppTheme.lightTheme();
+  ThemeData get lightTheme => AppTheme.lightTheme(
+    highContrast: highContrast,
+    largeControls: largeControls,
+    extraSpacing: extraSpacing,
+  );
 
   /// تم تاریک
-  ThemeData get darkTheme => AppTheme.darkTheme();
+  ThemeData get darkTheme => AppTheme.darkTheme(
+    highContrast: highContrast,
+    largeControls: largeControls,
+    extraSpacing: extraSpacing,
+  );
 
   /// آیا کنتراست بالا فعال است
   bool get highContrast => _accessibility.highContrast;

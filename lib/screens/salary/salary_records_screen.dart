@@ -10,6 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/responsive_data_view.dart';
 import 'payslip_screen.dart';
 
 class SalaryRecordsScreen extends StatefulWidget {
@@ -32,6 +33,8 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
   int? _filterYear;
   int? _filterMonth;
   List<(int, int)> _availableMonths = [];
+  int _sortColumnIndex = 3;
+  bool _sortAscending = false;
 
   @override
   void initState() {
@@ -52,7 +55,10 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     }
 
     if (_filterYear != null && _filterMonth != null) {
-      _records = await _salaryService.getByYearMonth(_filterYear!, _filterMonth!);
+      _records = await _salaryService.getByYearMonth(
+        _filterYear!,
+        _filterMonth!,
+      );
     } else {
       _records = await _salaryService.getAll();
     }
@@ -66,11 +72,8 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PayslipScreen(
-          employee: emp,
-          settings: _settings!,
-          record: record,
-        ),
+        builder: (_) =>
+            PayslipScreen(employee: emp, settings: _settings!, record: record),
       ),
     );
   }
@@ -83,7 +86,10 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
         title: const Text('حذف فیش حقوق'),
         content: const Text('آیا از حذف این فیش حقوق مطمئن هستید؟'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('انصراف')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('انصراف'),
+          ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: scheme.error),
             onPressed: () => Navigator.pop(ctx, true),
@@ -104,7 +110,11 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       appBar: AppBar(
         title: const Text('فیش‌های حقوق ثبت‌شده'),
         actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load, tooltip: 'بازخوانی'),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _load,
+            tooltip: 'بازخوانی',
+          ),
         ],
       ),
       body: _loading
@@ -134,7 +144,10 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
             children: [
               Icon(Icons.filter_alt_rounded, color: scheme.primary),
               const SizedBox(width: 8),
-              const Text('فیلتر دوره: ', style: TextStyle(fontWeight: FontWeight.w700)),
+              const Text(
+                'فیلتر دوره: ',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: DropdownButtonFormField<(int, int)?>(
@@ -144,19 +157,24 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
                   decoration: const InputDecoration(
                     labelText: 'دوره',
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
                   ),
                   items: [
                     const DropdownMenuItem<(int, int)?>(
                       value: null,
                       child: Text('همه دوره‌ها'),
                     ),
-                    ..._availableMonths.map((ym) => DropdownMenuItem(
-                          value: ym,
-                          child: Text(
-                            '${PersianDateHelper.monthName(ym.$2)} ${PersianNumberFormatter.toPersian(ym.$1.toString())}',
-                          ),
-                        )),
+                    ..._availableMonths.map(
+                      (ym) => DropdownMenuItem(
+                        value: ym,
+                        child: Text(
+                          '${PersianDateHelper.monthName(ym.$2)} ${PersianNumberFormatter.toPersian(ym.$1.toString())}',
+                        ),
+                      ),
+                    ),
                   ],
                   onChanged: (v) async {
                     setState(() {
@@ -164,7 +182,10 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
                       _filterMonth = v?.$2;
                     });
                     if (v != null) {
-                      final list = await _salaryService.getByYearMonth(v.$1, v.$2);
+                      final list = await _salaryService.getByYearMonth(
+                        v.$1,
+                        v.$2,
+                      );
                       setState(() => _records = list);
                     } else {
                       final list = await _salaryService.getAll();
@@ -197,12 +218,36 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _summaryCard('تعداد فیش', PersianNumberFormatter.toPersian(_records.length.toString()), scheme.primary),
-            _summaryCard('جمع حقوق و مزایا', PersianNumberFormatter.formatNumber(totalEarnings), scheme.tertiary),
-            _summaryCard('جمع کسورات', PersianNumberFormatter.formatNumber(totalDeductions), scheme.error),
-            _summaryCard('جمع مالیات', PersianNumberFormatter.formatNumber(totalTax), scheme.secondary),
-            _summaryCard('جمع بیمه (۷٪)', PersianNumberFormatter.formatNumber(totalInsurance), scheme.tertiary),
-            _summaryCard('جمع پرداختی', PersianNumberFormatter.formatNumber(totalNet), AppTheme.successColor),
+            _summaryCard(
+              'تعداد فیش',
+              PersianNumberFormatter.toPersian(_records.length.toString()),
+              scheme.primary,
+            ),
+            _summaryCard(
+              'جمع حقوق و مزایا',
+              PersianNumberFormatter.formatNumber(totalEarnings),
+              scheme.tertiary,
+            ),
+            _summaryCard(
+              'جمع کسورات',
+              PersianNumberFormatter.formatNumber(totalDeductions),
+              scheme.error,
+            ),
+            _summaryCard(
+              'جمع مالیات',
+              PersianNumberFormatter.formatNumber(totalTax),
+              scheme.secondary,
+            ),
+            _summaryCard(
+              'جمع بیمه (۷٪)',
+              PersianNumberFormatter.formatNumber(totalInsurance),
+              scheme.tertiary,
+            ),
+            _summaryCard(
+              'جمع پرداختی',
+              PersianNumberFormatter.formatNumber(totalNet),
+              AppTheme.successColor,
+            ),
           ],
         ),
       ),
@@ -224,7 +269,14 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
         children: [
           Text(label, style: TextStyle(fontSize: 11, color: color)),
           const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: color)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -232,79 +284,179 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
 
   Widget _buildTable() {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Card(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SingleChildScrollView(
-            child: DataTable(
-              headingRowColor: WidgetStateProperty.all(scheme.primaryContainer),
-              headingTextStyle: TextStyle(
-                color: scheme.onPrimaryContainer,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-              dataTextStyle: const TextStyle(fontSize: 13),
-              columnSpacing: 20,
-              columns: const [
-                DataColumn(label: Text('ردیف')),
-                DataColumn(label: Text('کد')),
-                DataColumn(label: Text('نام کارمند')),
-                DataColumn(label: Text('دوره')),
-                DataColumn(label: Text('کارکرد'), numeric: true),
-                DataColumn(label: Text('جمع حقوق و مزایا'), numeric: true),
-                DataColumn(label: Text('مالیات'), numeric: true),
-                DataColumn(label: Text('بیمه ۷٪'), numeric: true),
-                DataColumn(label: Text('قسط وام'), numeric: true),
-                DataColumn(label: Text('جمع کسورات'), numeric: true),
-                DataColumn(label: Text('خالص دریافتی'), numeric: true),
-                DataColumn(label: Text('عملیات')),
-              ],
-              rows: _records.asMap().entries.map((entry) {
-                final i = entry.key;
-                final r = entry.value;
-                final emp = _employeesMap[r.employeeId];
-                return DataRow(
-                  cells: [
-                    DataCell(Text(PersianNumberFormatter.toPersian((i + 1).toString()))),
-                    DataCell(Text(emp != null
-                        ? PersianNumberFormatter.toPersian(emp.personnelCode.toString())
-                        : '—')),
-                    DataCell(Text(emp?.fullName ?? '—')),
-                    DataCell(Text(
-                        '${PersianDateHelper.monthName(r.month)} ${PersianNumberFormatter.toPersian(r.year.toString())}')),
-                    DataCell(Text(PersianNumberFormatter.toPersian(r.workDays.toString()))),
-                    DataCell(CurrencyText(r.totalEarnings)),
-                    DataCell(CurrencyText(r.tax)),
-                    DataCell(CurrencyText(r.insurance)),
-                    DataCell(CurrencyText(r.loanInstallment)),
-                    DataCell(CurrencyText(r.totalDeductions)),
-                    DataCell(CurrencyText(r.finalPayment,
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, color: scheme.primary))),
-                    DataCell(Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(Icons.print_rounded, size: 20, color: scheme.primary),
-                          tooltip: 'مشاهده / چاپ',
-                          onPressed: () => _openPayslip(r),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.delete_rounded, size: 20, color: scheme.error),
-                          tooltip: 'حذف',
-                          onPressed: () => _delete(r),
-                        ),
-                      ],
-                    )),
-                  ],
-                );
-              }).toList(),
-            ),
-          ),
-        ),
+    final columns = _columns(scheme);
+    final items = sortResponsiveItems(
+      _records,
+      columns,
+      _sortColumnIndex,
+      _sortAscending,
+    );
+    return ResponsiveDataView<SalaryRecord>(
+      items: items,
+      columns: columns,
+      sortColumnIndex: _sortColumnIndex,
+      sortAscending: _sortAscending,
+      accentColor: scheme.secondary,
+      onSortColumnChanged: (index) => setState(() {
+        if (_sortColumnIndex == index) {
+          _sortAscending = !_sortAscending;
+        } else {
+          _sortColumnIndex = index;
+          _sortAscending = true;
+        }
+      }),
+      onSortDirectionChanged: (ascending) =>
+          setState(() => _sortAscending = ascending),
+      mobileCardBuilder: (context, record, index) =>
+          _recordCard(record, index, scheme),
+    );
+  }
+
+  List<ResponsiveTableColumn<SalaryRecord>> _columns(ColorScheme scheme) => [
+    ResponsiveTableColumn(
+      label: 'ردیف',
+      sortValue: (r) => _records.indexOf(r),
+      cellBuilder: (r) => Text(
+        PersianNumberFormatter.toPersian((_records.indexOf(r) + 1).toString()),
       ),
+    ),
+    ResponsiveTableColumn(
+      label: 'کد',
+      sortValue: (r) => _employeesMap[r.employeeId]?.personnelCode ?? 0,
+      cellBuilder: (r) => Text(
+        _employeesMap[r.employeeId] != null
+            ? PersianNumberFormatter.toPersian(
+                _employeesMap[r.employeeId]!.personnelCode.toString(),
+              )
+            : '—',
+      ),
+    ),
+    ResponsiveTableColumn(
+      label: 'نام کارمند',
+      sortValue: (r) => _employeesMap[r.employeeId]?.fullName ?? '',
+      cellBuilder: (r) => Text(_employeesMap[r.employeeId]?.fullName ?? '—'),
+    ),
+    ResponsiveTableColumn(
+      label: 'دوره',
+      sortValue: (r) => r.year * 100 + r.month,
+      cellBuilder: (r) => Text(
+        '${PersianDateHelper.monthName(r.month)} ${PersianNumberFormatter.toPersian(r.year.toString())}',
+      ),
+    ),
+    ResponsiveTableColumn(
+      label: 'کارکرد',
+      numeric: true,
+      sortValue: (r) => r.workDays,
+      cellBuilder: (r) =>
+          Text(PersianNumberFormatter.toPersian(r.workDays.toString())),
+    ),
+    ResponsiveTableColumn(
+      label: 'جمع حقوق و مزایا',
+      numeric: true,
+      sortValue: (r) => r.totalEarnings,
+      cellBuilder: (r) => CurrencyText(r.totalEarnings),
+    ),
+    ResponsiveTableColumn(
+      label: 'مالیات',
+      numeric: true,
+      sortValue: (r) => r.tax,
+      cellBuilder: (r) => CurrencyText(r.tax),
+    ),
+    ResponsiveTableColumn(
+      label: 'بیمه ۷٪',
+      numeric: true,
+      sortValue: (r) => r.insurance,
+      cellBuilder: (r) => CurrencyText(r.insurance),
+    ),
+    ResponsiveTableColumn(
+      label: 'قسط وام',
+      numeric: true,
+      sortValue: (r) => r.loanInstallment,
+      cellBuilder: (r) => CurrencyText(r.loanInstallment),
+    ),
+    ResponsiveTableColumn(
+      label: 'جمع کسورات',
+      numeric: true,
+      sortValue: (r) => r.totalDeductions,
+      cellBuilder: (r) => CurrencyText(r.totalDeductions),
+    ),
+    ResponsiveTableColumn(
+      label: 'خالص دریافتی',
+      numeric: true,
+      sortValue: (r) => r.finalPayment,
+      cellBuilder: (r) => CurrencyText(
+        r.finalPayment,
+        style: TextStyle(fontWeight: FontWeight.w700, color: scheme.primary),
+      ),
+    ),
+    ResponsiveTableColumn(
+      label: 'عملیات',
+      cellBuilder: (r) => _recordActions(r, scheme),
+    ),
+  ];
+
+  Widget _recordActions(SalaryRecord record, ColorScheme scheme) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: Icon(Icons.print_rounded, size: 20, color: scheme.primary),
+          tooltip: 'مشاهده / چاپ',
+          onPressed: () => _openPayslip(record),
+        ),
+        IconButton(
+          icon: Icon(Icons.delete_rounded, size: 20, color: scheme.error),
+          tooltip: 'حذف',
+          onPressed: () => _delete(record),
+        ),
+      ],
+    );
+  }
+
+  Widget _recordCard(SalaryRecord record, int index, ColorScheme scheme) {
+    final emp = _employeesMap[record.employeeId];
+    return MobileDataCard(
+      leading: CircleAvatar(
+        backgroundColor: scheme.secondaryContainer,
+        foregroundColor: scheme.onSecondaryContainer,
+        child: Text(PersianNumberFormatter.toPersian((index + 1).toString())),
+      ),
+      title: emp?.fullName ?? 'کارمند نامشخص',
+      subtitle:
+          '${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())} • کارکرد ${PersianNumberFormatter.toPersian(record.workDays.toString())} روز',
+      metrics: [
+        MobileMetric(
+          label: 'حقوق و مزایا',
+          value: CurrencyText(record.totalEarnings),
+        ),
+        MobileMetric(
+          label: 'کسورات',
+          value: CurrencyText(record.totalDeductions),
+          color: scheme.error,
+        ),
+        MobileMetric(
+          label: 'مالیات',
+          value: CurrencyText(record.tax),
+          color: scheme.secondary,
+        ),
+        MobileMetric(
+          label: 'خالص',
+          value: CurrencyText(record.finalPayment),
+          color: AppTheme.successColor,
+        ),
+      ],
+      actions: [
+        IconButton(
+          icon: Icon(Icons.print_rounded, color: scheme.primary),
+          tooltip: 'مشاهده / چاپ',
+          onPressed: () => _openPayslip(record),
+        ),
+        IconButton(
+          icon: Icon(Icons.delete_rounded, color: scheme.error),
+          tooltip: 'حذف',
+          onPressed: () => _delete(record),
+        ),
+      ],
     );
   }
 }
@@ -319,11 +471,17 @@ class _EmptyRecords extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.receipt_long_outlined, size: 96, color: scheme.outlineVariant),
+          Icon(
+            Icons.receipt_long_outlined,
+            size: 96,
+            color: scheme.outlineVariant,
+          ),
           const SizedBox(height: 16),
           Text(
             'هنوز فیش حقوقی ثبت نشده است',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
           const Text('برای محاسبه فیش حقوق به منوی «محاسبه حقوق ماهانه» بروید'),

@@ -113,7 +113,10 @@ class PayslipScreen extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'دوره: ماه ${PersianNumberFormatter.toPersian(record.month.toString())}',
-                    style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -132,18 +135,45 @@ class PayslipScreen extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _infoBox(context, 'کد کارمند', PersianNumberFormatter.toPersian(employee.personnelCode.toString())),
-              _infoBox(context, 'نام و نام خانوادگی', employee.fullName, flex: 2),
-              _infoBox(context, 'کد ملی', PersianNumberFormatter.toPersian(employee.nationalId)),
+              _infoBox(
+                context,
+                'کد کارمند',
+                PersianNumberFormatter.toPersian(
+                  employee.personnelCode.toString(),
+                ),
+              ),
+              _infoBox(
+                context,
+                'نام و نام خانوادگی',
+                employee.fullName,
+                flex: 2,
+              ),
+              _infoBox(
+                context,
+                'کد ملی',
+                PersianNumberFormatter.toPersian(employee.nationalId),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 12),
         Row(
           children: [
-            _topBox(context, 'کارکرد-روز', PersianNumberFormatter.toPersian(record.workDays.toString())),
-            _topBox(context, 'اضافه کار', '${PersianNumberFormatter.toPersian(record.overtimeHours.toStringAsFixed(0))} ساعت'),
-            _topBox(context, 'مرخصی', PersianNumberFormatter.toPersian(record.leaveDays.toString())),
+            _topBox(
+              context,
+              'کارکرد-روز',
+              PersianNumberFormatter.toPersian(record.workDays.toString()),
+            ),
+            _topBox(
+              context,
+              'اضافه کار',
+              '${PersianNumberFormatter.toPersian(record.overtimeHours.toStringAsFixed(0))} ساعت',
+            ),
+            _topBox(
+              context,
+              'مرخصی',
+              PersianNumberFormatter.toPersian(record.leaveDays.toString()),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -197,7 +227,11 @@ class PayslipScreen extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(child: _buildEarningsTable(context)),
-                    VerticalDivider(width: 1, color: scheme.outline, thickness: 1.5),
+                    VerticalDivider(
+                      width: 1,
+                      color: scheme.outline,
+                      thickness: 1.5,
+                    ),
                     Expanded(child: _buildDeductionsTable(context)),
                   ],
                 ),
@@ -207,13 +241,27 @@ class PayslipScreen extends StatelessWidget {
                 color: AppTheme.warningColor.withValues(alpha: 0.15),
                 child: Row(
                   children: [
-                    Expanded(child: _payslipRow(context, 'جمع', record.totalEarnings, isBold: true)),
+                    Expanded(
+                      child: _payslipRow(
+                        context,
+                        'جمع',
+                        record.totalEarnings,
+                        isBold: true,
+                      ),
+                    ),
                     SizedBox(
                       width: 1,
                       height: 36,
                       child: ColoredBox(color: scheme.outline),
                     ),
-                    Expanded(child: _payslipRow(context, 'جمع کسورات', record.totalDeductions, isBold: true)),
+                    Expanded(
+                      child: _payslipRow(
+                        context,
+                        'جمع کسورات',
+                        record.totalDeductions,
+                        isBold: true,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -247,8 +295,10 @@ class PayslipScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              const Text('ریال',
-                  style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const Text(
+                'ریال',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
             ],
           ),
         ),
@@ -320,7 +370,12 @@ class PayslipScreen extends StatelessWidget {
     );
   }
 
-  Widget _infoBox(BuildContext context, String label, String value, {int flex = 1}) {
+  Widget _infoBox(
+    BuildContext context,
+    String label,
+    String value, {
+    int flex = 1,
+  }) {
     final scheme = Theme.of(context).colorScheme;
     return Expanded(
       flex: flex,
@@ -329,7 +384,10 @@ class PayslipScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+            Text(
+              label,
+              style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 2),
             Text(
               value,
@@ -357,7 +415,10 @@ class PayslipScreen extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text(label, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+            Text(
+              label,
+              style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+            ),
             const SizedBox(height: 4),
             Text(
               value,
@@ -387,7 +448,9 @@ class PayslipScreen extends StatelessWidget {
       ('مزایای ساعتی', record.hourlyBenefitsAmount),
     ];
     return Column(
-      children: items.map((item) => _payslipRow(context, item.$1, item.$2)).toList(),
+      children: items
+          .map((item) => _payslipRow(context, item.$1, item.$2))
+          .toList(),
     );
   }
 
@@ -400,11 +463,18 @@ class PayslipScreen extends StatelessWidget {
       ('سایر کسورات', record.otherDeductions),
     ];
     return Column(
-      children: items.map((item) => _payslipRow(context, item.$1, item.$2)).toList(),
+      children: items
+          .map((item) => _payslipRow(context, item.$1, item.$2))
+          .toList(),
     );
   }
 
-  Widget _payslipRow(BuildContext context, String label, double value, {bool isBold = false}) {
+  Widget _payslipRow(
+    BuildContext context,
+    String label,
+    double value, {
+    bool isBold = false,
+  }) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
@@ -464,7 +534,8 @@ class PayslipScreen extends StatelessWidget {
 
       await Printing.layoutPdf(
         onLayout: (format) async => doc.save(),
-        name: 'فیش حقوق ${employee.fullName} - ${PersianDateHelper.monthName(record.month)} ${record.year}',
+        name:
+            'فیش حقوق ${employee.fullName} - ${PersianDateHelper.monthName(record.month)} ${record.year}',
       );
     } catch (e) {
       messenger.showSnackBar(
@@ -489,10 +560,18 @@ class PayslipScreen extends StatelessWidget {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text(settings.companyName,
-                        style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(
+                      settings.companyName,
+                      style: pw.TextStyle(
+                        fontSize: 13,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
                     pw.SizedBox(height: 4),
-                    pw.Text('فیش حقوق', style: const pw.TextStyle(fontSize: 11)),
+                    pw.Text(
+                      'فیش حقوق',
+                      style: const pw.TextStyle(fontSize: 11),
+                    ),
                   ],
                 ),
               ),
@@ -511,20 +590,30 @@ class PayslipScreen extends StatelessWidget {
         pw.SizedBox(height: 6),
         pw.Container(
           padding: const pw.EdgeInsets.all(8),
-          decoration: pw.BoxDecoration(border: pw.Border.all(width: 1), color: PdfColors.grey200),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(width: 1),
+            color: PdfColors.grey200,
+          ),
           child: pw.Row(
             children: [
               pw.Expanded(
-                child: pw.Text('کد کارمند: ${employee.personnelCode}', style: const pw.TextStyle(fontSize: 10)),
+                child: pw.Text(
+                  'کد کارمند: ${employee.personnelCode}',
+                  style: const pw.TextStyle(fontSize: 10),
+                ),
               ),
               pw.Expanded(
                 flex: 2,
-                child: pw.Text('نام و نام خانوادگی: ${employee.fullName}',
-                    style: const pw.TextStyle(fontSize: 10)),
+                child: pw.Text(
+                  'نام و نام خانوادگی: ${employee.fullName}',
+                  style: const pw.TextStyle(fontSize: 10),
+                ),
               ),
               pw.Expanded(
-                child: pw.Text('کد ملی: ${employee.nationalId}',
-                    style: const pw.TextStyle(fontSize: 10)),
+                child: pw.Text(
+                  'کد ملی: ${employee.nationalId}',
+                  style: const pw.TextStyle(fontSize: 10),
+                ),
               ),
             ],
           ),
@@ -538,8 +627,20 @@ class PayslipScreen extends StatelessWidget {
                 decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
                 child: pw.Column(
                   children: [
-                    pw.Text('کارکرد - روز', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-                    pw.Text('${record.workDays}', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(
+                      'کارکرد - روز',
+                      style: const pw.TextStyle(
+                        fontSize: 9,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                    pw.Text(
+                      '${record.workDays}',
+                      style: pw.TextStyle(
+                        fontSize: 13,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -551,9 +652,20 @@ class PayslipScreen extends StatelessWidget {
                 decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
                 child: pw.Column(
                   children: [
-                    pw.Text('اضافه کار', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-                    pw.Text('${record.overtimeHours.toStringAsFixed(0)} ساعت',
-                        style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(
+                      'اضافه کار',
+                      style: const pw.TextStyle(
+                        fontSize: 9,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                    pw.Text(
+                      '${record.overtimeHours.toStringAsFixed(0)} ساعت',
+                      style: pw.TextStyle(
+                        fontSize: 13,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -565,8 +677,20 @@ class PayslipScreen extends StatelessWidget {
                 decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
                 child: pw.Column(
                   children: [
-                    pw.Text('مرخصی', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-                    pw.Text('${record.leaveDays}', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(
+                      'مرخصی',
+                      style: const pw.TextStyle(
+                        fontSize: 9,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                    pw.Text(
+                      '${record.leaveDays}',
+                      style: pw.TextStyle(
+                        fontSize: 13,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -586,8 +710,13 @@ class PayslipScreen extends StatelessWidget {
                       child: pw.Container(
                         padding: const pw.EdgeInsets.all(6),
                         child: pw.Center(
-                          child: pw.Text('حقوق و دستمزد (ریال)',
-                              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                          child: pw.Text(
+                            'حقوق و دستمزد (ریال)',
+                            style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -595,8 +724,13 @@ class PayslipScreen extends StatelessWidget {
                       child: pw.Container(
                         padding: const pw.EdgeInsets.all(6),
                         child: pw.Center(
-                          child: pw.Text('کسورات (ریال)',
-                              style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                          child: pw.Text(
+                            'کسورات (ریال)',
+                            style: pw.TextStyle(
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -616,9 +750,17 @@ class PayslipScreen extends StatelessWidget {
                 color: PdfColors.yellow50,
                 child: pw.Row(
                   children: [
-                    pw.Expanded(child: _pdfRow('جمع', record.totalEarnings, bold: true)),
+                    pw.Expanded(
+                      child: _pdfRow('جمع', record.totalEarnings, bold: true),
+                    ),
                     pw.Container(width: 1, color: PdfColors.black),
-                    pw.Expanded(child: _pdfRow('جمع کسورات', record.totalDeductions, bold: true)),
+                    pw.Expanded(
+                      child: _pdfRow(
+                        'جمع کسورات',
+                        record.totalDeductions,
+                        bold: true,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -628,15 +770,28 @@ class PayslipScreen extends StatelessWidget {
         pw.SizedBox(height: 10),
         pw.Container(
           padding: const pw.EdgeInsets.all(10),
-          decoration: pw.BoxDecoration(color: PdfColors.green700, borderRadius: pw.BorderRadius.circular(4)),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.green700,
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
           child: pw.Row(
             children: [
-              pw.Text('خالص پرداختی:',
-                  style: pw.TextStyle(color: PdfColors.white, fontSize: 12, fontWeight: pw.FontWeight.bold)),
+              pw.Text(
+                'خالص پرداختی:',
+                style: pw.TextStyle(
+                  color: PdfColors.white,
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
               pw.Spacer(),
               pw.Text(
                 '${PersianNumberFormatter.formatRial(record.finalPayment, persian: false)} ریال',
-                style: pw.TextStyle(color: PdfColors.white, fontSize: 14, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(
+                  color: PdfColors.white,
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -646,30 +801,28 @@ class PayslipScreen extends StatelessWidget {
   }
 
   List<(String, double)> _earningsRows() => [
-        ('حقوق ثابت', record.baseSalary),
-        ('حق مسکن', record.housing),
-        ('حق خواروبار', record.food),
-        ('حق تاهل', record.marriage),
-        ('حق فرزند', record.childAllowance),
-        ('نوبت کاری', record.shiftWork),
-        ('پایه سنوات', record.seniority),
-        ('سایر مزایا', record.otherBenefits),
-        ('اضافه کار', record.overtimeAmount),
-        ('مزایای ساعتی', record.hourlyBenefitsAmount),
-      ];
+    ('حقوق ثابت', record.baseSalary),
+    ('حق مسکن', record.housing),
+    ('حق خواروبار', record.food),
+    ('حق تاهل', record.marriage),
+    ('حق فرزند', record.childAllowance),
+    ('نوبت کاری', record.shiftWork),
+    ('پایه سنوات', record.seniority),
+    ('سایر مزایا', record.otherBenefits),
+    ('اضافه کار', record.overtimeAmount),
+    ('مزایای ساعتی', record.hourlyBenefitsAmount),
+  ];
 
   List<(String, double)> _deductionsRows() => [
-        ('حق بیمه', record.insurance),
-        ('مالیات حقوق', record.tax),
-        ('قسط وام', record.loanInstallment),
-        ('مساعده', record.advance),
-        ('سایر کسورات', record.otherDeductions),
-      ];
+    ('حق بیمه', record.insurance),
+    ('مالیات حقوق', record.tax),
+    ('قسط وام', record.loanInstallment),
+    ('مساعده', record.advance),
+    ('سایر کسورات', record.otherDeductions),
+  ];
 
   pw.Widget _pdfTable(List<(String, double)> rows) {
-    return pw.Column(
-      children: rows.map((r) => _pdfRow(r.$1, r.$2)).toList(),
-    );
+    return pw.Column(children: rows.map((r) => _pdfRow(r.$1, r.$2)).toList());
   }
 
   pw.Widget _pdfRow(String label, double value, {bool bold = false}) {

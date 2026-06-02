@@ -77,40 +77,39 @@ class SalaryCalculationResult {
     required int workDays,
     required double overtimeHours,
     String? notes,
-  }) =>
-      SalaryRecord(
-        employeeId: employeeId,
-        year: year,
-        month: month,
-        totalDays: totalDays,
-        leaveDays: leaveDays,
-        workDays: workDays,
-        overtimeHours: overtimeHours,
-        overtimeAmount: overtimeAmount,
-        shiftWork: shiftWork,
-        hourlyBenefitsAmount: hourlyBenefitsAmount,
-        baseSalary: baseSalary,
-        housing: housing,
-        food: food,
-        marriage: marriage,
-        childAllowance: childAllowance,
-        seniority: seniority,
-        otherBenefits: otherBenefits,
-        totalEarnings: totalEarnings,
-        insurance: insurance,
-        tax: tax,
-        loanInstallment: loanInstallment,
-        advance: advance,
-        otherDeductions: otherDeductions,
-        totalDeductions: totalDeductions,
-        insuranceBase: insuranceBase,
-        taxBase: taxBase,
-        twoSevenExemption: twoSevenExemption,
-        netSalary: netSalary,
-        rounding: rounding,
-        finalPayment: finalPayment,
-        notes: notes,
-      );
+  }) => SalaryRecord(
+    employeeId: employeeId,
+    year: year,
+    month: month,
+    totalDays: totalDays,
+    leaveDays: leaveDays,
+    workDays: workDays,
+    overtimeHours: overtimeHours,
+    overtimeAmount: overtimeAmount,
+    shiftWork: shiftWork,
+    hourlyBenefitsAmount: hourlyBenefitsAmount,
+    baseSalary: baseSalary,
+    housing: housing,
+    food: food,
+    marriage: marriage,
+    childAllowance: childAllowance,
+    seniority: seniority,
+    otherBenefits: otherBenefits,
+    totalEarnings: totalEarnings,
+    insurance: insurance,
+    tax: tax,
+    loanInstallment: loanInstallment,
+    advance: advance,
+    otherDeductions: otherDeductions,
+    totalDeductions: totalDeductions,
+    insuranceBase: insuranceBase,
+    taxBase: taxBase,
+    twoSevenExemption: twoSevenExemption,
+    netSalary: netSalary,
+    rounding: rounding,
+    finalPayment: finalPayment,
+    notes: notes,
+  );
 }
 
 /// ورودی‌های محاسبه ماهانه
@@ -120,6 +119,10 @@ class SalaryCalculationInput {
   final double overtimeHours; // ساعت اضافه‌کاری
   final double shiftWork; // مبلغ نوبت‌کاری
   final double hourlyBenefitsAmount; // مزایای ساعتی محاسبه‌شده
+  final bool autoShiftWork; // محاسبه ۱۵٪ نوبت‌کاری از حقوق ثابت
+  final bool autoHourlyBenefits; // محاسبه از ساعت مزایای ثبت‌شده در قرارداد
+  final bool insuranceExempt; // عدم شمول بیمه برای ردیف‌های خاص
+  final bool taxExempt; // عدم شمول مالیات برای ردیف‌های خاص
   final double otherBenefitsOverride; // سایر مزایا - دستی
   final double loanInstallment; // قسط وام
   final double advance; // مساعده
@@ -131,6 +134,10 @@ class SalaryCalculationInput {
     this.overtimeHours = 0,
     this.shiftWork = 0,
     this.hourlyBenefitsAmount = 0,
+    this.autoShiftWork = false,
+    this.autoHourlyBenefits = false,
+    this.insuranceExempt = false,
+    this.taxExempt = false,
     this.otherBenefitsOverride = -1, // -1 = خودکار (از کارمند)
     this.loanInstallment = 0,
     this.advance = 0,
@@ -177,8 +184,8 @@ class SalaryCalculator {
       final rate = bracket['rate'] as double;
 
       if (monthlyTaxableIncome <= from) break;
-      final taxableInBracket =
-          (monthlyTaxableIncome.clamp(from, to) - from).clamp(0.0, double.infinity);
+      final taxableInBracket = (monthlyTaxableIncome.clamp(from, to) - from)
+          .clamp(0.0, double.infinity);
       tax += taxableInBracket * rate;
       if (monthlyTaxableIncome <= to) break;
     }
@@ -188,10 +195,10 @@ class SalaryCalculator {
   /// محاسبه معافیت دو هفتم
   /// در فایل ارسالی نسبت تقریبی 1.86٪ از جمع حقوق و مزایا است
   static double calculateTwoSevenExemption({
-    required double totalEarnings,
+    required double insurance,
     required double exemptionRate,
   }) {
-    return totalEarnings * exemptionRate;
+    return insurance * exemptionRate;
   }
 
   /// محاسبه کامل فیش حقوق ماهانه
@@ -201,93 +208,106 @@ class SalaryCalculator {
     required SalaryCalculationInput input,
   }) {
     final totalDays = input.totalDays;
-    final workDays = input.workDays;
+    final benefitDays = totalDays.clamp(0, AppConstants.standardMonthDays);
 
     // 1) حقوق ثابت = دستمزد روزانه × کل روزها
     final baseSalary = employee.dailyWage1405 * totalDays;
 
-    // 2) حق مسکن = روزانه × 30 (استاندارد)
-    final housing = employee.dailyHousing * AppConstants.standardMonthDays;
+    // 2) مزایای ثابت در اکسل با سقف 30 روز محاسبه می‌شوند.
+    final housing = employee.dailyHousing * benefitDays;
 
-    // 3) حق خواروبار = روزانه × 30
-    final food = employee.dailyFood * AppConstants.standardMonthDays;
+    // 3) حق خواروبار = روزانه × min(کل کارکرد، 30)
+    final food = employee.dailyFood * benefitDays;
 
-    // 4) حق تاهل = (در صورت متاهل بودن) روزانه × 30
+    // 4) حق تاهل = (در صورت متاهل بودن) روزانه × min(کل کارکرد، 30)
     final marriage = employee.isMarried
-        ? employee.dailyMarriage * AppConstants.standardMonthDays
+        ? employee.dailyMarriage * benefitDays
         : 0.0;
 
-    // 5) حق فرزند = روزانه × 30 × تعداد فرزند
-    final childAllowance = employee.dailyChildAllowance *
-        AppConstants.standardMonthDays *
-        employee.childrenCount;
+    // 5) حق فرزند = مبلغ روزانه هر فرزند × تعداد فرزند × min(کل کارکرد، 30)
+    final childAllowance =
+        employee.dailyChildAllowance * employee.childrenCount * benefitDays;
 
-    // 6) پایه سنوات = روزانه × 30
-    final seniority =
-        employee.dailySeniority * AppConstants.standardMonthDays;
+    // 6) پایه سنوات در اکسل با کل کارکرد محاسبه می‌شود.
+    final seniority = employee.dailySeniority * totalDays;
 
-    // 7) سایر مزایا = روزانه × کارکرد خالص (یا مقدار override)
+    // 7) سایر مزایا = روزانه × کل کارکرد (یا مقدار override)
     final otherBenefits = input.otherBenefitsOverride >= 0
         ? input.otherBenefitsOverride
-        : employee.otherBenefitsDaily * workDays;
+        : employee.otherBenefitsDaily * totalDays;
 
-    // 8) اضافه‌کاری = ساعت × (دستمزد ساعتی × 1.40)
-    final hourlyRate = employee.dailyWage1405 / 7.33; // 220 ساعت ماهانه / 30 روز ≈ 7.33
-    final overtimeAmount =
-        input.overtimeHours * hourlyRate * AppConstants.overtimeMultiplier;
+    // 8) اضافه‌کاری و مزایای ساعتی = ساعت × (دستمزد ساعتی × 1.40)
+    final hourlyRate = employee.dailyWage1405 / AppConstants.dailyWorkHours;
+    final overtimeRate = hourlyRate * AppConstants.overtimeMultiplier;
+    final overtimeAmount = input.overtimeHours * overtimeRate;
+    final hourlyBenefitsAmount = input.autoHourlyBenefits
+        ? employee.hourlyBenefits * overtimeRate
+        : input.hourlyBenefitsAmount;
 
-    // 9) جمع کل حقوق و مزایا
-    final totalEarnings = baseSalary +
+    // 9) نوبت‌کاری در اکسل برای افراد مشمول، 15٪ حقوق ثابت است.
+    final shiftWork = input.autoShiftWork
+        ? baseSalary * AppConstants.shiftWorkRate
+        : input.shiftWork;
+
+    // 10) جمع کل حقوق و مزایا
+    final totalEarnings =
+        baseSalary +
         housing +
         food +
         marriage +
         childAllowance +
         seniority +
         otherBenefits +
-        input.shiftWork +
+        shiftWork +
         overtimeAmount +
-        input.hourlyBenefitsAmount;
+        hourlyBenefitsAmount;
 
-    // 10) مبنای بیمه = حقوق ثابت + مزایای مشمول
-    // حقوق مشمول بیمه = حقوق و مزایا منهای کمک هزینه‌های غیرنقدی (مسکن، خواروبار)
-    final insuranceBase = baseSalary +
-        marriage +
-        childAllowance +
-        seniority +
-        otherBenefits +
-        input.shiftWork +
-        overtimeAmount +
-        input.hourlyBenefitsAmount;
+    // 11) مبنای بیمه مطابق اکسل:
+    // min(جمع حقوق و مزایا - حق فرزند، حداقل دستمزد روزانه × 7 × کل کارکرد)
+    final uncappedInsuranceBase = (totalEarnings - childAllowance).clamp(
+      0.0,
+      double.infinity,
+    );
+    final insuranceCap =
+        settings.dailyWage * AppConstants.insuranceCapMultiplier * totalDays;
+    final insuranceBase = input.insuranceExempt
+        ? 0.0
+        : uncappedInsuranceBase < insuranceCap
+        ? uncappedInsuranceBase
+        : insuranceCap;
 
     final insurance = insuranceBase * settings.employeeInsuranceRate;
 
-    // 11) معافیت دو هفتم
+    // 12) معافیت دو هفتم = دو هفتم حق بیمه کارگر
     final twoSevenExemption = calculateTwoSevenExemption(
-      totalEarnings: totalEarnings,
+      insurance: insurance,
       exemptionRate: settings.twoSevenBaseRate,
     );
 
-    // 12) مبنای مالیات
-    final taxBase =
-        (totalEarnings - twoSevenExemption).clamp(0.0, double.infinity);
+    // 13) مبنای مالیات
+    final taxBase = (totalEarnings - twoSevenExemption).clamp(
+      0.0,
+      double.infinity,
+    );
 
-    final tax = calculateTax(taxBase);
+    final tax = input.taxExempt ? 0.0 : calculateTax(taxBase);
 
-    // 13) جمع کسورات
-    final totalDeductions = insurance +
+    // 14) جمع کسورات
+    final totalDeductions =
+        insurance +
         tax +
         input.loanInstallment +
         input.advance +
         input.otherDeductions;
 
-    // 14) خالص حقوق
+    // 15) خالص حقوق
     final netSalary = totalEarnings - totalDeductions;
 
-    // 15) رند نهایی (به نزدیکترین 1000)
-    final roundedFinal = (netSalary ~/ 1000) * 1000;
-    final rounding = (netSalary - roundedFinal).round();
+    // 16) رند نهایی اکسل: ROUND(خالص، -3)
+    final roundedFinal = netSalary <= 0 ? 0 : (netSalary / 1000).round() * 1000;
+    final rounding = (roundedFinal - netSalary).round();
 
-    // 16) سهم کارفرما
+    // 17) سهم کارفرما
     final employerInsurance = insuranceBase * settings.employerInsuranceRate;
     final unemploymentInsurance =
         insuranceBase * settings.unemploymentInsuranceRate;
@@ -300,9 +320,9 @@ class SalaryCalculator {
       childAllowance: childAllowance,
       seniority: seniority,
       otherBenefits: otherBenefits,
-      shiftWork: input.shiftWork,
+      shiftWork: shiftWork,
       overtimeAmount: overtimeAmount,
-      hourlyBenefitsAmount: input.hourlyBenefitsAmount,
+      hourlyBenefitsAmount: hourlyBenefitsAmount,
       totalEarnings: totalEarnings,
       insurance: insurance,
       tax: tax,

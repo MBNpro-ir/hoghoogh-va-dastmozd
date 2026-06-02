@@ -25,7 +25,11 @@ class CurrencyText extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Text(
-      PersianNumberFormatter.formatRial(value, persian: persian, showUnit: showUnit),
+      PersianNumberFormatter.formatRial(
+        value,
+        persian: persian,
+        showUnit: showUnit,
+      ),
       textAlign: align,
       style: (style ?? theme.textTheme.bodyMedium)?.copyWith(
         color: color ?? style?.color,
