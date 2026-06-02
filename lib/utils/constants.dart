@@ -1,8 +1,25 @@
+import 'dart:io';
+
 /// ثابت‌های برنامه - مقادیر پیش‌فرض حقوق و دستمزد 1405
 class AppConstants {
   static const String appName = 'حقوق و دستمزد فرایند کود و سم بافق';
-  static const String appVersion = '0.0.4 alpha';
   static const String fontFamily = 'Vazirmatn';
+
+  /// ورژن برنامه - فقط از pubspec.yaml خوانده می‌شود.
+  /// برای تغییر ورژن، فقط فایل pubspec.yaml را ویرایش کنید.
+  static String get appVersion {
+    try {
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      final match = RegExp(r'^version:\s*(.+)$', multiLine: true)
+          .firstMatch(pubspec);
+      if (match != null) {
+        final raw = match.group(1)!.trim();
+        // تبدیل "0.0.4-alpha+4" به "0.0.4 alpha"
+        return raw.replaceAll('-', ' ').split('+').first.trim();
+      }
+    } catch (_) {}
+    return 'dev';
+  }
 
   // سال محاسبات
   static const int currentYear = 1405;
