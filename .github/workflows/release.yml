@@ -58,20 +58,11 @@ jobs:
       - name: Build APK (universal - ARM32 + ARM64)
         run: flutter build apk --release
 
-      - name: Build App Bundle
-        run: flutter build appbundle --release
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: payroll-app-android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: payroll-app-android-aab
-          path: build/app/outputs/bundle/release/app-release.aab
 
   build_windows_x64:
     name: Build Windows x64
@@ -184,7 +175,6 @@ jobs:
           body_path: CHANGELOG.md
           files: |
             artifacts/payroll-app-android-apk/app-release.apk
-            artifacts/payroll-app-android-aab/app-release.aab
             artifacts/payroll-app-windows-x64/payroll-app-windows-x64.zip
             artifacts/payroll-app-linux-x64/payroll-app-linux-x64.tar.gz
         env:
