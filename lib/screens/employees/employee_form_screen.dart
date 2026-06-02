@@ -8,7 +8,6 @@ import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/persian_number_formatter.dart';
-import '../../utils/responsive.dart';
 import '../../widgets/persian_number_field.dart';
 
 class EmployeeFormScreen extends StatefulWidget {
@@ -189,12 +188,17 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     );
   }
 
+  bool get _isMobile => MediaQuery.sizeOf(context).width < 600;
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final scheme = Theme.of(context).colorScheme;
+    final isMobile = _isMobile;
+    final padding = isMobile ? 12.0 : 20.0;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -226,529 +230,565 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(padding),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1100),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildSection(
-                    context: context,
-                    title: 'مشخصات فردی',
-                    icon: Icons.badge_rounded,
-                    accent: scheme.primary,
-                    children: [
-                      _row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _personnelCodeCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'کد پرسنلی *',
-                                prefixIcon: Icon(Icons.tag_rounded, size: 20),
-                              ),
-                              textDirection: TextDirection.ltr,
-                              validator: (v) => v == null || v.trim().isEmpty
-                                  ? 'الزامی است'
-                                  : null,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              controller: _firstNameCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'نام *',
-                                prefixIcon: Icon(
-                                  Icons.person_rounded,
-                                  size: 20,
-                                ),
-                              ),
-                              validator: (v) => v == null || v.trim().isEmpty
-                                  ? 'الزامی است'
-                                  : null,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              controller: _lastNameCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'نام خانوادگی *',
-                                prefixIcon: Icon(
-                                  Icons.person_outline_rounded,
-                                  size: 20,
-                                ),
-                              ),
-                              validator: (v) => v == null || v.trim().isEmpty
-                                  ? 'الزامی است'
-                                  : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              controller: _nationalIdCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'کد ملی *',
-                                prefixIcon: Icon(
-                                  Icons.credit_card_rounded,
-                                  size: 20,
-                                ),
-                                counterText: '',
-                              ),
-                              textDirection: TextDirection.ltr,
-                              maxLength: 10,
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) {
-                                  return 'الزامی است';
-                                }
-                                final en = PersianNumberFormatter.toEnglish(
-                                  v.trim(),
-                                );
-                                if (en.length != 10) {
-                                  return 'کد ملی باید ۱۰ رقم باشد';
-                                }
-                                return null;
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _startDateCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'تاریخ شروع به کار *',
-                                prefixIcon: Icon(
-                                  Icons.calendar_today_rounded,
-                                  size: 20,
-                                ),
-                                hintText: 'مثلا: 1402/01/01',
-                              ),
-                              textDirection: TextDirection.ltr,
-                              validator: (v) => v == null || v.trim().isEmpty
-                                  ? 'الزامی است'
-                                  : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  _buildPersonalInfoSection(context, isMobile),
                   const SizedBox(height: 16),
-                  _buildSection(
-                    context: context,
-                    title: 'وضعیت تاهل و فرزند',
-                    icon: Icons.family_restroom_rounded,
-                    accent: scheme.tertiary,
-                    children: [
-                      _row(
-                        children: [
-                          Expanded(
-                            child: SwitchListTile(
-                              title: const Text('متاهل'),
-                              value: _isMarried,
-                              onChanged: (v) {
-                                setState(() => _isMarried = v);
-                                _autoCalculate1405();
-                              },
-                              secondary: Icon(
-                                _isMarried
-                                    ? Icons.favorite_rounded
-                                    : Icons.favorite_border_rounded,
-                                color: scheme.tertiary,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: SwitchListTile(
-                              title: const Text('بیش از ۴ سال سابقه'),
-                              value: _hasPriorExperience,
-                              onChanged: (v) {
-                                setState(() => _hasPriorExperience = v);
-                                _autoCalculate1405();
-                              },
-                              secondary: Icon(
-                                Icons.workspace_premium_rounded,
-                                color: AppTheme.warningColor,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.child_care_rounded,
-                                    color: scheme.tertiary,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Text('تعداد فرزند: '),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    onPressed: _childrenCount > 0
-                                        ? () {
-                                            setState(() => _childrenCount--);
-                                            _autoCalculate1405();
-                                          }
-                                        : null,
-                                    icon: const Icon(
-                                      Icons.remove_circle_outline_rounded,
-                                    ),
-                                  ),
-                                  Text(
-                                    PersianNumberFormatter.toPersian(
-                                      _childrenCount.toString(),
-                                    ),
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () {
-                                      setState(() => _childrenCount++);
-                                      _autoCalculate1405();
-                                    },
-                                    icon: const Icon(
-                                      Icons.add_circle_outline_rounded,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  _buildMaritalSection(context, isMobile),
                   const SizedBox(height: 16),
-                  _buildSection(
-                    context: context,
-                    title: 'محاسبه دستمزد ۱۴۰۵',
-                    icon: Icons.payments_rounded,
-                    accent: AppTheme.successColor,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.warningColor.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.radiusMd,
-                          ),
-                          border: Border.all(
-                            color: AppTheme.warningColor.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.info_outline_rounded,
-                              color: AppTheme.warningColor,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'دستمزد روزانه ۱۴۰۵ = دستمزد ۱۴۰۴ × ضریب + ثابت ریالی\n'
-                                'ثابت ریالی ${PersianNumberFormatter.formatRial(_settings!.fixedRial)} ریال',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _row(
-                        children: [
-                          Expanded(
-                            child: PersianNumberField(
-                              label: 'دستمزد روزانه ۱۴۰۴ *',
-                              isCurrency: true,
-                              prefixIcon: Icons.history_rounded,
-                              initialValue: _dailyWage1404,
-                              onChanged: (v) {
-                                _dailyWage1404 = v?.toDouble() ?? 0;
-                                _autoCalculate1405();
-                              },
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'الزامی است'
-                                  : null,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: InputDecorator(
-                              decoration: const InputDecoration(
-                                labelText: 'ضریب افزایش ۱۴۰۵',
-                                prefixIcon: Icon(
-                                  Icons.percent_rounded,
-                                  size: 20,
-                                ),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<double>(
-                                  isExpanded: true,
-                                  value: _selectedRate,
-                                  items: [
-                                    DropdownMenuItem(
-                                      value: _settings!.salaryRateA,
-                                      child: Text(
-                                        '${PersianNumberFormatter.toPersian(_settings!.salaryRateA.toString())} (کارگری)',
-                                      ),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: _settings!.salaryRateB,
-                                      child: Text(
-                                        '${PersianNumberFormatter.toPersian(_settings!.salaryRateB.toString())} (سایر سطوح)',
-                                      ),
-                                    ),
-                                  ],
-                                  onChanged: (v) {
-                                    if (v != null) {
-                                      setState(() => _selectedRate = v);
-                                      _autoCalculate1405();
-                                    }
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: PersianNumberField(
-                              key: ValueKey('dw1405_$_dailyWage1405'),
-                              label: 'دستمزد روزانه ۱۴۰۵ (خودکار)',
-                              isCurrency: true,
-                              prefixIcon: Icons.calculate_rounded,
-                              initialValue: _dailyWage1405,
-                              onChanged: (v) {
-                                _dailyWage1405 = v?.toDouble() ?? 0;
-                                _baseSalary30Days =
-                                    _dailyWage1405 *
-                                    AppConstants.standardMonthDays;
-                                setState(() {});
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _row(
-                        children: [
-                          Expanded(
-                            child: PersianNumberField(
-                              key: ValueKey('bs30_$_baseSalary30Days'),
-                              label: 'حقوق پایه (۳۰ روز)',
-                              isCurrency: true,
-                              prefixIcon: Icons.attach_money_rounded,
-                              initialValue: _baseSalary30Days,
-                              onChanged: (v) =>
-                                  _baseSalary30Days = v?.toDouble() ?? 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  _buildSalarySection(context, isMobile),
                   const SizedBox(height: 16),
-                  _buildSection(
-                    context: context,
-                    title: 'مزایای روزانه',
-                    icon: Icons.card_giftcard_rounded,
-                    accent: scheme.secondary,
-                    children: [
-                      _row(
-                        children: [
-                          Expanded(
-                            child: PersianNumberField(
-                              label: 'حق مسکن (روزانه)',
-                              isCurrency: true,
-                              prefixIcon: Icons.home_rounded,
-                              initialValue: _dailyHousing,
-                              onChanged: (v) =>
-                                  _dailyHousing = v?.toDouble() ?? 0,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: PersianNumberField(
-                              label: 'حق خواروبار (روزانه)',
-                              isCurrency: true,
-                              prefixIcon: Icons.shopping_basket_rounded,
-                              initialValue: _dailyFood,
-                              onChanged: (v) => _dailyFood = v?.toDouble() ?? 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _row(
-                        children: [
-                          Expanded(
-                            child: PersianNumberField(
-                              key: ValueKey('mar_$_dailyMarriage'),
-                              label: 'حق تاهل (روزانه)',
-                              isCurrency: true,
-                              prefixIcon: Icons.favorite_rounded,
-                              initialValue: _dailyMarriage,
-                              onChanged: (v) =>
-                                  _dailyMarriage = v?.toDouble() ?? 0,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: PersianNumberField(
-                              label: 'حق فرزند (روزانه - هر فرزند)',
-                              isCurrency: true,
-                              prefixIcon: Icons.child_care_rounded,
-                              initialValue: _dailyChildAllowance,
-                              onChanged: (v) =>
-                                  _dailyChildAllowance = v?.toDouble() ?? 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _row(
-                        children: [
-                          Expanded(
-                            child: PersianNumberField(
-                              key: ValueKey('sen_$_dailySeniority'),
-                              label: 'پایه سنوات (روزانه)',
-                              isCurrency: true,
-                              prefixIcon: Icons.workspace_premium_rounded,
-                              initialValue: _dailySeniority,
-                              onChanged: (v) =>
-                                  _dailySeniority = v?.toDouble() ?? 0,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: PersianNumberField(
-                              label: 'پایه سنوات سال گذشته (روزانه)',
-                              isCurrency: true,
-                              prefixIcon: Icons.history_toggle_off_rounded,
-                              initialValue: _lastYearSeniority,
-                              onChanged: (v) =>
-                                  _lastYearSeniority = v?.toDouble() ?? 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _row(
-                        children: [
-                          Expanded(
-                            child: PersianNumberField(
-                              label: 'سایر مزایا نسبت به کارکرد (روزانه)',
-                              isCurrency: true,
-                              prefixIcon: Icons.add_box_rounded,
-                              initialValue: _otherBenefitsDaily,
-                              onChanged: (v) =>
-                                  _otherBenefitsDaily = v?.toDouble() ?? 0,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: PersianNumberField(
-                              label: 'مزایای ساعتی',
-                              isCurrency: true,
-                              prefixIcon: Icons.access_time_rounded,
-                              initialValue: _hourlyBenefits,
-                              onChanged: (v) =>
-                                  _hourlyBenefits = v?.toDouble() ?? 0,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  _buildBenefitsSection(context, isMobile),
                   const SizedBox(height: 16),
-                  _buildSection(
-                    context: context,
-                    title: 'یادداشت',
-                    icon: Icons.note_alt_rounded,
-                    accent: scheme.onSurfaceVariant,
-                    children: [
-                      TextFormField(
-                        controller: _notesCtrl,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'یادداشت (اختیاری)',
-                          hintText: 'مثلاً: کارگر فصلی، انتقالی از واحد...',
-                        ),
-                      ),
-                    ],
-                  ),
+                  _buildNotesSection(context),
                   const SizedBox(height: 24),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final responsive = Responsive.of(context);
-                      if (responsive.isCompact) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: () => Navigator.pop(context),
-                              icon: const Icon(Icons.close_rounded),
-                              label: const Text('انصراف'),
-                            ),
-                            const SizedBox(height: 12),
-                            FilledButton.icon(
-                              onPressed: _saving ? null : _save,
-                              icon: const Icon(Icons.save_rounded),
-                              label: Text(
-                                widget.employee == null
-                                    ? 'افزودن کارمند'
-                                    : 'ذخیره تغییرات',
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => Navigator.pop(context),
-                              icon: const Icon(Icons.close_rounded),
-                              label: const Text('انصراف'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: FilledButton.icon(
-                              onPressed: _saving ? null : _save,
-                              icon: const Icon(Icons.save_rounded),
-                              label: Text(
-                                widget.employee == null
-                                    ? 'افزودن کارمند'
-                                    : 'ذخیره تغییرات',
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
+                  _buildActionButtons(context, isMobile),
                 ],
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPersonalInfoSection(BuildContext context, bool isMobile) {
+    return _buildSection(
+      context: context,
+      title: 'مشخصات فردی',
+      icon: Icons.badge_rounded,
+      accent: Theme.of(context).colorScheme.primary,
+      children: [
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              flex: 1,
+              child: TextFormField(
+                controller: _personnelCodeCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'کد پرسنلی *',
+                  prefixIcon: Icon(Icons.tag_rounded, size: 20),
+                ),
+                textDirection: TextDirection.ltr,
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'الزامی است' : null,
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              flex: 2,
+              child: TextFormField(
+                controller: _firstNameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'نام *',
+                  prefixIcon: Icon(Icons.person_rounded, size: 20),
+                ),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'الزامی است' : null,
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              flex: 2,
+              child: TextFormField(
+                controller: _lastNameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'نام خانوادگی *',
+                  prefixIcon: Icon(Icons.person_outline_rounded, size: 20),
+                ),
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'الزامی است' : null,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: isMobile ? 8 : 12),
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              flex: 2,
+              child: TextFormField(
+                controller: _nationalIdCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'کد ملی *',
+                  prefixIcon: Icon(Icons.credit_card_rounded, size: 20),
+                  counterText: '',
+                ),
+                textDirection: TextDirection.ltr,
+                maxLength: 10,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'الزامی است';
+                  final en = PersianNumberFormatter.toEnglish(v.trim());
+                  if (en.length != 10) return 'کد ملی باید ۱۰ رقم باشد';
+                  return null;
+                },
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              flex: 1,
+              child: TextFormField(
+                controller: _startDateCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'تاریخ شروع *',
+                  prefixIcon: Icon(Icons.calendar_today_rounded, size: 20),
+                  hintText: 'مثلا: 1402/01/01',
+                ),
+                textDirection: TextDirection.ltr,
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'الزامی است' : null,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMaritalSection(BuildContext context, bool isMobile) {
+    final scheme = Theme.of(context).colorScheme;
+    return _buildSection(
+      context: context,
+      title: 'وضعیت تاهل و فرزند',
+      icon: Icons.family_restroom_rounded,
+      accent: scheme.tertiary,
+      children: [
+        if (isMobile)
+          Column(
+            children: [
+              SwitchListTile(
+                title: const Text('متاهل'),
+                value: _isMarried,
+                onChanged: (v) {
+                  setState(() => _isMarried = v);
+                  _autoCalculate1405();
+                },
+                secondary: Icon(
+                  _isMarried
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: scheme.tertiary,
+                ),
+                contentPadding: EdgeInsets.zero,
+              ),
+              SwitchListTile(
+                title: const Text('بیش از ۴ سال سابقه'),
+                value: _hasPriorExperience,
+                onChanged: (v) {
+                  setState(() => _hasPriorExperience = v);
+                  _autoCalculate1405();
+                },
+                secondary: Icon(
+                  Icons.workspace_premium_rounded,
+                  color: AppTheme.warningColor,
+                ),
+                contentPadding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 4),
+              _buildChildrenCounter(isMobile),
+            ],
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: SwitchListTile(
+                  title: const Text('متاهل'),
+                  value: _isMarried,
+                  onChanged: (v) {
+                    setState(() => _isMarried = v);
+                    _autoCalculate1405();
+                  },
+                  secondary: Icon(
+                    _isMarried
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    color: scheme.tertiary,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: SwitchListTile(
+                  title: const Text('بیش از ۴ سال سابقه'),
+                  value: _hasPriorExperience,
+                  onChanged: (v) {
+                    setState(() => _hasPriorExperience = v);
+                    _autoCalculate1405();
+                  },
+                  secondary: Icon(
+                    Icons.workspace_premium_rounded,
+                    color: AppTheme.warningColor,
+                  ),
+                ),
+              ),
+              Expanded(child: _buildChildrenCounter(false)),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildChildrenCounter(bool isMobile) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 0 : 12),
+      child: Row(
+        mainAxisAlignment: isMobile ? MainAxisAlignment.start : MainAxisAlignment.center,
+        children: [
+          Icon(Icons.child_care_rounded, color: scheme.tertiary, size: 20),
+          const SizedBox(width: 6),
+          const Text('فرزند:', style: TextStyle(fontSize: 14)),
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: _childrenCount > 0
+                ? () {
+                    setState(() => _childrenCount--);
+                    _autoCalculate1405();
+                  }
+                : null,
+            icon: const Icon(Icons.remove_circle_outline_rounded, size: 24),
+            padding: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+          SizedBox(
+            width: 32,
+            child: Text(
+              PersianNumberFormatter.toPersian(_childrenCount.toString()),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              setState(() => _childrenCount++);
+              _autoCalculate1405();
+            },
+            icon: const Icon(Icons.add_circle_outline_rounded, size: 24),
+            padding: const EdgeInsets.all(4),
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSalarySection(BuildContext context, bool isMobile) {
+    return _buildSection(
+      context: context,
+      title: 'محاسبه دستمزد ۱۴۰۵',
+      icon: Icons.payments_rounded,
+      accent: AppTheme.successColor,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.warningColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            border: Border.all(
+              color: AppTheme.warningColor.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline_rounded, color: AppTheme.warningColor, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'دستمزد روزانه ۱۴۰۵ = دستمزد ۱۴۰۴ × ضریب + ثابت ریالی\n'
+                  'ثابت ریالی ${PersianNumberFormatter.formatRial(_settings!.fixedRial)} ریال',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: isMobile ? 8 : 12),
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'دستمزد روزانه ۱۴۰۴ *',
+                isCurrency: true,
+                prefixIcon: Icons.history_rounded,
+                initialValue: _dailyWage1404,
+                onChanged: (v) {
+                  _dailyWage1404 = v?.toDouble() ?? 0;
+                  _autoCalculate1405();
+                },
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'الزامی است' : null,
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'ضریب افزایش ۱۴۰۵',
+                  prefixIcon: Icon(Icons.percent_rounded, size: 20),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<double>(
+                    isExpanded: true,
+                    value: _selectedRate,
+                    items: [
+                      DropdownMenuItem(
+                        value: _settings!.salaryRateA,
+                        child: Text(
+                          '${PersianNumberFormatter.toPersian(_settings!.salaryRateA.toString())} (کارگری)',
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: _settings!.salaryRateB,
+                        child: Text(
+                          '${PersianNumberFormatter.toPersian(_settings!.salaryRateB.toString())} (سایر)',
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _selectedRate = v);
+                        _autoCalculate1405();
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                key: ValueKey('dw1405_$_dailyWage1405'),
+                label: 'دستمزد ۱۴۰۵ (خودکار)',
+                isCurrency: true,
+                prefixIcon: Icons.calculate_rounded,
+                initialValue: _dailyWage1405,
+                onChanged: (v) {
+                  _dailyWage1405 = v?.toDouble() ?? 0;
+                  _baseSalary30Days =
+                      _dailyWage1405 * AppConstants.standardMonthDays;
+                  setState(() {});
+                },
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: isMobile ? 8 : 12),
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                key: ValueKey('bs30_$_baseSalary30Days'),
+                label: 'حقوق پایه (۳۰ روز)',
+                isCurrency: true,
+                prefixIcon: Icons.attach_money_rounded,
+                initialValue: _baseSalary30Days,
+                onChanged: (v) =>
+                    _baseSalary30Days = v?.toDouble() ?? 0,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBenefitsSection(BuildContext context, bool isMobile) {
+    return _buildSection(
+      context: context,
+      title: 'مزایای روزانه',
+      icon: Icons.card_giftcard_rounded,
+      accent: Theme.of(context).colorScheme.secondary,
+      children: [
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'حق مسکن',
+                isCurrency: true,
+                prefixIcon: Icons.home_rounded,
+                initialValue: _dailyHousing,
+                onChanged: (v) => _dailyHousing = v?.toDouble() ?? 0,
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'حق خواروبار',
+                isCurrency: true,
+                prefixIcon: Icons.shopping_basket_rounded,
+                initialValue: _dailyFood,
+                onChanged: (v) => _dailyFood = v?.toDouble() ?? 0,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: isMobile ? 8 : 12),
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                key: ValueKey('mar_$_dailyMarriage'),
+                label: 'حق تاهل',
+                isCurrency: true,
+                prefixIcon: Icons.favorite_rounded,
+                initialValue: _dailyMarriage,
+                onChanged: (v) => _dailyMarriage = v?.toDouble() ?? 0,
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'حق فرزند (هر فرزند)',
+                isCurrency: true,
+                prefixIcon: Icons.child_care_rounded,
+                initialValue: _dailyChildAllowance,
+                onChanged: (v) =>
+                    _dailyChildAllowance = v?.toDouble() ?? 0,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: isMobile ? 8 : 12),
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                key: ValueKey('sen_$_dailySeniority'),
+                label: 'پایه سنوات',
+                isCurrency: true,
+                prefixIcon: Icons.workspace_premium_rounded,
+                initialValue: _dailySeniority,
+                onChanged: (v) => _dailySeniority = v?.toDouble() ?? 0,
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'سنوات سال گذشته',
+                isCurrency: true,
+                prefixIcon: Icons.history_toggle_off_rounded,
+                initialValue: _lastYearSeniority,
+                onChanged: (v) =>
+                    _lastYearSeniority = v?.toDouble() ?? 0,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: isMobile ? 8 : 12),
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'سایر مزایا',
+                isCurrency: true,
+                prefixIcon: Icons.add_box_rounded,
+                initialValue: _otherBenefitsDaily,
+                onChanged: (v) =>
+                    _otherBenefitsDaily = v?.toDouble() ?? 0,
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'مزایای ساعتی',
+                isCurrency: true,
+                prefixIcon: Icons.access_time_rounded,
+                initialValue: _hourlyBenefits,
+                onChanged: (v) => _hourlyBenefits = v?.toDouble() ?? 0,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNotesSection(BuildContext context) {
+    return _buildSection(
+      context: context,
+      title: 'یادداشت',
+      icon: Icons.note_alt_rounded,
+      accent: Theme.of(context).colorScheme.onSurfaceVariant,
+      children: [
+        TextFormField(
+          controller: _notesCtrl,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'یادداشت (اختیاری)',
+            hintText: 'مثلاً: کارگر فصلی، انتقالی از واحد...',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context, bool isMobile) {
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          OutlinedButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close_rounded),
+            label: const Text('انصراف'),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: const Icon(Icons.save_rounded),
+            label: Text(
+              widget.employee == null
+                  ? 'افزودن کارمند'
+                  : 'ذخیره تغییرات',
+            ),
+          ),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close_rounded),
+            label: const Text('انصراف'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: FilledButton.icon(
+            onPressed: _saving ? null : _save,
+            icon: const Icon(Icons.save_rounded),
+            label: Text(
+              widget.employee == null
+                  ? 'افزودن کارمند'
+                  : 'ذخیره تغییرات',
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -759,9 +799,10 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     required Color accent,
     required List<Widget> children,
   }) {
+    final isMobile = _isMobile;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -773,10 +814,17 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                     color: accent.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                   ),
-                  child: Icon(icon, color: accent, size: 22),
+                  child: Icon(icon, color: accent, size: isMobile ? 20 : 22),
                 ),
-                const SizedBox(width: 12),
-                Text(title, style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: isMobile
+                        ? Theme.of(context).textTheme.titleMedium
+                        : Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
               ],
             ),
             const Divider(height: 24),
@@ -787,10 +835,40 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     );
   }
 
-  Widget _row({required List<Widget> children}) {
+  /// On mobile: stacks children vertically.
+  /// On desktop: lays them out in a Row.
+  Widget _responsiveRow({
+    required bool isMobile,
+    required List<Widget> children,
+  }) {
+    if (isMobile) {
+      return Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            children[i],
+          ],
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: children,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          Expanded(child: children[i]),
+        ],
+      ],
     );
+  }
+
+  /// Wraps a child in Expanded on desktop, full-width on mobile.
+  Widget _responsiveField({
+    required bool isMobile,
+    required Widget child,
+    int flex = 1,
+  }) {
+    if (isMobile) return child;
+    return Expanded(flex: flex, child: child);
   }
 }

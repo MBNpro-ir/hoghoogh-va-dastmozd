@@ -1,7 +1,7 @@
 /// ثابت‌های برنامه - مقادیر پیش‌فرض حقوق و دستمزد 1405
 class AppConstants {
   static const String appName = 'حقوق و دستمزد فرایند کود و سم بافق';
-  static const String appVersion = '0.0.3 alpha';
+  static const String appVersion = '0.0.4 alpha';
   static const String fontFamily = 'Vazirmatn';
 
   // سال محاسبات

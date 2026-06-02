@@ -156,12 +156,37 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
     );
   }
 
+  bool get _isMobile => MediaQuery.sizeOf(context).width < 600;
+
+  Widget _responsiveRow({required bool isMobile, required List<Widget> children}) {
+    if (isMobile) {
+      return Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            children[i],
+          ],
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          Expanded(child: children[i]),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     final scheme = Theme.of(context).colorScheme;
+    final isMobile = _isMobile;
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.loan == null ? 'افزودن وام جدید' : 'ویرایش وام'),
@@ -203,7 +228,7 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(isMobile ? 12 : 20),
                 child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 800),
@@ -260,43 +285,39 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                                   : null,
                             ),
                             const SizedBox(height: 12),
-                            Row(
+                            _responsiveRow(
+                              isMobile: isMobile,
                               children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _installmentsCtrl,
-                                    textDirection: TextDirection.ltr,
-                                    decoration: const InputDecoration(
-                                      labelText: 'تعداد کل اقساط *',
-                                      prefixIcon: Icon(Icons.numbers_rounded),
-                                    ),
-                                    onChanged: (_) =>
-                                        _autoCalculateInstallment(),
-                                    validator: (v) {
-                                      if (v == null || v.trim().isEmpty) {
-                                        return 'الزامی است';
-                                      }
-                                      final num = int.tryParse(
-                                        PersianNumberFormatter.toEnglish(
-                                          v,
-                                        ).trim(),
-                                      );
-                                      if (num == null || num <= 0) {
-                                        return 'عدد نامعتبر';
-                                      }
-                                      return null;
-                                    },
+                                TextFormField(
+                                  controller: _installmentsCtrl,
+                                  textDirection: TextDirection.ltr,
+                                  decoration: const InputDecoration(
+                                    labelText: 'تعداد کل اقساط *',
+                                    prefixIcon: Icon(Icons.numbers_rounded),
                                   ),
+                                  onChanged: (_) =>
+                                      _autoCalculateInstallment(),
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) {
+                                      return 'الزامی است';
+                                    }
+                                    final num = int.tryParse(
+                                      PersianNumberFormatter.toEnglish(
+                                        v,
+                                      ).trim(),
+                                    );
+                                    if (num == null || num <= 0) {
+                                      return 'عدد نامعتبر';
+                                    }
+                                    return null;
+                                  },
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _paidCtrl,
-                                    textDirection: TextDirection.ltr,
-                                    decoration: const InputDecoration(
-                                      labelText: 'اقساط پرداخت شده',
-                                      prefixIcon: Icon(Icons.done_rounded),
-                                    ),
+                                TextFormField(
+                                  controller: _paidCtrl,
+                                  textDirection: TextDirection.ltr,
+                                  decoration: const InputDecoration(
+                                    labelText: 'اقساط پرداخت شده',
+                                    prefixIcon: Icon(Icons.done_rounded),
                                   ),
                                 ),
                               ],

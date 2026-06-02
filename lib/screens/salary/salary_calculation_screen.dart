@@ -230,6 +230,30 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     }
   }
 
+  bool get _isMobile => MediaQuery.sizeOf(context).width < 600;
+
+  Widget _responsiveRow({required bool isMobile, required List<Widget> children}) {
+    if (isMobile) {
+      return Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            children[i],
+          ],
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          Expanded(child: children[i]),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -335,69 +359,65 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 onChanged: _onEmployeeChanged,
               ),
               const SizedBox(height: 12),
-              Row(
+              _responsiveRow(
+                isMobile: _isMobile,
                 children: [
-                  Expanded(
-                    child: DropdownButtonFormField<int>(
-                      initialValue: _month,
-                      decoration: const InputDecoration(
-                        labelText: 'ماه',
-                        prefixIcon: Icon(Icons.calendar_view_month_rounded),
-                      ),
-                      items: List.generate(12, (i) {
-                        final m = i + 1;
-                        return DropdownMenuItem(
-                          value: m,
-                          child: Text(PersianDateHelper.monthName(m)),
-                        );
-                      }),
-                      onChanged: (v) async {
-                        if (v != null) {
-                          setState(() {
-                            _month = v;
-                            _totalDays = PersianDateHelper.daysInMonth(
-                              _year,
-                              v,
-                            );
-                          });
-                          await _checkExistingRecord();
-                          _calculate();
-                        }
-                      },
+                  DropdownButtonFormField<int>(
+                    initialValue: _month,
+                    decoration: const InputDecoration(
+                      labelText: 'ماه',
+                      prefixIcon: Icon(Icons.calendar_view_month_rounded),
                     ),
+                    items: List.generate(12, (i) {
+                      final m = i + 1;
+                      return DropdownMenuItem(
+                        value: m,
+                        child: Text(PersianDateHelper.monthName(m)),
+                      );
+                    }),
+                    onChanged: (v) async {
+                      if (v != null) {
+                        setState(() {
+                          _month = v;
+                          _totalDays = PersianDateHelper.daysInMonth(
+                            _year,
+                            v,
+                          );
+                        });
+                        await _checkExistingRecord();
+                        _calculate();
+                      }
+                    },
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<int>(
-                      initialValue: _year,
-                      decoration: const InputDecoration(
-                        labelText: 'سال',
-                        prefixIcon: Icon(Icons.event_rounded),
-                      ),
-                      items: [1404, 1405, 1406]
-                          .map(
-                            (y) => DropdownMenuItem(
-                              value: y,
-                              child: Text(
-                                PersianNumberFormatter.toPersian(y.toString()),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) async {
-                        if (v != null) {
-                          setState(() {
-                            _year = v;
-                            _totalDays = PersianDateHelper.daysInMonth(
-                              v,
-                              _month,
-                            );
-                          });
-                          await _checkExistingRecord();
-                          _calculate();
-                        }
-                      },
+                  DropdownButtonFormField<int>(
+                    initialValue: _year,
+                    decoration: const InputDecoration(
+                      labelText: 'سال',
+                      prefixIcon: Icon(Icons.event_rounded),
                     ),
+                    items: [1404, 1405, 1406]
+                        .map(
+                          (y) => DropdownMenuItem(
+                            value: y,
+                            child: Text(
+                              PersianNumberFormatter.toPersian(y.toString()),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) async {
+                      if (v != null) {
+                        setState(() {
+                          _year = v;
+                          _totalDays = PersianDateHelper.daysInMonth(
+                            v,
+                            _month,
+                          );
+                        });
+                        await _checkExistingRecord();
+                        _calculate();
+                      }
+                    },
                   ),
                 ],
               ),
@@ -409,61 +429,52 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
             icon: Icons.access_time_rounded,
             accent: Theme.of(context).colorScheme.tertiary,
             children: [
-              Row(
+              _responsiveRow(
+                isMobile: _isMobile,
                 children: [
-                  Expanded(
-                    child: _intField(
-                      label: 'کل کارکرد (روز)',
-                      icon: Icons.date_range_rounded,
-                      value: _totalDays,
-                      onChanged: (v) {
-                        setState(() => _totalDays = v);
-                        _calculate();
-                      },
-                    ),
+                  _intField(
+                    label: 'کل کارکرد (روز)',
+                    icon: Icons.date_range_rounded,
+                    value: _totalDays,
+                    onChanged: (v) {
+                      setState(() => _totalDays = v);
+                      _calculate();
+                    },
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _intField(
-                      label: 'مرخصی (روز)',
-                      icon: Icons.beach_access_rounded,
-                      value: _leaveDays,
-                      onChanged: (v) {
-                        setState(() => _leaveDays = v);
-                        _calculate();
-                      },
-                    ),
+                  _intField(
+                    label: 'مرخصی (روز)',
+                    icon: Icons.beach_access_rounded,
+                    value: _leaveDays,
+                    onChanged: (v) {
+                      setState(() => _leaveDays = v);
+                      _calculate();
+                    },
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(child: _workDaysCard()),
+                  _workDaysCard(),
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
+              _responsiveRow(
+                isMobile: _isMobile,
                 children: [
-                  Expanded(
-                    child: PersianNumberField(
-                      label: 'ساعت اضافه‌کاری',
-                      prefixIcon: Icons.timer_rounded,
-                      initialValue: _overtimeHours,
-                      onChanged: (v) {
-                        _overtimeHours = v?.toDouble() ?? 0;
-                        _calculate();
-                      },
-                    ),
+                  PersianNumberField(
+                    label: 'ساعت اضافه‌کاری',
+                    prefixIcon: Icons.timer_rounded,
+                    initialValue: _overtimeHours,
+                    onChanged: (v) {
+                      _overtimeHours = v?.toDouble() ?? 0;
+                      _calculate();
+                    },
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('نوبت‌کاری خودکار'),
-                      subtitle: const Text('۱۵٪ حقوق ثابت، مطابق اکسل'),
-                      value: _useAutoShiftWork,
-                      onChanged: (v) {
-                        setState(() => _useAutoShiftWork = v);
-                        _calculate();
-                      },
-                    ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('نوبت‌کاری خودکار'),
+                    subtitle: const Text('۱۵٪ حقوق ثابت، مطابق اکسل'),
+                    value: _useAutoShiftWork,
+                    onChanged: (v) {
+                      setState(() => _useAutoShiftWork = v);
+                      _calculate();
+                    },
                   ),
                 ],
               ),
@@ -606,32 +617,28 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 },
               ),
               const SizedBox(height: 12),
-              Row(
+              _responsiveRow(
+                isMobile: _isMobile,
                 children: [
-                  Expanded(
-                    child: PersianNumberField(
-                      label: 'مساعده (ریال)',
-                      isCurrency: true,
-                      prefixIcon: Icons.attach_money_rounded,
-                      initialValue: _advance,
-                      onChanged: (v) {
-                        _advance = v?.toDouble() ?? 0;
-                        _calculate();
-                      },
-                    ),
+                  PersianNumberField(
+                    label: 'مساعده (ریال)',
+                    isCurrency: true,
+                    prefixIcon: Icons.attach_money_rounded,
+                    initialValue: _advance,
+                    onChanged: (v) {
+                      _advance = v?.toDouble() ?? 0;
+                      _calculate();
+                    },
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: PersianNumberField(
-                      label: 'سایر کسورات / مابه تفاوت',
-                      isCurrency: true,
-                      prefixIcon: Icons.remove_circle_outline_rounded,
-                      initialValue: _otherDeductions,
-                      onChanged: (v) {
-                        _otherDeductions = v?.toDouble() ?? 0;
-                        _calculate();
-                      },
-                    ),
+                  PersianNumberField(
+                    label: 'سایر کسورات / مابه تفاوت',
+                    isCurrency: true,
+                    prefixIcon: Icons.remove_circle_outline_rounded,
+                    initialValue: _otherDeductions,
+                    onChanged: (v) {
+                      _otherDeductions = v?.toDouble() ?? 0;
+                      _calculate();
+                    },
                   ),
                 ],
               ),

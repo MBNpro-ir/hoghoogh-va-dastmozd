@@ -135,67 +135,128 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
 
   Widget _buildFilter() {
     final scheme = Theme.of(context).colorScheme;
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Icon(Icons.filter_alt_rounded, color: scheme.primary),
-              const SizedBox(width: 8),
-              const Text(
-                'فیلتر دوره: ',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: DropdownButtonFormField<(int, int)?>(
-                  initialValue: (_filterYear != null && _filterMonth != null)
-                      ? (_filterYear!, _filterMonth!)
-                      : null,
-                  decoration: const InputDecoration(
-                    labelText: 'دوره',
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                  ),
-                  items: [
-                    const DropdownMenuItem<(int, int)?>(
-                      value: null,
-                      child: Text('همه دوره‌ها'),
-                    ),
-                    ..._availableMonths.map(
-                      (ym) => DropdownMenuItem(
-                        value: ym,
-                        child: Text(
-                          '${PersianDateHelper.monthName(ym.$2)} ${PersianNumberFormatter.toPersian(ym.$1.toString())}',
+          child: isMobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.filter_alt_rounded, color: scheme.primary, size: 20),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'فیلتر دوره',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<(int, int)?>(
+                      initialValue: (_filterYear != null && _filterMonth != null)
+                          ? (_filterYear!, _filterMonth!)
+                          : null,
+                      decoration: const InputDecoration(
+                        labelText: 'دوره',
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                      ),
+                      items: [
+                        const DropdownMenuItem<(int, int)?>(
+                          value: null,
+                          child: Text('همه دوره‌ها'),
+                        ),
+                        ..._availableMonths.map(
+                          (ym) => DropdownMenuItem(
+                            value: ym,
+                            child: Text(
+                              '${PersianDateHelper.monthName(ym.$2)} ${PersianNumberFormatter.toPersian(ym.$1.toString())}',
+                            ),
+                          ),
+                        ),
+                      ],
+                      onChanged: (v) async {
+                        setState(() {
+                          _filterYear = v?.$1;
+                          _filterMonth = v?.$2;
+                        });
+                        if (v != null) {
+                          final list = await _salaryService.getByYearMonth(
+                            v.$1,
+                            v.$2,
+                          );
+                          setState(() => _records = list);
+                        } else {
+                          final list = await _salaryService.getAll();
+                          setState(() => _records = list);
+                        }
+                      },
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Icon(Icons.filter_alt_rounded, color: scheme.primary),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'فیلتر دوره: ',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<(int, int)?>(
+                        initialValue: (_filterYear != null && _filterMonth != null)
+                            ? (_filterYear!, _filterMonth!)
+                            : null,
+                        decoration: const InputDecoration(
+                          labelText: 'دوره',
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                        ),
+                        items: [
+                          const DropdownMenuItem<(int, int)?>(
+                            value: null,
+                            child: Text('همه دوره‌ها'),
+                          ),
+                          ..._availableMonths.map(
+                            (ym) => DropdownMenuItem(
+                              value: ym,
+                              child: Text(
+                                '${PersianDateHelper.monthName(ym.$2)} ${PersianNumberFormatter.toPersian(ym.$1.toString())}',
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) async {
+                          setState(() {
+                            _filterYear = v?.$1;
+                            _filterMonth = v?.$2;
+                          });
+                          if (v != null) {
+                            final list = await _salaryService.getByYearMonth(
+                              v.$1,
+                              v.$2,
+                            );
+                            setState(() => _records = list);
+                          } else {
+                            final list = await _salaryService.getAll();
+                            setState(() => _records = list);
+                          }
+                        },
                       ),
                     ),
                   ],
-                  onChanged: (v) async {
-                    setState(() {
-                      _filterYear = v?.$1;
-                      _filterMonth = v?.$2;
-                    });
-                    if (v != null) {
-                      final list = await _salaryService.getByYearMonth(
-                        v.$1,
-                        v.$2,
-                      );
-                      setState(() => _records = list);
-                    } else {
-                      final list = await _salaryService.getAll();
-                      setState(() => _records = list);
-                    }
-                  },
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -203,6 +264,7 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
 
   Widget _buildSummary() {
     final scheme = Theme.of(context).colorScheme;
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
     double totalEarnings = 0, totalDeductions = 0, totalNet = 0;
     double totalInsurance = 0, totalTax = 0;
     for (final r in _records) {
@@ -212,53 +274,75 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       totalInsurance += r.insurance;
       totalTax += r.tax;
     }
+
+    final cards = [
+      _summaryCard(
+        'تعداد فیش',
+        PersianNumberFormatter.toPersian(_records.length.toString()),
+        scheme.primary,
+        isMobile,
+      ),
+      _summaryCard(
+        'جمع حقوق و مزایا',
+        PersianNumberFormatter.formatNumber(totalEarnings),
+        scheme.tertiary,
+        isMobile,
+      ),
+      _summaryCard(
+        'جمع کسورات',
+        PersianNumberFormatter.formatNumber(totalDeductions),
+        scheme.error,
+        isMobile,
+      ),
+      _summaryCard(
+        'جمع مالیات',
+        PersianNumberFormatter.formatNumber(totalTax),
+        scheme.secondary,
+        isMobile,
+      ),
+      _summaryCard(
+        'جمع بیمه (۷٪)',
+        PersianNumberFormatter.formatNumber(totalInsurance),
+        scheme.tertiary,
+        isMobile,
+      ),
+      _summaryCard(
+        'جمع پرداختی',
+        PersianNumberFormatter.formatNumber(totalNet),
+        AppTheme.successColor,
+        isMobile,
+      ),
+    ];
+
+    if (isMobile) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: cards,
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _summaryCard(
-              'تعداد فیش',
-              PersianNumberFormatter.toPersian(_records.length.toString()),
-              scheme.primary,
-            ),
-            _summaryCard(
-              'جمع حقوق و مزایا',
-              PersianNumberFormatter.formatNumber(totalEarnings),
-              scheme.tertiary,
-            ),
-            _summaryCard(
-              'جمع کسورات',
-              PersianNumberFormatter.formatNumber(totalDeductions),
-              scheme.error,
-            ),
-            _summaryCard(
-              'جمع مالیات',
-              PersianNumberFormatter.formatNumber(totalTax),
-              scheme.secondary,
-            ),
-            _summaryCard(
-              'جمع بیمه (۷٪)',
-              PersianNumberFormatter.formatNumber(totalInsurance),
-              scheme.tertiary,
-            ),
-            _summaryCard(
-              'جمع پرداختی',
-              PersianNumberFormatter.formatNumber(totalNet),
-              AppTheme.successColor,
-            ),
-          ],
-        ),
+        child: Row(children: cards),
       ),
     );
   }
 
-  Widget _summaryCard(String label, String value, Color color) {
+  Widget _summaryCard(
+    String label,
+    String value,
+    Color color,
+    bool isMobile,
+  ) {
     return Container(
-      width: 200,
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-      padding: const EdgeInsets.all(10),
+      width: isMobile ? null : 200,
+      padding: EdgeInsets.all(isMobile ? 8 : 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
@@ -266,13 +350,14 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: TextStyle(fontSize: 11, color: color)),
+          Text(label, style: TextStyle(fontSize: isMobile ? 10 : 11, color: color)),
           const SizedBox(height: 4),
           Text(
             value,
             style: TextStyle(
-              fontSize: 15,
+              fontSize: isMobile ? 13 : 15,
               fontWeight: FontWeight.w900,
               color: color,
             ),
