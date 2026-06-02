@@ -5,6 +5,7 @@ import '../providers/theme_controller.dart';
 import '../theme/app_theme.dart';
 import '../utils/animations.dart';
 import '../utils/constants.dart';
+import '../utils/gradient_helpers.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_sidebar.dart';
 import 'employees/employees_list_screen.dart';
@@ -23,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
+  final PageController _pageController = PageController();
 
   late final List<Widget> _pages = [
     const _DashboardView(),
@@ -51,6 +53,12 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final responsive = Responsive.of(context);
     final scheme = Theme.of(context).colorScheme;
@@ -65,82 +73,110 @@ class _HomeScreenState extends State<HomeScreen> {
               width: responsive.sidebarWidth,
               child: AppSidebar(
                 currentIndex: _index,
-                onSelect: (i) => setState(() => _index = i),
+                onSelect: (i) => _goToIndex(i),
                 items: _items,
                 header: _SidebarHeader(),
                 footer: _SidebarFooter(),
               ),
             ),
             VerticalDivider(width: 1, color: scheme.outlineVariant),
-            Expanded(child: _AnimatedPageSwitcher(child: _pages[_index])),
+            Expanded(child: _AnimatedPageSwitcher(child: _buildCurrentPage())),
           ],
         ),
       );
     }
 
-    // -------- موبایل: Drawer + BottomNav --------
-    return Scaffold(
-      drawer: Drawer(
-        child: AppSidebar(
-          currentIndex: _index,
-          onSelect: (i) {
-            setState(() => _index = i);
-            Navigator.pop(context);
-          },
-          items: _items,
-          header: _SidebarHeader(),
-          footer: _SidebarFooter(),
-        ),
-      ),
-      appBar: AppBar(
-        title: Text(_items[_index].label),
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu_rounded),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
+    // -------- موبایل: Drawer + BottomNav + Swipe --------
+    return PopScope(
+      canPop: _index == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _goToIndex(0);
+      },
+      child: Scaffold(
+        drawer: Drawer(
+          child: AppSidebar(
+            currentIndex: _index,
+            onSelect: (i) {
+              Navigator.pop(context);
+              _goToIndex(i);
+            },
+            items: _items,
+            header: _SidebarHeader(),
+            footer: _SidebarFooter(),
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.brightness_6_rounded),
-            tooltip: 'تغییر تم',
-            onPressed: () => _cycleTheme(context),
+        appBar: AppBar(
+          title: Text(_items[_index].label),
+          leading: Builder(
+            builder: (ctx) => IconButton(
+              icon: const Icon(Icons.menu_rounded),
+              onPressed: () => Scaffold.of(ctx).openDrawer(),
+            ),
           ),
-        ],
-      ),
-      body: _AnimatedPageSwitcher(child: _pages[_index]),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index < 5 ? _index : 0,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_rounded),
-            label: 'داشبورد',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.groups_rounded),
-            label: 'کارکنان',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calculate_rounded),
-            label: 'محاسبه',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_long_rounded),
-            label: 'فیش‌ها',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_rounded),
-            label: 'وام',
-          ),
-        ],
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.brightness_6_rounded),
+              tooltip: 'تغییر تم',
+              onPressed: () => _cycleTheme(context),
+            ),
+          ],
+        ),
+        body: PageView(
+          controller: _pageController,
+          physics: const BouncingScrollPhysics(),
+          reverse: true, // RTL: swipe راست به چپ = صفحه بعد
+          onPageChanged: (i) => setState(() => _index = i),
+          children: _pages,
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _index < 5 ? _index : 0,
+          onDestinationSelected: (i) => _goToIndex(i),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_rounded),
+              label: 'داشبورد',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.groups_rounded),
+              label: 'کارکنان',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.calculate_rounded),
+              label: 'محاسبه',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_rounded),
+              label: 'فیش‌ها',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.account_balance_wallet_rounded),
+              label: 'وام',
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void changeIndex(int index) {
+  /// صفحه فعلی
+  Widget _buildCurrentPage() => _pages[_index];
+
+  /// تغییر index با همگام‌سازی PageController (در موبایل)
+  void _goToIndex(int index) {
     if (!mounted) return;
     setState(() => _index = index);
+    if (index < _pages.length && _pageController.hasClients) {
+      _pageController.animateToPage(
+        index,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  void changeIndex(int index) {
+    _goToIndex(index);
   }
 
   void _cycleTheme(BuildContext context) {
@@ -437,11 +473,6 @@ class _TopBar extends StatelessWidget {
             SizedBox(width: 280, child: _SearchField()),
             const SizedBox(width: 12),
           ],
-          _RoundIconButton(
-            icon: Icons.notifications_none_rounded,
-            tooltip: 'اعلان‌ها',
-            onTap: () {},
-          ),
         ],
       ),
     );
@@ -487,37 +518,6 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-class _RoundIconButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _RoundIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHigh,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: Tooltip(
-          message: tooltip,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(icon, color: scheme.onSurfaceVariant, size: 22),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // -------- بنر هیرو --------
 class _HeroBanner extends StatelessWidget {
   @override
@@ -545,7 +545,7 @@ class _HeroBanner extends StatelessWidget {
               top: -40,
               child: _BlurredCircle(
                 size: 200,
-                color: Colors.white.withValues(alpha: 0.12),
+                color: context.gradientDecoLarge,
               ),
             ),
             Positioned(
@@ -553,7 +553,7 @@ class _HeroBanner extends StatelessWidget {
               bottom: -50,
               child: _BlurredCircle(
                 size: 180,
-                color: scheme.secondary.withValues(alpha: 0.18),
+                color: context.gradientDecoSmall,
               ),
             ),
             Positioned.fill(
@@ -561,7 +561,7 @@ class _HeroBanner extends StatelessWidget {
                 padding: EdgeInsets.all(r.isMobileSize ? 20 : 32),
                 child: r.isMobileSize
                     ? _buildMobileContent(scheme)
-                    : _buildDesktopContent(scheme),
+                    : _buildDesktopContent(scheme, context),
               ),
             ),
           ],
@@ -601,7 +601,7 @@ class _HeroBanner extends StatelessWidget {
     );
   }
 
-  Widget _buildDesktopContent(ColorScheme scheme) {
+  Widget _buildDesktopContent(ColorScheme scheme, BuildContext context) {
     return Row(
       textDirection: TextDirection.rtl,
       children: [
@@ -609,7 +609,7 @@ class _HeroBanner extends StatelessWidget {
           width: 88,
           height: 88,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.18),
+            color: context.onGradientOverlayMedium,
             borderRadius: BorderRadius.circular(28),
           ),
           child: Icon(
@@ -830,7 +830,7 @@ class _BentoCardState extends State<_BentoCard> {
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.08),
+                    color: context.gradientDecoSmall,
                   ),
                 ),
               ),
@@ -841,7 +841,7 @@ class _BentoCardState extends State<_BentoCard> {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
+                      color: context.onGradientOverlayStrong,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Icon(
@@ -876,7 +876,7 @@ class _BentoCardState extends State<_BentoCard> {
                           style: TextStyle(
                             fontFamily: 'Vazirmatn',
                             fontSize: 11,
-                            color: Colors.white.withValues(alpha: 0.85),
+                            color: Colors.white.withValues(alpha: 0.88),
                             height: 1.4,
                           ),
                         ),
@@ -903,10 +903,11 @@ class _AnalyticsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = Responsive.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final statGap = r.cardGap;
     return FadeInUp(
       delay: const Duration(milliseconds: 200),
       child: Container(
-        padding: EdgeInsets.all(r.isMobileSize ? 16 : 24),
+        padding: EdgeInsets.all(r.isMobileSize ? 14 : 24),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
@@ -915,23 +916,24 @@ class _AnalyticsSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              textDirection: TextDirection.rtl,
-              children: [
-                Text(
-                  'وضعیت کلی پرداخت‌های ماه جاری',
-                  style: TextStyle(
-                    fontFamily: 'Vazirmatn',
-                    fontSize: r.isMobileSize ? 16 : 18,
-                    fontWeight: FontWeight.w700,
-                    color: scheme.onSurface,
-                  ),
+            // هدر: در موبایل ستونی (عنوان بالا، badge پایین)؛ در دسکتاپ افقی با Spacer
+            if (r.isMobileSize) ...[
+              Text(
+                'وضعیت کلی پرداخت‌های ماه جاری',
+                style: TextStyle(
+                  fontFamily: 'Vazirmatn',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.onSurface,
                 ),
-                const Spacer(),
-                Container(
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
+                    horizontal: 10,
+                    vertical: 4,
                   ),
                   decoration: BoxDecoration(
                     color: scheme.surfaceContainerHigh,
@@ -946,11 +948,45 @@ class _AnalyticsSection extends StatelessWidget {
                     ),
                   ),
                 ),
-              ],
-            ),
-            SizedBox(height: r.isMobileSize ? 16 : 24),
+              ),
+            ] else
+              Row(
+                textDirection: TextDirection.rtl,
+                children: [
+                  Text(
+                    'وضعیت کلی پرداخت‌های ماه جاری',
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'تیرماه ۱۴۰۳',
+                      style: TextStyle(
+                        fontFamily: 'Vazirmatn',
+                        fontSize: 11,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            SizedBox(height: r.isMobileSize ? 14 : 24),
             LayoutBuilder(
               builder: (context, c) {
+                // breakpoint 720: زیر این عرض ستونی
                 final isNarrow = c.maxWidth < 720;
                 if (isNarrow) {
                   return Column(
@@ -961,14 +997,14 @@ class _AnalyticsSection extends StatelessWidget {
                         color: scheme.primary,
                         icon: Icons.payments_rounded,
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: statGap),
                       _StatCard(
                         title: 'حق بیمه سهم کارفرما',
                         value: '۵۸۰,۰۰۰,۰۰۰',
                         color: scheme.tertiary,
                         icon: Icons.health_and_safety_rounded,
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: statGap),
                       _StatCard(
                         title: 'مالیات متعلقه',
                         value: '۱۲۰,۵۰۰,۰۰۰',
@@ -989,7 +1025,7 @@ class _AnalyticsSection extends StatelessWidget {
                         icon: Icons.payments_rounded,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: statGap),
                     Expanded(
                       child: _StatCard(
                         title: 'حق بیمه سهم کارفرما',
@@ -998,7 +1034,7 @@ class _AnalyticsSection extends StatelessWidget {
                         icon: Icons.health_and_safety_rounded,
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: statGap),
                     Expanded(
                       child: _StatCard(
                         title: 'مالیات متعلقه',
@@ -1039,14 +1075,16 @@ class _StatCardState extends State<_StatCard> {
 
   @override
   Widget build(BuildContext context) {
+    final r = Responsive.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final isMobile = r.isMobileSize;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: AnimatedContainer(
         duration: AppDurations.short,
         curve: AppCurves.emphasizedDecelerate,
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isMobile ? 14 : 20),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(AppTheme.radiusDefault),
@@ -1058,26 +1096,39 @@ class _StatCardState extends State<_StatCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: widget.color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(widget.icon, color: widget.color, size: 22),
+            Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                Container(
+                  width: isMobile ? 34 : 40,
+                  height: isMobile ? 34 : 40,
+                  decoration: BoxDecoration(
+                    color: widget.color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    widget.icon,
+                    color: widget.color,
+                    size: isMobile ? 18 : 22,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: isMobile ? 11 : 12,
+                      color: scheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              widget.title,
-              style: TextStyle(
-                fontFamily: 'Vazirmatn',
-                fontSize: 12,
-                color: scheme.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 6),
+            SizedBox(height: isMobile ? 10 : 12),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: AlignmentDirectional.centerStart,
@@ -1085,18 +1136,19 @@ class _StatCardState extends State<_StatCard> {
                 widget.value,
                 style: TextStyle(
                   fontFamily: 'Vazirmatn',
-                  fontSize: 20,
+                  fontSize: isMobile ? 16 : 20,
                   fontWeight: FontWeight.w800,
                   color: widget.color,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ),
+            const SizedBox(height: 2),
             Text(
               'ریال',
               style: TextStyle(
                 fontFamily: 'Vazirmatn',
-                fontSize: 11,
+                fontSize: isMobile ? 10 : 11,
                 color: scheme.onSurfaceVariant,
               ),
             ),

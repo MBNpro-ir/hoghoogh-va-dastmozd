@@ -13,6 +13,7 @@ import '../../utils/constants.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
+import '../../utils/gradient_helpers.dart';
 import '../../widgets/currency_text.dart';
 import '../../widgets/persian_number_field.dart';
 import 'payslip_screen.dart';
@@ -910,7 +911,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               white: true,
               bold: false,
             ),
-          Divider(color: Colors.white.withValues(alpha: 0.4), height: 24),
+          Divider(color: context.onGradientTextFaint, height: 24),
           Row(
             children: [
               const Text(

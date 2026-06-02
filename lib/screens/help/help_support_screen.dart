@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
+import '../../utils/gradient_helpers.dart';
 
 class HelpSupportScreen extends StatelessWidget {
   const HelpSupportScreen({super.key});
@@ -95,20 +96,23 @@ class _HeroHelpCard extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
+              color: context.onGradientOverlayMedium,
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Icon(Icons.support_agent_rounded, color: Colors.white),
+            child: Icon(
+              Icons.support_agent_rounded,
+              color: context.onGradientText,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'مرکز راهنمای حقوق و دستمزد',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: context.onGradientText,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
@@ -117,7 +121,7 @@ class _HeroHelpCard extends StatelessWidget {
                 Text(
                   'Template راهنما برای نسخه ${AppConstants.appVersion}؛ متن‌های نهایی و اطلاعات تماس بعدا جایگزین می‌شوند.',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.88),
+                    color: context.onGradientTextMuted,
                     height: 1.6,
                   ),
                 ),

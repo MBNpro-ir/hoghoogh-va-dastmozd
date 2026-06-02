@@ -10,6 +10,8 @@ import '../../theme/app_theme.dart';
 import '../../utils/animations.dart';
 import '../../utils/constants.dart';
 import '../../utils/persian_number_formatter.dart';
+import '../../utils/gradient_helpers.dart';
+import '../../utils/responsive.dart';
 import '../../widgets/persian_number_field.dart';
 import '../help/help_support_screen.dart';
 
@@ -559,8 +561,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildInfoBanner() {
     final scheme = Theme.of(context).colorScheme;
+    final r = Responsive.of(context);
+    final isMobile = r.isMobileSize;
+    final icon = Container(
+      width: isMobile ? 48 : 56,
+      height: isMobile ? 48 : 56,
+      decoration: BoxDecoration(
+        color: context.onGradientOverlayStrong,
+        borderRadius: BorderRadius.circular(isMobile ? 16 : 18),
+      ),
+      child: Icon(
+        Icons.tune_rounded,
+        color: context.onGradientText,
+        size: isMobile ? 26 : 32,
+      ),
+    );
+    final titleStyle = TextStyle(
+      fontFamily: 'Vazirmatn',
+      color: context.onGradientText,
+      fontSize: isMobile ? 16 : 20,
+      fontWeight: FontWeight.w700,
+    );
+    final bodyStyle = TextStyle(
+      fontFamily: 'Vazirmatn',
+      color: context.onGradientTextMuted,
+      fontSize: isMobile ? 12 : 13,
+      height: 1.6,
+    );
+    final textColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('تنظیمات سال ۱۴۰۵', style: titleStyle),
+        const SizedBox(height: 6),
+        Text(
+          'این مقادیر بر اساس مصوبه شورای عالی کار سال ۱۴۰۵ به صورت پیش‌فرض تنظیم شده‌اند.\nدر صورت تغییر، می‌توانید مقادیر را ویرایش کنید.',
+          style: bodyStyle,
+        ),
+      ],
+    );
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [scheme.primary, scheme.primaryContainer],
@@ -570,60 +611,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         boxShadow: AppTheme.elevation2(scheme.shadow),
       ),
-      child: Row(
-        textDirection: TextDirection.rtl,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Icon(
-              Icons.tune_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
+      child: isMobile
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              textDirection: TextDirection.rtl,
               children: [
-                const Text(
-                  'تنظیمات سال ۱۴۰۵',
-                  style: TextStyle(
-                    fontFamily: 'Vazirmatn',
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
+                Row(
+                  textDirection: TextDirection.rtl,
+                  children: [
+                    icon,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text('تنظیمات سال ۱۴۰۵', style: titleStyle),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 10),
                 Text(
                   'این مقادیر بر اساس مصوبه شورای عالی کار سال ۱۴۰۵ به صورت پیش‌فرض تنظیم شده‌اند.\nدر صورت تغییر، می‌توانید مقادیر را ویرایش کنید.',
-                  style: TextStyle(
-                    fontFamily: 'Vazirmatn',
-                    color: Colors.white.withValues(alpha: 0.88),
-                    fontSize: 13,
-                    height: 1.6,
-                  ),
+                  style: bodyStyle,
                 ),
               ],
+            )
+          : Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                icon,
+                const SizedBox(width: 16),
+                Expanded(child: textColumn),
+              ],
             ),
-          ),
-          FilledButton(
-            onPressed: () {},
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: scheme.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            ),
-            child: const Text('بروزرسانی از بخشنامه'),
-          ),
-        ],
-      ),
     );
   }
 

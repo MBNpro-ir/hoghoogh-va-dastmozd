@@ -1,20 +1,37 @@
-# Changelog
+# 📝 گزارش تغییرات — سیستم حقوق و دستمزد فرایند کود و سم بافق
 
-## 0.0.4-alpha+4 - 2026-06-02
+تمامی تغییرات قابل توجه در این پروژه در این فایل مستند می‌شوند.
 
-### 🐛 Bug Fixes
-- 📱 Fixed employee form screen layout for mobile — fields no longer overflow or get clipped on narrow screens.
-- 📱 Fixed salary records summary cards for mobile — cards now wrap into a grid instead of horizontal scroll.
-- 📱 Fixed salary records filter row for mobile — stacked vertically for better usability.
-- 📱 Fixed loan form installment fields for mobile — stacked vertically.
-- 📱 Fixed salary calculation form fields (month/year, work days, overtime, deductions) for mobile.
-- 🔄 Replaced hardcoded `Row` layouts with responsive `_responsiveRow()` that stacks on screens < 600px.
+---
 
-### ✨ New Features
-- 📐 Added `_responsiveRow()` and `_responsiveField()` helpers for adaptive form layouts.
-- 👶 Children counter widget redesigned for mobile with tighter spacing.
+## 🚀 [0.0.5-alpha] — ۱۴۰۵/۰۳/۱۳ (۲۰۲۶-۰۶-۰۳)
 
-### 🔨 Infrastructure & CI/CD
-- 🚀 Updated release workflow to build for multiple platforms: Windows x64, Android ARM64, Android x86_64, and Linux x64.
-- 📦 Added Linux build job to CI pipeline.
-- ⬆️ Bumped version to `0.0.4-alpha+4`.
+### ✨ ویژگی‌های جدید
+- 🎨 **هماهنگی تم تیره/روشن برای المان‌های گرادینتی**: معرفی فایل `gradient_helpers.dart` برای مدیریت یکپارچه رنگ متون، آیکن‌ها و آیتم‌های تزئینی روی پس‌زمینه‌های گرادینتی. متن‌ها و آیکن‌ها در هر دو حالت روشن و تیره خوانایی مناسب خود را حفظ می‌کنند.
+- 👆 **سوایپ بین صفحات در موبایل**: با افزودن `PageController` به `HomeScreen`، کاربران موبایل می‌توانند بین صفحات اصلی (داشبورد، کارکنان، محاسبه، فیش‌ها، وام) با کشیدن انگشت جابه‌جا شوند. سوایپ در راستای RTL رفتار طبیعی دارد.
+- 🔁 **همگام‌سازی Drawer، BottomNav و سوایپ**: انتخاب از منوی کناری، نوار پایین یا سوایپ، همگی در یک متد متمرکز (`_goToIndex`) ادغام شده‌اند.
+- ⬅️ **دکمه بازگشت هوشمند در موبایل**: با `PopScope`، زدن دکمه بازگشت در صفحات عمیق به‌جای خروج، به داشبورد برمی‌گردد.
+- 🪄 **بهبود حالت ریسپانسیو داشبورد**: در موبایل، هدر بخش تحلیلی به‌صورت ستونی (عنوان بالا، badge پایین) چیده می‌شود تا فضای عمودی بهینه شود.
+
+### 🐛 رفع اشکال
+- 🌗 **رنگ متن کارت‌های Bento در تم تیره**: متن توضیحات و آیکن chevron کارت‌های داشبورد که پس از تغییرات اخیر به سیاه تبدیل می‌شد، اکنون در هر دو تم به رنگ سفید نمایش داده می‌شوند.
+- 📱 **چیدمان کارت‌های آماری در موبایل**: اندازه آیکن، فونت عنوان/مقدار و padding کارت‌های آماری («مجموع ناخالص حقوق»، «حق بیمه سهم کارفرما»، «مالیات متعلقه») برای موبایل کوچک‌تر شد تا در صفحات کم‌عرض سرریز نشوند.
+- 🧭 **حذف دکمه اعلان بلااستفاده از هدر داشبورد**: آیکن اعلان که عملکردی نداشت حذف شد تا نوار بالایی مینیمال‌تر شود.
+- 📐 **سربرگ اطلاعاتی تنظیمات در موبایل**: چیدمان InfoBanner در موبایل به حالت ستونی تغییر یافت تا دکمه و متن در صفحات کم‌عرض سرریز نکنند.
+
+### 🛠 بهبودهای فنی
+- 📦 **ارتقای `shared_preferences` به ۲.۵.۳** و افزودن `shared_preferences_android: ^2.4.24` برای سازگاری با Android v2 embedding.
+- 🇨🇳 **افزودن مخازن Maven Aliyun** به `android/settings.gradle.kts` به‌عنوان منبع ثانویه برای بهبود سرعت و قابلیت اطمینان دانلود وابستگی‌ها در شبکه‌های ایران.
+- ♻️ **یکپارچه‌سازی مقادیر ثابت گرادینت**: مقادیر تکراری `Colors.white.withValues(alpha: …)` در بنر هیرو، کارت‌های Bento و راهنما به متدهای `context.gradientDecoLarge`/`gradientDecoSmall`/`onGradientOverlayStrong` منتقل شدند.
+
+### 🏗 زیرساخت (CI/CD)
+- این نسخه همچنان توسط workflow `release.yml` در GitHub Actions ساخته می‌شود: APK های جداگانه برای `arm`/`arm64`/`x64` و بسته `windows-x64` (PowerShell).
+- پس از push تگ `v0.0.5-alpha`، خروجی‌ها در بخش **Pre-release** در دسترس قرار می‌گیرند.
+
+---
+
+## 🏷 نسخه‌های پیشین
+- [0.0.4-alpha] — فرم‌های ریسپانسیو موبایل، بیلد چند-معماری در CI
+- [0.0.3-alpha] — جدول‌های ریسپانسیو، پشتیبان‌گیری/بازیابی، تست پاریتی اکسل، بیلد چند-پلتفرمی CI
+- [0.0.2-alpha] — بازطراحی Material Persian 3
+- [0.0.1-alpha] — انتشار اولیه
