@@ -26,7 +26,7 @@ class AppSidebar extends StatelessWidget {
       child: SafeArea(
         child: Column(
           children: [
-            if (header != null) header!,
+            ?header,
             const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(
@@ -43,7 +43,7 @@ class AppSidebar extends StatelessWidget {
                 },
               ),
             ),
-            if (footer != null) footer!,
+            ?footer,
           ],
         ),
       ),
