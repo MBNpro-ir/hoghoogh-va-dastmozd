@@ -36,8 +36,6 @@ class _HomeScreenState extends State<HomeScreen> {
     const SalaryCalculationScreen(),
     const SalaryRecordsScreen(),
     const LoansListScreen(),
-    const SettingsScreen(),
-    const HelpSupportScreen(),
   ];
 
   late final List<SidebarItem> _items = [
@@ -169,6 +167,23 @@ class _HomeScreenState extends State<HomeScreen> {
   /// تغییر index با همگام‌سازی PageController (در موبایل)
   void _goToIndex(int index) {
     if (!mounted) return;
+
+    // تنظیمات و راهنما: صفحه جداگانه
+    if (index == 5) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SettingsScreen()),
+      );
+      return;
+    }
+    if (index == 6) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
+      );
+      return;
+    }
+
     setState(() => _index = index);
     if (index < _pages.length && _pageController.hasClients) {
       _pageController.animateToPage(

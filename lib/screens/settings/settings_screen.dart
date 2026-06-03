@@ -30,6 +30,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   AppSettings? _settings;
   bool _loading = true;
   bool _saving = false;
+  bool _hasChanges = false;
+
+  // مقادیر اولیه برای مقایسه
+  String _initCompanyName = '';
+  double _initDailyWage = 0;
+  double _initMonthlyFood = 0;
+  double _initMonthlyHousing = 0;
+  double _initMonthlyMarriage = 0;
+  double _initMonthlyChild = 0;
+  double _initDailySeniority = 0;
+  double _initSalaryRateA = 0;
+  double _initSalaryRateB = 0;
+  double _initFixedRial = 0;
+  double _initEmployeeInsuranceRate = 0;
+  double _initEmployerInsuranceRate = 0;
+  double _initUnemploymentInsuranceRate = 0;
+  double _initTwoSevenBaseRate = 0;
 
   late TextEditingController _companyNameCtrl;
 
@@ -56,7 +73,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _load() async {
     _settings = await _service.getCurrentSettings();
-    _companyNameCtrl.text = _settings!.companyName;
+    _companyNameCtrl = TextEditingController(text: _settings!.companyName);
+    _companyNameCtrl.addListener(_checkChanges);
     _dailyWage = _settings!.dailyWage;
     _monthlyFood = _settings!.monthlyFood;
     _monthlyHousing = _settings!.monthlyHousing;
@@ -70,7 +88,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _employerInsuranceRate = _settings!.employerInsuranceRate;
     _unemploymentInsuranceRate = _settings!.unemploymentInsuranceRate;
     _twoSevenBaseRate = _settings!.twoSevenBaseRate;
+
+    _initCompanyName = _settings!.companyName;
+    _initDailyWage = _settings!.dailyWage;
+    _initMonthlyFood = _settings!.monthlyFood;
+    _initMonthlyHousing = _settings!.monthlyHousing;
+    _initMonthlyMarriage = _settings!.monthlyMarriage;
+    _initMonthlyChild = _settings!.monthlyChild;
+    _initDailySeniority = _settings!.dailySeniority;
+    _initSalaryRateA = _settings!.salaryRateA;
+    _initSalaryRateB = _settings!.salaryRateB;
+    _initFixedRial = _settings!.fixedRial;
+    _initEmployeeInsuranceRate = _settings!.employeeInsuranceRate;
+    _initEmployerInsuranceRate = _settings!.employerInsuranceRate;
+    _initUnemploymentInsuranceRate = _settings!.unemploymentInsuranceRate;
+    _initTwoSevenBaseRate = _settings!.twoSevenBaseRate;
+
     if (mounted) setState(() => _loading = false);
+  }
+
+  void _checkChanges() {
+    final changed = _companyNameCtrl.text.trim() != _initCompanyName ||
+        _dailyWage != _initDailyWage ||
+        _monthlyFood != _initMonthlyFood ||
+        _monthlyHousing != _initMonthlyHousing ||
+        _monthlyMarriage != _initMonthlyMarriage ||
+        _monthlyChild != _initMonthlyChild ||
+        _dailySeniority != _initDailySeniority ||
+        _salaryRateA != _initSalaryRateA ||
+        _salaryRateB != _initSalaryRateB ||
+        _fixedRial != _initFixedRial ||
+        _employeeInsuranceRate != _initEmployeeInsuranceRate ||
+        _employerInsuranceRate != _initEmployerInsuranceRate ||
+        _unemploymentInsuranceRate != _initUnemploymentInsuranceRate ||
+        _twoSevenBaseRate != _initTwoSevenBaseRate;
+    if (changed != _hasChanges) setState(() => _hasChanges = changed);
+  }
+
+  Future<bool> _onWillPop() async {
+    if (!_hasChanges) return true;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تغییرات ذخیره نشده'),
+        content: const Text(
+          'تغییراتی اعمال کرده‌اید که ذخیره نشده است. آیا می‌خواهید بدون ذخیره خارج شوید؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('ماندن'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('خروج بدون ذخیره'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   @override
@@ -100,6 +179,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
         twoSevenBaseRate: _twoSevenBaseRate,
       );
       await _service.update(updated);
+      _initCompanyName = updated.companyName;
+      _initDailyWage = updated.dailyWage;
+      _initMonthlyFood = updated.monthlyFood;
+      _initMonthlyHousing = updated.monthlyHousing;
+      _initMonthlyMarriage = updated.monthlyMarriage;
+      _initMonthlyChild = updated.monthlyChild;
+      _initDailySeniority = updated.dailySeniority;
+      _initSalaryRateA = updated.salaryRateA;
+      _initSalaryRateB = updated.salaryRateB;
+      _initFixedRial = updated.fixedRial;
+      _initEmployeeInsuranceRate = updated.employeeInsuranceRate;
+      _initEmployerInsuranceRate = updated.employerInsuranceRate;
+      _initUnemploymentInsuranceRate = updated.unemploymentInsuranceRate;
+      _initTwoSevenBaseRate = updated.twoSevenBaseRate;
+      _hasChanges = false;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -225,43 +319,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('تنظیمات حقوق پایه ۱۴۰۵'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.restore_rounded),
-            tooltip: 'بازنشانی به مقادیر پیش‌فرض',
-            onPressed: _resetDefaults,
-          ),
-          if (_saving)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Center(
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+    return PopScope(
+      canPop: !_hasChanges,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldPop = await _onWillPop();
+        if (shouldPop && mounted) Navigator.pop(context);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('تنظیمات حقوق پایه ۱۴۰۵'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.restore_rounded),
+              tooltip: 'بازنشانی به مقادیر پیش‌فرض',
+              onPressed: _resetDefaults,
+            ),
+            if (_saving)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
                 ),
-              ),
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: FilledButton.icon(
-                onPressed: _save,
-                icon: const Icon(Icons.save_rounded, size: 18),
-                label: const Text('ذخیره'),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: FilledButton.icon(
+                  onPressed: _hasChanges ? _save : null,
+                  icon: const Icon(Icons.save_rounded, size: 18),
+                  label: const Text('ذخیره'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
-      ),
+          ],
+        ),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -305,15 +406,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             isCurrency: true,
                             prefixIcon: Icons.attach_money_rounded,
                             initialValue: _dailyWage,
-                            onChanged: (v) => _dailyWage = v?.toDouble() ?? 0,
+                            onChanged: (v) { _dailyWage = v?.toDouble() ?? 0; _checkChanges(); },
                           ),
                           PersianNumberField(
                             label: 'پایه سنوات (روزانه)',
                             isCurrency: true,
                             prefixIcon: Icons.workspace_premium_rounded,
                             initialValue: _dailySeniority,
-                            onChanged: (v) =>
-                                _dailySeniority = v?.toDouble() ?? 0,
+                            onChanged: (v) { _dailySeniority = v?.toDouble() ?? 0; _checkChanges(); },
                           ),
                         ]),
                         const SizedBox(height: 14),
@@ -323,15 +423,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             isCurrency: true,
                             prefixIcon: Icons.home_rounded,
                             initialValue: _monthlyHousing,
-                            onChanged: (v) =>
-                                _monthlyHousing = v?.toDouble() ?? 0,
+                            onChanged: (v) { _monthlyHousing = v?.toDouble() ?? 0; _checkChanges(); },
                           ),
                           PersianNumberField(
                             label: 'حق خواروبار / بن (ماهانه)',
                             isCurrency: true,
                             prefixIcon: Icons.shopping_basket_rounded,
                             initialValue: _monthlyFood,
-                            onChanged: (v) => _monthlyFood = v?.toDouble() ?? 0,
+                            onChanged: (v) { _monthlyFood = v?.toDouble() ?? 0; _checkChanges(); },
                           ),
                         ]),
                         const SizedBox(height: 14),
@@ -341,16 +440,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             isCurrency: true,
                             prefixIcon: Icons.favorite_rounded,
                             initialValue: _monthlyMarriage,
-                            onChanged: (v) =>
-                                _monthlyMarriage = v?.toDouble() ?? 0,
+                            onChanged: (v) { _monthlyMarriage = v?.toDouble() ?? 0; _checkChanges(); },
                           ),
                           PersianNumberField(
                             label: 'حق فرزند (ماهانه - هر فرزند)',
                             isCurrency: true,
                             prefixIcon: Icons.child_care_rounded,
                             initialValue: _monthlyChild,
-                            onChanged: (v) =>
-                                _monthlyChild = v?.toDouble() ?? 0,
+                            onChanged: (v) { _monthlyChild = v?.toDouble() ?? 0; _checkChanges(); },
                           ),
                         ]),
                       ],
@@ -409,13 +506,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             label: 'ضریب الف (کارگری)',
                             prefixIcon: Icons.engineering_rounded,
                             initialValue: _salaryRateA,
-                            onChanged: (v) => _salaryRateA = v?.toDouble() ?? 0,
+                            onChanged: (v) { _salaryRateA = v?.toDouble() ?? 0; _checkChanges(); },
                           ),
                           PersianNumberField(
                             label: 'ضریب ب (سایر سطوح)',
                             prefixIcon: Icons.work_rounded,
                             initialValue: _salaryRateB,
-                            onChanged: (v) => _salaryRateB = v?.toDouble() ?? 0,
+                            onChanged: (v) { _salaryRateB = v?.toDouble() ?? 0; _checkChanges(); },
                           ),
                         ]),
                         const SizedBox(height: 14),
@@ -424,7 +521,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           isCurrency: true,
                           prefixIcon: Icons.add_rounded,
                           initialValue: _fixedRial,
-                          onChanged: (v) => _fixedRial = v?.toDouble() ?? 0,
+                          onChanged: (v) { _fixedRial = v?.toDouble() ?? 0; _checkChanges(); },
                         ),
                       ],
                     ),
@@ -442,15 +539,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             label: 'سهم کارمند (۰.۰۷ = ۷٪)',
                             prefixIcon: Icons.person_rounded,
                             initialValue: _employeeInsuranceRate,
-                            onChanged: (v) =>
-                                _employeeInsuranceRate = v?.toDouble() ?? 0,
+                            onChanged: (v) { _employeeInsuranceRate = v?.toDouble() ?? 0; _checkChanges(); },
                           ),
                           PersianNumberField(
                             label: 'سهم کارفرما (۰.۲۰ = ۲۰٪)',
                             prefixIcon: Icons.business_rounded,
                             initialValue: _employerInsuranceRate,
-                            onChanged: (v) =>
-                                _employerInsuranceRate = v?.toDouble() ?? 0,
+                            onChanged: (v) { _employerInsuranceRate = v?.toDouble() ?? 0; _checkChanges(); },
                           ),
                         ]),
                         const SizedBox(height: 14),
@@ -458,8 +553,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           label: 'بیمه بیکاری (۰.۰۳ = ۳٪)',
                           prefixIcon: Icons.work_off_rounded,
                           initialValue: _unemploymentInsuranceRate,
-                          onChanged: (v) =>
-                              _unemploymentInsuranceRate = v?.toDouble() ?? 0,
+                          onChanged: (v) { _unemploymentInsuranceRate = v?.toDouble() ?? 0; _checkChanges(); },
                         ),
                       ],
                     ),
@@ -516,8 +610,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           label: 'ضریب معافیت دو هفتم بیمه (مثلاً ۰.۲۸۵۷)',
                           prefixIcon: Icons.percent_rounded,
                           initialValue: _twoSevenBaseRate,
-                          onChanged: (v) =>
-                              _twoSevenBaseRate = v?.toDouble() ?? 0,
+                          onChanged: (v) { _twoSevenBaseRate = v?.toDouble() ?? 0; _checkChanges(); },
                         ),
                       ],
                     ),
@@ -554,6 +647,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );
