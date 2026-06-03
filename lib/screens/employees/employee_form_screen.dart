@@ -223,8 +223,8 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
           else
             TextButton.icon(
               onPressed: _save,
-              icon: Icon(Icons.save_rounded, color: scheme.onPrimary),
-              label: Text('ذخیره', style: TextStyle(color: scheme.onPrimary)),
+              icon: Icon(Icons.save_rounded, color: scheme.onSurface),
+              label: Text('ذخیره', style: TextStyle(color: scheme.onSurface)),
             ),
         ],
       ),
@@ -442,42 +442,48 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 0 : 12),
-      child: Row(
-        mainAxisAlignment: isMobile ? MainAxisAlignment.start : MainAxisAlignment.center,
-        children: [
-          Icon(Icons.child_care_rounded, color: scheme.tertiary, size: 20),
-          const SizedBox(width: 6),
-          const Text('فرزند:', style: TextStyle(fontSize: 14)),
-          const SizedBox(width: 4),
-          IconButton(
-            onPressed: _childrenCount > 0
-                ? () {
-                    _childrenCount--;
-                    _autoCalculate1405();
-                  }
-                : null,
-            icon: const Icon(Icons.remove_circle_outline_rounded, size: 24),
-            padding: const EdgeInsets.all(4),
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-          SizedBox(
-            width: 32,
-            child: Text(
-              PersianNumberFormatter.toPersian(_childrenCount.toString()),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment:
+              isMobile ? MainAxisAlignment.start : MainAxisAlignment.center,
+          children: [
+            Icon(Icons.child_care_rounded, color: scheme.tertiary, size: 20),
+            const SizedBox(width: 6),
+            const Text('فرزند:', style: TextStyle(fontSize: 14)),
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: _childrenCount > 0
+                  ? () {
+                      _childrenCount--;
+                      _autoCalculate1405();
+                    }
+                  : null,
+              icon: const Icon(Icons.remove_circle_outline_rounded, size: 24),
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
-          ),
-          IconButton(
-            onPressed: () {
-              _childrenCount++;
-              _autoCalculate1405();
-            },
-            icon: const Icon(Icons.add_circle_outline_rounded, size: 24),
-            padding: const EdgeInsets.all(4),
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-        ],
+            SizedBox(
+              width: 32,
+              child: Text(
+                PersianNumberFormatter.toPersian(_childrenCount.toString()),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+            ),
+            IconButton(
+              onPressed: () {
+                _childrenCount++;
+                _autoCalculate1405();
+              },
+              icon: const Icon(Icons.add_circle_outline_rounded, size: 24),
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+          ],
+        ),
       ),
     );
   }

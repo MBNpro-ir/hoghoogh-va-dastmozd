@@ -420,17 +420,21 @@ class AppTheme {
       ),
       listTileTheme: ListTileThemeData(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        titleTextStyle: TextStyle(
-          fontFamily: family,
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          color: scheme.onSurface,
-        ),
-        subtitleTextStyle: TextStyle(
-          fontFamily: family,
-          fontSize: 14,
-          color: scheme.onSurfaceVariant,
-        ),
+        titleTextStyle:
+            (base.textTheme.titleMedium ?? const TextStyle(inherit: false))
+                .copyWith(
+                  fontFamily: family,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: scheme.onSurface,
+                ),
+        subtitleTextStyle:
+            (base.textTheme.bodyMedium ?? const TextStyle(inherit: false))
+                .copyWith(
+                  fontFamily: family,
+                  fontSize: 14,
+                  color: scheme.onSurfaceVariant,
+                ),
       ),
       expansionTileTheme: ExpansionTileThemeData(
         backgroundColor: scheme.surfaceContainerLowest,
@@ -765,6 +769,21 @@ class AppTheme {
           borderRadius: BorderRadius.circular(radiusMd),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        titleTextStyle:
+            (base.textTheme.titleMedium ?? const TextStyle(inherit: false))
+                .copyWith(
+                  fontFamily: family,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: scheme.onSurface,
+                ),
+        subtitleTextStyle:
+            (base.textTheme.bodyMedium ?? const TextStyle(inherit: false))
+                .copyWith(
+                  fontFamily: family,
+                  fontSize: 14,
+                  color: scheme.onSurfaceVariant,
+                ),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: scheme.surfaceContainerHigh,
@@ -837,110 +856,115 @@ class AppTheme {
 
   static TextTheme _persianTextTheme(TextTheme base, Color color) {
     const family = AppConstants.fontFamily;
-    return base.copyWith(
-      displayLarge: TextStyle(
+    TextStyle style(
+      TextStyle? baseStyle, {
+      required double fontSize,
+      required FontWeight fontWeight,
+      required double height,
+      double? letterSpacing,
+    }) {
+      return (baseStyle ?? const TextStyle(inherit: false)).copyWith(
         fontFamily: family,
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: color,
+        height: height,
+        letterSpacing: letterSpacing,
+      );
+    }
+
+    return base.copyWith(
+      displayLarge: style(
+        base.displayLarge,
         fontSize: 36,
         fontWeight: FontWeight.w700,
-        color: color,
         height: 1.2,
       ),
-      displayMedium: TextStyle(
-        fontFamily: family,
+      displayMedium: style(
+        base.displayMedium,
         fontSize: 30,
         fontWeight: FontWeight.w700,
-        color: color,
         height: 1.25,
       ),
-      displaySmall: TextStyle(
-        fontFamily: family,
+      displaySmall: style(
+        base.displaySmall,
         fontSize: 26,
         fontWeight: FontWeight.w700,
-        color: color,
         height: 1.3,
       ),
-      headlineLarge: TextStyle(
-        fontFamily: family,
+      headlineLarge: style(
+        base.headlineLarge,
         fontSize: 32,
         fontWeight: FontWeight.w700,
-        color: color,
         height: 1.35,
       ),
-      headlineMedium: TextStyle(
-        fontFamily: family,
+      headlineMedium: style(
+        base.headlineMedium,
         fontSize: 24,
         fontWeight: FontWeight.w600,
-        color: color,
         height: 1.4,
       ),
-      headlineSmall: TextStyle(
-        fontFamily: family,
+      headlineSmall: style(
+        base.headlineSmall,
         fontSize: 22,
         fontWeight: FontWeight.w600,
-        color: color,
         height: 1.4,
       ),
-      titleLarge: TextStyle(
-        fontFamily: family,
+      titleLarge: style(
+        base.titleLarge,
         fontSize: 20,
         fontWeight: FontWeight.w500,
-        color: color,
         height: 1.5,
       ),
-      titleMedium: TextStyle(
-        fontFamily: family,
+      titleMedium: style(
+        base.titleMedium,
         fontSize: 16,
         fontWeight: FontWeight.w600,
-        color: color,
         height: 1.5,
       ),
-      titleSmall: TextStyle(
-        fontFamily: family,
+      titleSmall: style(
+        base.titleSmall,
         fontSize: 14,
         fontWeight: FontWeight.w600,
-        color: color,
         height: 1.5,
       ),
-      bodyLarge: TextStyle(
-        fontFamily: family,
+      bodyLarge: style(
+        base.bodyLarge,
         fontSize: 16,
         fontWeight: FontWeight.w400,
-        color: color,
         height: 1.55,
       ),
-      bodyMedium: TextStyle(
-        fontFamily: family,
+      bodyMedium: style(
+        base.bodyMedium,
         fontSize: 14,
         fontWeight: FontWeight.w400,
-        color: color,
         height: 1.5,
       ),
-      bodySmall: TextStyle(
-        fontFamily: family,
+      bodySmall: style(
+        base.bodySmall,
         fontSize: 12,
         fontWeight: FontWeight.w400,
-        color: color,
         height: 1.5,
       ),
-      labelLarge: TextStyle(
-        fontFamily: family,
+      labelLarge: style(
+        base.labelLarge,
         fontSize: 14,
         fontWeight: FontWeight.w600,
-        color: color,
+        height: 1.2,
         letterSpacing: 0.1,
       ),
-      labelMedium: TextStyle(
-        fontFamily: family,
+      labelMedium: style(
+        base.labelMedium,
         fontSize: 12,
         fontWeight: FontWeight.w500,
-        color: color,
+        height: 1.2,
         letterSpacing: 0.3,
       ),
-      labelSmall: TextStyle(
-        fontFamily: family,
+      labelSmall: style(
+        base.labelSmall,
         fontSize: 11,
         fontWeight: FontWeight.w500,
-        color: color,
+        height: 1.2,
         letterSpacing: 0.5,
       ),
     );

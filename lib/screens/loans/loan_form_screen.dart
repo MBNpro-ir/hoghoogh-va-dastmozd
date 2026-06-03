@@ -208,8 +208,8 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
           else
             TextButton.icon(
               onPressed: _save,
-              icon: Icon(Icons.save_rounded, color: scheme.onPrimary),
-              label: Text('ذخیره', style: TextStyle(color: scheme.onPrimary)),
+              icon: Icon(Icons.save_rounded, color: scheme.onSurface),
+              label: Text('ذخیره', style: TextStyle(color: scheme.onSurface)),
             ),
         ],
       ),
