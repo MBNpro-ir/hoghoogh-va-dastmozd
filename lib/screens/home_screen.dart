@@ -129,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
         body: PageView(
           controller: _pageController,
           physics: const BouncingScrollPhysics(),
-          reverse: true, // RTL: swipe راست به چپ = صفحه بعد
+          reverse: false, // RTL: swipe چپ به راست = صفحه بعد
           onPageChanged: (i) => setState(() => _index = i),
           children: _pages,
         ),
