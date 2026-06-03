@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shamsi_date/shamsi_date.dart';
 
+import '../database/database_helper.dart';
+import '../models/app_settings.dart';
 import '../providers/theme_controller.dart';
+import '../services/salary_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/animations.dart';
 import '../utils/constants.dart';
@@ -898,12 +902,78 @@ class _BentoCardState extends State<_BentoCard> {
 }
 
 // -------- بخش تحلیلی پایین داشبورد --------
-class _AnalyticsSection extends StatelessWidget {
+class _AnalyticsSection extends StatefulWidget {
+  const _AnalyticsSection();
+
+  @override
+  State<_AnalyticsSection> createState() => _AnalyticsSectionState();
+}
+
+class _AnalyticsSectionState extends State<_AnalyticsSection> {
+  bool _loading = true;
+  double _totalEarnings = 0;
+  double _employerInsurance = 0;
+  double _tax = 0;
+  String _monthLabel = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final now = Jalali.now();
+    final year = now.year;
+    final month = now.month;
+
+    const monthNames = [
+      '', 'فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور',
+      'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند',
+    ];
+    _monthLabel = '${monthNames[month]} $year';
+
+    final db = DatabaseHelper.instance;
+    final settingsRows = await (await db.database).query(
+      'app_settings',
+      where: 'year = ?',
+      whereArgs: [year],
+    );
+    final settings = settingsRows.isNotEmpty
+        ? AppSettings.fromMap(settingsRows.first)
+        : AppSettings();
+
+    final service = SalaryService();
+    final records = await service.getByYearMonth(year, month);
+    _totalEarnings = records.fold(0.0, (s, r) => s + r.totalEarnings);
+    _employerInsurance = records.fold(
+      0.0,
+      (s, r) => s + r.insuranceBase * settings.employerInsuranceRate,
+    );
+    _tax = records.fold(0.0, (s, r) => s + r.tax);
+
+    if (mounted) setState(() => _loading = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final r = Responsive.of(context);
     final scheme = Theme.of(context).colorScheme;
     final statGap = r.cardGap;
+
+    String fmt(double v) {
+      if (v == 0) return '۰';
+      final s = v.toStringAsFixed(0);
+      final buf = StringBuffer();
+      for (var i = 0; i < s.length; i++) {
+        if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+        buf.write(s[i]);
+      }
+      final str = buf.toString();
+      const persian = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+      return str.split('').map((c) => persian[int.tryParse(c) ?? 0]).join();
+    }
+
     return FadeInUp(
       delay: const Duration(milliseconds: 200),
       child: Container(
@@ -916,7 +986,6 @@ class _AnalyticsSection extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // هدر: در موبایل ستونی (عنوان بالا، badge پایین)؛ در دسکتاپ افقی با Spacer
             if (r.isMobileSize) ...[
               Text(
                 'وضعیت کلی پرداخت‌های ماه جاری',
@@ -940,7 +1009,7 @@ class _AnalyticsSection extends StatelessWidget {
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
-                    'تیرماه ۱۴۰۳',
+                    _monthLabel,
                     style: TextStyle(
                       fontFamily: 'Vazirmatn',
                       fontSize: 11,
@@ -973,7 +1042,7 @@ class _AnalyticsSection extends StatelessWidget {
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
-                      'تیرماه ۱۴۰۳',
+                      _monthLabel,
                       style: TextStyle(
                         fontFamily: 'Vazirmatn',
                         fontSize: 11,
@@ -986,63 +1055,46 @@ class _AnalyticsSection extends StatelessWidget {
             SizedBox(height: r.isMobileSize ? 14 : 24),
             LayoutBuilder(
               builder: (context, c) {
-                // breakpoint 720: زیر این عرض ستونی
                 final isNarrow = c.maxWidth < 720;
+                final cards = [
+                  _StatCard(
+                    title: 'مجموع ناخالص حقوق',
+                    value: _loading ? '—' : '${fmt(_totalEarnings)} ریال',
+                    color: scheme.primary,
+                    icon: Icons.payments_rounded,
+                  ),
+                  _StatCard(
+                    title: 'حق بیمه سهم کارفرما',
+                    value: _loading ? '—' : '${fmt(_employerInsurance)} ریال',
+                    color: scheme.tertiary,
+                    icon: Icons.health_and_safety_rounded,
+                  ),
+                  _StatCard(
+                    title: 'مالیات متعلقه',
+                    value: _loading ? '—' : '${fmt(_tax)} ریال',
+                    color: scheme.secondary,
+                    icon: Icons.receipt_rounded,
+                  ),
+                ];
                 if (isNarrow) {
                   return Column(
                     children: [
-                      _StatCard(
-                        title: 'مجموع ناخالص حقوق',
-                        value: '۲,۴۵۰,۰۰۰,۰۰۰',
-                        color: scheme.primary,
-                        icon: Icons.payments_rounded,
-                      ),
+                      cards[0],
                       SizedBox(height: statGap),
-                      _StatCard(
-                        title: 'حق بیمه سهم کارفرما',
-                        value: '۵۸۰,۰۰۰,۰۰۰',
-                        color: scheme.tertiary,
-                        icon: Icons.health_and_safety_rounded,
-                      ),
+                      cards[1],
                       SizedBox(height: statGap),
-                      _StatCard(
-                        title: 'مالیات متعلقه',
-                        value: '۱۲۰,۵۰۰,۰۰۰',
-                        color: scheme.secondary,
-                        icon: Icons.receipt_rounded,
-                      ),
+                      cards[2],
                     ],
                   );
                 }
                 return Row(
                   textDirection: TextDirection.rtl,
                   children: [
-                    Expanded(
-                      child: _StatCard(
-                        title: 'مجموع ناخالص حقوق',
-                        value: '۲,۴۵۰,۰۰۰,۰۰۰',
-                        color: scheme.primary,
-                        icon: Icons.payments_rounded,
-                      ),
-                    ),
+                    Expanded(child: cards[0]),
                     SizedBox(width: statGap),
-                    Expanded(
-                      child: _StatCard(
-                        title: 'حق بیمه سهم کارفرما',
-                        value: '۵۸۰,۰۰۰,۰۰۰',
-                        color: scheme.tertiary,
-                        icon: Icons.health_and_safety_rounded,
-                      ),
-                    ),
+                    Expanded(child: cards[1]),
                     SizedBox(width: statGap),
-                    Expanded(
-                      child: _StatCard(
-                        title: 'مالیات متعلقه',
-                        value: '۱۲۰,۵۰۰,۰۰۰',
-                        color: scheme.secondary,
-                        icon: Icons.receipt_rounded,
-                      ),
-                    ),
+                    Expanded(child: cards[2]),
                   ],
                 );
               },

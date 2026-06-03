@@ -92,6 +92,26 @@ class SalaryService {
     );
   }
 
+  /// خلاصه پرداخت‌های یک ماه مشخص
+  Future<({double totalEarnings, double employerInsurance, double tax})>
+  getMonthlySummary(int year, int month) async {
+    final db = await _db.database;
+    final rows = await db.rawQuery(
+      'SELECT '
+      'COALESCE(SUM(total_earnings), 0) AS total_earnings, '
+      'COALESCE(SUM(insurance_base * 0.20), 0) AS employer_insurance, '
+      'COALESCE(SUM(tax), 0) AS tax '
+      'FROM salary_records WHERE year = ? AND month = ?',
+      [year, month],
+    );
+    final row = rows.first;
+    return (
+      totalEarnings: (row['total_earnings'] as num).toDouble(),
+      employerInsurance: (row['employer_insurance'] as num).toDouble(),
+      tax: (row['tax'] as num).toDouble(),
+    );
+  }
+
   /// لیست ماه‌هایی که فیش حقوق ثبت شده
   Future<List<(int year, int month)>> getRecordedMonths() async {
     final db = await _db.database;

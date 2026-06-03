@@ -1,5 +1,7 @@
 allprojects {
     repositories {
+        maven { url = uri("https://maven.myket.ir") }
+        maven { url = uri("https://en-mirror.ir") }
         google()
         mavenCentral()
     }
