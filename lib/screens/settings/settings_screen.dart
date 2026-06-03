@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/app_settings.dart';
+import '../../models/color_config.dart';
 import '../../providers/theme_controller.dart';
 import '../../services/appearance_service.dart';
 import '../../services/backup_service.dart';
@@ -108,6 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _checkChanges() {
+    if (!mounted) return;
     final changed = _companyNameCtrl.text.trim() != _initCompanyName ||
         _dailyWage != _initDailyWage ||
         _monthlyFood != _initMonthlyFood ||
@@ -324,7 +327,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         final shouldPop = await _onWillPop();
-        if (shouldPop && mounted) Navigator.pop(context);
+        if (!context.mounted) return;
+        if (shouldPop) Navigator.pop(context);
       },
       child: Scaffold(
         appBar: AppBar(
@@ -628,11 +632,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 16),
                   FadeInUp(
                     delay: const Duration(milliseconds: 420),
-                    child: const _AccessibilitySection(),
+                    child: const _ColorSection(),
                   ),
                   const SizedBox(height: 16),
                   FadeInUp(
                     delay: const Duration(milliseconds: 480),
+                    child: const _AccessibilitySection(),
+                  ),
+                  const SizedBox(height: 16),
+                  FadeInUp(
+                    delay: const Duration(milliseconds: 540),
                     child: _BackupSection(
                       onBackup: _backup,
                       onRestore: _restore,
@@ -1180,6 +1189,494 @@ class _SwitchTile extends StatelessWidget {
       ),
       value: value,
       onChanged: onChanged,
+    );
+  }
+}
+
+// -------- بخش رنگ --------
+class _ColorSection extends StatelessWidget {
+  const _ColorSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final controller = context.watch<ThemeController>();
+    final colorConfig = controller.colorConfig;
+    final supportsDynamic = controller.supportsDynamicColor;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: scheme.tertiary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.palette_rounded,
+                    color: scheme.tertiary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'رنگ برنامه',
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'جدید',
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 10,
+                      color: scheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(right: 56),
+              child: Text(
+                'ظاهر برنامه را با رنگ‌های دلخواه خود سفارشی کنید.',
+                style: TextStyle(
+                  fontFamily: 'Vazirmatn',
+                  fontSize: 12,
+                  color: scheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Divider(color: scheme.outlineVariant, height: 1),
+            const SizedBox(height: 12),
+            // انتخاب تم
+            Text(
+              'انتخاب تم',
+              style: TextStyle(
+                fontFamily: 'Vazirmatn',
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _ThemeSelector(
+              selected: controller.themeMode,
+              onChanged: (mode) => controller.setThemeMode(mode),
+            ),
+            const SizedBox(height: 16),
+            Divider(color: scheme.outlineVariant, height: 1),
+            const SizedBox(height: 8),
+            // سوئیچ رنگ اتوماتیک
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: Container(
+                width: 40,
+                height: 40,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: scheme.tertiary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.phone_android_rounded,
+                  color: supportsDynamic ? scheme.tertiary : scheme.onSurfaceVariant,
+                  size: 20,
+                ),
+              ),
+              title: Text(
+                'دریافت رنگ اتوماتیک دستگاه',
+                style: TextStyle(
+                  fontFamily: 'Vazirmatn',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: supportsDynamic ? scheme.onSurface : scheme.onSurfaceVariant,
+                ),
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  supportsDynamic
+                      ? 'استفاده از رنگ پس‌زمینه دستگاه (اندروید ۱۲ و بالاتر)'
+                      : 'فقط در اندروید ۱۲ و بالاتر در دسترس است',
+                  style: TextStyle(
+                    fontFamily: 'Vazirmatn',
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              value: colorConfig.useDynamicColors && supportsDynamic,
+              onChanged: supportsDynamic
+                  ? (v) => controller.updateColorConfig(useDynamicColors: v)
+                  : null,
+            ),
+            if (!colorConfig.useDynamicColors) ...[
+              const SizedBox(height: 16),
+              // انتخاب variant رنگی
+              Text(
+                'نوع رنگ',
+                style: TextStyle(
+                  fontFamily: 'Vazirmatn',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _VariantGrid(
+                selected: colorConfig.variant,
+                onChanged: (v) => controller.updateColorConfig(variant: v),
+              ),
+              const SizedBox(height: 16),
+              // انتخاب رنگ پایه
+              Text(
+                'رنگ پایه',
+                style: TextStyle(
+                  fontFamily: 'Vazirmatn',
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _ColorPickerRow(
+                selectedColor: colorConfig.seedColor,
+                onChanged: (c) => controller.updateColorConfig(seedColorValue: c.toARGB32()),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// -------- انتخابگر تم --------
+class _ThemeSelector extends StatelessWidget {
+  final ThemeMode selected;
+  final ValueChanged<ThemeMode> onChanged;
+
+  const _ThemeSelector({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _ThemeOption(
+          icon: Icons.brightness_auto_rounded,
+          label: 'سیستم',
+          isSelected: selected == ThemeMode.system,
+          onTap: () => onChanged(ThemeMode.system),
+        ),
+        const SizedBox(width: 8),
+        _ThemeOption(
+          icon: Icons.light_mode_rounded,
+          label: 'روشن',
+          isSelected: selected == ThemeMode.light,
+          onTap: () => onChanged(ThemeMode.light),
+        ),
+        const SizedBox(width: 8),
+        _ThemeOption(
+          icon: Icons.dark_mode_rounded,
+          label: 'تاریک',
+          isSelected: selected == ThemeMode.dark,
+          onTap: () => onChanged(ThemeMode.dark),
+        ),
+      ],
+    );
+  }
+}
+
+// -------- آیتم تم --------
+class _ThemeOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _ThemeOption({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? scheme.primaryContainer
+                : scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? scheme.primary : scheme.outlineVariant,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isSelected
+                    ? scheme.onPrimaryContainer
+                    : scheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'Vazirmatn',
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// -------- گرید انتخاب variant --------
+class _VariantGrid extends StatelessWidget {
+  final DynamicSchemeVariant selected;
+  final ValueChanged<DynamicSchemeVariant> onChanged;
+
+  const _VariantGrid({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth < 400 ? 2 : 3;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 1.8,
+          ),
+          itemCount: VariantInfo.all.length,
+          itemBuilder: (context, index) {
+            final info = VariantInfo.all[index];
+            final isSelected = info.variant == selected;
+            return InkWell(
+              onTap: () => onChanged(info.variant),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? scheme.primaryContainer
+                      : scheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? scheme.primary : scheme.outlineVariant,
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                          color: isSelected ? scheme.primary : scheme.onSurfaceVariant,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            info.persianName,
+                            style: TextStyle(
+                              fontFamily: 'Vazirmatn',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected ? scheme.onPrimaryContainer : scheme.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      info.description,
+                      style: TextStyle(
+                        fontFamily: 'Vazirmatn',
+                        fontSize: 10,
+                        color: isSelected
+                            ? scheme.onPrimaryContainer.withValues(alpha: 0.7)
+                            : scheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// -------- انتخاب رنگ --------
+class _ColorPickerRow extends StatelessWidget {
+  final Color selectedColor;
+  final ValueChanged<Color> onChanged;
+
+  const _ColorPickerRow({required this.selectedColor, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // رنگ‌های پیش‌فرض
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: Material3Colors.predefined.map((item) {
+            final color = Color(item['color'] as int);
+            final isSelected = color.toARGB32() == selectedColor.toARGB32();
+            return InkWell(
+              onTap: () => onChanged(color),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? scheme.onSurface : Colors.transparent,
+                    width: 2,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.4),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: isSelected
+                    ? const Icon(Icons.check, color: Colors.white, size: 20)
+                    : null,
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        // دکمه انتخاب آزاد
+        OutlinedButton.icon(
+          onPressed: () => _showColorPicker(context),
+          icon: const Icon(Icons.colorize_rounded, size: 18),
+          label: Text(
+            'انتخاب آزاد رنگ',
+            style: TextStyle(
+              fontFamily: 'Vazirmatn',
+              fontSize: 13,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showColorPicker(BuildContext context) {
+    final controller = context.read<ThemeController>();
+    Color pickerColor = selectedColor;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'انتخاب رنگ',
+          style: TextStyle(
+            fontFamily: 'Vazirmatn',
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: ColorPicker(
+            pickerColor: pickerColor,
+            onColorChanged: (color) => pickerColor = color,
+            enableAlpha: false,
+            labelTypes: const [],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            onPressed: () {
+              controller.updateColorConfig(seedColorValue: pickerColor.toARGB32());
+              Navigator.pop(ctx);
+            },
+            child: const Text('تأیید'),
+          ),
+        ],
+      ),
     );
   }
 }

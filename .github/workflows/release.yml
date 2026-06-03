@@ -41,15 +41,19 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Build APK (split per ABI)
-        run: flutter build apk --release --split-per-abi --target-platform=android-arm,android-arm64,android-x64
+      - name: Build APK (split per ABI — old & new devices)
+        run: flutter build apk --release --split-per-abi --target-platform=android-arm,android-arm64
+
+      - name: Build APK (universal — all devices)
+        run: flutter build apk --release
 
       - name: Build Windows x64
         run: flutter build windows --release
 
-      - name: Package Windows x64
+      - name: Package Windows x64 Portable
         shell: pwsh
         run: |
+          $tag = "${{ github.ref_name }}"
           New-Item -ItemType Directory -Path artifacts -Force
           $bundle = "artifacts\windows-x64\payroll_app"
           New-Item -ItemType Directory -Path $bundle, "$bundle\data" -Force
@@ -63,16 +67,20 @@ jobs:
           if (Test-Path build\native_assets\windows) {
             Get-ChildItem -Path build\native_assets\windows -Filter *.dll | Copy-Item -Destination $bundle -Force
           }
-          Compress-Archive -Path "$bundle\*" -DestinationPath artifacts\payroll-app-windows-x64.zip
+          Compress-Archive -Path "$bundle\*" -DestinationPath "artifacts/payroll-app-${tag}-windows-x64-portable.zip"
 
       - name: Stage Android APKs
         shell: pwsh
         run: |
-          Copy-Item -Path build\app\outputs\flutter-apk\app-armeabi-v7a-release.apk -Destination artifacts\payroll-app-android-arm.apk -Force
-          Copy-Item -Path build\app\outputs\flutter-apk\app-arm64-v8a-release.apk   -Destination artifacts\payroll-app-android-arm64.apk -Force
-          Copy-Item -Path build\app\outputs\flutter-apk\app-x86_64-release.apk      -Destination artifacts\payroll-app-android-x64.apk -Force
+          $tag = "${{ github.ref_name }}"
+          # Android for old devices (32-bit ARM)
+          Copy-Item -Path build\app\outputs\flutter-apk\app-armeabi-v7a-release.apk -Destination "artifacts/payroll-app-${tag}-android-arm.apk" -Force
+          # Android for new devices (64-bit ARM)
+          Copy-Item -Path build\app\outputs\flutter-apk\app-arm64-v8a-release.apk   -Destination "artifacts/payroll-app-${tag}-android-arm64.apk" -Force
+          # Android universal (all ABIs)
+          Copy-Item -Path build\app\outputs\flutter-apk\app-release.apk              -Destination "artifacts/payroll-app-${tag}-android-universal.apk" -Force
 
-      - name: Create release
+      - name: Create pre-release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
@@ -80,9 +88,9 @@ jobs:
           generate_release_notes: false
           body_path: CHANGELOG.md
           files: |
-            artifacts/payroll-app-android-arm.apk
-            artifacts/payroll-app-android-arm64.apk
-            artifacts/payroll-app-android-x64.apk
-            artifacts/payroll-app-windows-x64.zip
+            artifacts/payroll-app-${{ github.ref_name }}-android-arm.apk
+            artifacts/payroll-app-${{ github.ref_name }}-android-arm64.apk
+            artifacts/payroll-app-${{ github.ref_name }}-android-universal.apk
+            artifacts/payroll-app-${{ github.ref_name }}-windows-x64-portable.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

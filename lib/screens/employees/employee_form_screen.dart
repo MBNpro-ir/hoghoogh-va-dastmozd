@@ -92,7 +92,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       _dailyWage1404 = _settings!.dailyWage;
       _autoCalculate1405();
     }
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
   }
 
   void _autoCalculate1405() {
@@ -115,7 +115,8 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     _dailyMarriage = _isMarried
         ? _settings!.monthlyMarriage / AppConstants.standardMonthDays
         : 0;
-    setState(() {});
+    // فقط یکبار setState فراخوانی شود
+    if (mounted) setState(() {});
   }
 
   @override
@@ -369,7 +370,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 title: const Text('متاهل'),
                 value: _isMarried,
                 onChanged: (v) {
-                  setState(() => _isMarried = v);
+                  _isMarried = v;
                   _autoCalculate1405();
                 },
                 secondary: Icon(
@@ -384,7 +385,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 title: const Text('بیش از ۴ سال سابقه'),
                 value: _hasPriorExperience,
                 onChanged: (v) {
-                  setState(() => _hasPriorExperience = v);
+                  _hasPriorExperience = v;
                   _autoCalculate1405();
                 },
                 secondary: Icon(
@@ -405,7 +406,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                   title: const Text('متاهل'),
                   value: _isMarried,
                   onChanged: (v) {
-                    setState(() => _isMarried = v);
+                    _isMarried = v;
                     _autoCalculate1405();
                   },
                   secondary: Icon(
@@ -421,7 +422,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                   title: const Text('بیش از ۴ سال سابقه'),
                   value: _hasPriorExperience,
                   onChanged: (v) {
-                    setState(() => _hasPriorExperience = v);
+                    _hasPriorExperience = v;
                     _autoCalculate1405();
                   },
                   secondary: Icon(
@@ -451,7 +452,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
           IconButton(
             onPressed: _childrenCount > 0
                 ? () {
-                    setState(() => _childrenCount--);
+                    _childrenCount--;
                     _autoCalculate1405();
                   }
                 : null,
@@ -469,7 +470,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
           ),
           IconButton(
             onPressed: () {
-              setState(() => _childrenCount++);
+              _childrenCount++;
               _autoCalculate1405();
             },
             icon: const Icon(Icons.add_circle_outline_rounded, size: 24),
@@ -557,7 +558,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                     ],
                     onChanged: (v) {
                       if (v != null) {
-                        setState(() => _selectedRate = v);
+                        _selectedRate = v;
                         _autoCalculate1405();
                       }
                     },
@@ -577,7 +578,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                   _dailyWage1405 = v?.toDouble() ?? 0;
                   _baseSalary30Days =
                       _dailyWage1405 * AppConstants.standardMonthDays;
-                  setState(() {});
+                  if (mounted) setState(() {});
                 },
               ),
             ),

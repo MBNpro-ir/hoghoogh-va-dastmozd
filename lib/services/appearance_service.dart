@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/color_config.dart';
+
 /// مدل تنظیمات دسترسی‌پذیری (Accessibility)
 @immutable
 class AccessibilitySettings {
@@ -81,6 +83,7 @@ class AppearanceService {
   static const _kAccessibility = 'app.accessibility';
   static const _kCompactLayout = 'app.compactLayout';
   static const _kFirstRun = 'app.firstRun';
+  static const _kColorConfig = 'app.colorConfig';
 
   Future<ThemeMode> loadThemeMode() async {
     final prefs = await SharedPreferences.getInstance();
@@ -151,5 +154,37 @@ class AppearanceService {
     final v = prefs.getBool(_kFirstRun) ?? true;
     if (v) await prefs.setBool(_kFirstRun, false);
     return v;
+  }
+
+  Future<ColorConfig> loadColorConfig() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kColorConfig);
+    if (raw == null) return const ColorConfig();
+    try {
+      final map = <String, dynamic>{};
+      for (final part in raw.split(';')) {
+        final idx = part.indexOf('=');
+        if (idx > 0) map[part.substring(0, idx)] = part.substring(idx + 1);
+      }
+      return ColorConfig(
+        useDynamicColors: (map['ud'] ?? '0') == '1',
+        seedColorValue: int.tryParse(map['sc'] ?? '0') ?? 0xFF004394,
+        variant: DynamicSchemeVariant.values.firstWhere(
+          (e) => e.name == (map['vr'] ?? 'tonalSpot'),
+          orElse: () => DynamicSchemeVariant.tonalSpot,
+        ),
+      );
+    } catch (_) {
+      return const ColorConfig();
+    }
+  }
+
+  Future<void> saveColorConfig(ColorConfig config) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw =
+        'ud=${config.useDynamicColors ? 1 : 0};'
+        'sc=${config.seedColorValue};'
+        'vr=${config.variant.name}';
+    await prefs.setString(_kColorConfig, raw);
   }
 }
