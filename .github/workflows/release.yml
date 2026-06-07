@@ -35,6 +35,12 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
+      - name: Use official Gradle distribution on CI
+        shell: pwsh
+        run: |
+          $wrapper = "android\gradle\wrapper\gradle-wrapper.properties"
+          (Get-Content $wrapper) -replace '^distributionUrl=.*', 'distributionUrl=https\://services.gradle.org/distributions/gradle-9.1.0-all.zip' | Set-Content $wrapper
+
       - name: Get dependencies
         run: flutter pub get
 
