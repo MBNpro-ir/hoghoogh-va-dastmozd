@@ -245,6 +245,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         .toDouble();
     final record = _result!.toRecord(
       employeeId: _selectedEmployee!.id!,
+      employeeFullNameSnapshot: _selectedEmployee!.fullName,
+      employeePersonnelCodeSnapshot: _selectedEmployee!.personnelCode,
+      employeeNationalIdSnapshot: _selectedEmployee!.nationalId,
       year: _year,
       month: _month,
       totalDays: _totalDays,
@@ -404,6 +407,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                     .toDouble();
                 final rec = _result!.toRecord(
                   employeeId: _selectedEmployee!.id!,
+                  employeeFullNameSnapshot: _selectedEmployee!.fullName,
+                  employeePersonnelCodeSnapshot:
+                      _selectedEmployee!.personnelCode,
+                  employeeNationalIdSnapshot: _selectedEmployee!.nationalId,
                   year: _year,
                   month: _month,
                   totalDays: _totalDays,

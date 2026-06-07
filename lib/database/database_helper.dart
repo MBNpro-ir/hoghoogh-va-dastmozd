@@ -8,7 +8,7 @@ import '../models/app_settings.dart';
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
   static const String _dbName = 'payroll.db';
-  static const int _dbVersion = 3;
+  static const int _dbVersion = 4;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -107,6 +107,9 @@ class DatabaseHelper {
       CREATE TABLE salary_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         employee_id INTEGER NOT NULL,
+        employee_full_name_snapshot TEXT,
+        employee_personnel_code_snapshot INTEGER,
+        employee_national_id_snapshot TEXT,
         year INTEGER NOT NULL,
         month INTEGER NOT NULL,
         total_days INTEGER NOT NULL,
@@ -240,6 +243,50 @@ class DatabaseHelper {
         'app_settings',
         'annual_leave_allowance REAL NOT NULL DEFAULT 30',
       );
+    }
+    if (oldVersion < 4) {
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'employee_full_name_snapshot TEXT',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'employee_personnel_code_snapshot INTEGER',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'employee_national_id_snapshot TEXT',
+      );
+      await db.execute('''
+        UPDATE salary_records
+        SET employee_full_name_snapshot = (
+          SELECT TRIM(first_name || ' ' || last_name)
+          FROM employees
+          WHERE employees.id = salary_records.employee_id
+        )
+        WHERE employee_full_name_snapshot IS NULL;
+      ''');
+      await db.execute('''
+        UPDATE salary_records
+        SET employee_personnel_code_snapshot = (
+          SELECT personnel_code
+          FROM employees
+          WHERE employees.id = salary_records.employee_id
+        )
+        WHERE employee_personnel_code_snapshot IS NULL;
+      ''');
+      await db.execute('''
+        UPDATE salary_records
+        SET employee_national_id_snapshot = (
+          SELECT national_id
+          FROM employees
+          WHERE employees.id = salary_records.employee_id
+        )
+        WHERE employee_national_id_snapshot IS NULL;
+      ''');
     }
   }
 

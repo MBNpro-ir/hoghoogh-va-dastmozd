@@ -331,6 +331,8 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                   const SizedBox(height: 16),
                   _buildBenefitsSection(context, isMobile),
                   const SizedBox(height: 16),
+                  _buildMonthlyBenefitsSection(context, isMobile),
+                  const SizedBox(height: 16),
                   _buildNotesSection(context),
                   const SizedBox(height: 24),
                   _buildActionButtons(context, isMobile),
@@ -822,32 +824,17 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 18),
-        _buildMonthlyBenefitsSection(context, isMobile),
       ],
     );
   }
 
   Widget _buildMonthlyBenefitsSection(BuildContext context, bool isMobile) {
-    final scheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return _buildSection(
+      context: context,
+      title: 'مزایای ماهانه',
+      icon: Icons.calendar_month_rounded,
+      accent: Theme.of(context).colorScheme.secondary,
       children: [
-        Row(
-          children: [
-            Icon(
-              Icons.calendar_month_rounded,
-              size: 20,
-              color: scheme.secondary,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'مزایای ماهانه',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ],
-        ),
-        const Divider(height: 18),
         _responsiveRow(
           isMobile: isMobile,
           children: [

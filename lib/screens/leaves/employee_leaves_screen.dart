@@ -64,13 +64,18 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                _summary(),
-                Expanded(
-                  child: _records.isEmpty ? const _EmptyLeaves() : _table(),
+          : Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1100),
+                child: Column(
+                  children: [
+                    _summary(),
+                    Expanded(
+                      child: _records.isEmpty ? const _EmptyLeaves() : _table(),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
     );
   }
@@ -92,6 +97,7 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Wrap(
+        alignment: WrapAlignment.center,
         spacing: 8,
         runSpacing: 8,
         children: [
@@ -183,11 +189,17 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
     );
   }
 
+  String _employeeNameForRecord(SalaryRecord record) {
+    final snapshot = record.employeeFullNameSnapshot?.trim();
+    if (snapshot != null && snapshot.isNotEmpty) return snapshot;
+    return _employees[record.employeeId]?.fullName ?? '—';
+  }
+
   List<ResponsiveTableColumn<SalaryRecord>> _columns(ColorScheme scheme) => [
     ResponsiveTableColumn(
       label: 'کارمند',
-      sortValue: (r) => _employees[r.employeeId]?.fullName ?? '',
-      cellBuilder: (r) => Text(_employees[r.employeeId]?.fullName ?? '—'),
+      sortValue: _employeeNameForRecord,
+      cellBuilder: (r) => Text(_employeeNameForRecord(r)),
     ),
     ResponsiveTableColumn(
       label: 'دوره',
@@ -231,14 +243,13 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
   ];
 
   Widget _mobileCard(SalaryRecord record, int index, ColorScheme scheme) {
-    final emp = _employees[record.employeeId];
     return MobileDataCard(
       leading: CircleAvatar(
         backgroundColor: scheme.secondaryContainer,
         foregroundColor: scheme.onSecondaryContainer,
         child: Text(PersianNumberFormatter.toPersian((index + 1).toString())),
       ),
-      title: emp?.fullName ?? 'کارمند نامشخص',
+      title: _employeeNameForRecord(record),
       subtitle:
           '${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())}',
       metrics: [
@@ -341,6 +352,12 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
     final updated = recalculated
         .toRecord(
           employeeId: record.employeeId,
+          employeeFullNameSnapshot:
+              record.employeeFullNameSnapshot ?? employee.fullName,
+          employeePersonnelCodeSnapshot:
+              record.employeePersonnelCodeSnapshot ?? employee.personnelCode,
+          employeeNationalIdSnapshot:
+              record.employeeNationalIdSnapshot ?? employee.nationalId,
           year: record.year,
           month: record.month,
           totalDays: record.totalDays,

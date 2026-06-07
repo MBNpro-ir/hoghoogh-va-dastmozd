@@ -78,6 +78,9 @@ class SalaryCalculationResult {
 
   SalaryRecord toRecord({
     required int employeeId,
+    String? employeeFullNameSnapshot,
+    int? employeePersonnelCodeSnapshot,
+    String? employeeNationalIdSnapshot,
     required int year,
     required int month,
     required int totalDays,
@@ -89,6 +92,9 @@ class SalaryCalculationResult {
     String? notes,
   }) => SalaryRecord(
     employeeId: employeeId,
+    employeeFullNameSnapshot: employeeFullNameSnapshot,
+    employeePersonnelCodeSnapshot: employeePersonnelCodeSnapshot,
+    employeeNationalIdSnapshot: employeeNationalIdSnapshot,
     year: year,
     month: month,
     totalDays: totalDays,

@@ -153,26 +153,49 @@ class _LoansListScreenState extends State<LoansListScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    onChanged: (v) => setState(() => _filter = v),
-                    decoration: const InputDecoration(
-                      hintText: 'جستجو بر اساس نام یا کد پرسنلی...',
-                      prefixIcon: Icon(Icons.search_rounded),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilterChip(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final chip = FilterChip(
                   label: Text(_onlyActive ? 'فقط وام‌های فعال' : 'همه وام‌ها'),
+                  labelStyle: TextStyle(
+                    color: _onlyActive
+                        ? scheme.onPrimaryContainer
+                        : scheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
                   selected: _onlyActive,
                   onSelected: (v) => setState(() => _onlyActive = v),
                   selectedColor: scheme.primaryContainer,
+                  backgroundColor: scheme.surfaceContainerLowest,
+                  checkmarkColor: scheme.onPrimaryContainer,
+                  side: BorderSide(color: scheme.outlineVariant),
                   showCheckmark: true,
-                ),
-              ],
+                );
+                final search = TextField(
+                  onChanged: (v) => setState(() => _filter = v),
+                  decoration: const InputDecoration(
+                    hintText: 'جستجو بر اساس نام یا کد پرسنلی...',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                );
+                if (constraints.maxWidth < 560) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      search,
+                      const SizedBox(height: 8),
+                      Align(alignment: Alignment.centerRight, child: chip),
+                    ],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: search),
+                    const SizedBox(width: 12),
+                    chip,
+                  ],
+                );
+              },
             ),
           ),
           Expanded(

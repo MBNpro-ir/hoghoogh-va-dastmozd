@@ -945,16 +945,14 @@ class _ChartsSection extends StatelessWidget {
         ],
       );
     }
-    return IntrinsicHeight(
-      child: Row(
-        textDirection: TextDirection.rtl,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(flex: 7, child: barCard),
-          SizedBox(width: r.cardGap),
-          Expanded(flex: 5, child: donutCard),
-        ],
-      ),
+    return Row(
+      textDirection: TextDirection.rtl,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 7, child: barCard),
+        SizedBox(width: r.cardGap),
+        Expanded(flex: 5, child: donutCard),
+      ],
     );
   }
 }
@@ -1438,18 +1436,16 @@ class _BottomSection extends StatelessWidget {
         ],
       );
     }
-    return IntrinsicHeight(
-      child: Row(
-        textDirection: TextDirection.rtl,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(flex: 5, child: topCard),
-          SizedBox(width: r.cardGap),
-          Expanded(flex: 4, child: loanCard),
-          SizedBox(width: r.cardGap),
-          Expanded(flex: 6, child: recentCard),
-        ],
-      ),
+    return Row(
+      textDirection: TextDirection.rtl,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 5, child: topCard),
+        SizedBox(width: r.cardGap),
+        Expanded(flex: 4, child: loanCard),
+        SizedBox(width: r.cardGap),
+        Expanded(flex: 6, child: recentCard),
+      ],
     );
   }
 }
@@ -1507,6 +1503,12 @@ class _TopEarnerRow extends StatelessWidget {
     required this.maxValue,
   });
 
+  String get _employeeName {
+    final snapshot = record.employeeFullNameSnapshot?.trim();
+    if (snapshot != null && snapshot.isNotEmpty) return snapshot;
+    return employee?.fullName ?? 'کارمند #${record.employeeId}';
+  }
+
   Color _rankColor() {
     switch (rank) {
       case 1:
@@ -1555,7 +1557,7 @@ class _TopEarnerRow extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      employee?.fullName ?? 'کارمند #${record.employeeId}',
+                      _employeeName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1859,6 +1861,16 @@ class _RecentRow extends StatefulWidget {
 class _RecentRowState extends State<_RecentRow> {
   bool _hovered = false;
 
+  String get _employeeName {
+    final snapshot = widget.record.employeeFullNameSnapshot?.trim();
+    if (snapshot != null && snapshot.isNotEmpty) return snapshot;
+    return widget.employee?.fullName ?? 'کارمند #${widget.record.employeeId}';
+  }
+
+  int? get _employeeCode =>
+      widget.record.employeePersonnelCodeSnapshot ??
+      widget.employee?.personnelCode;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -1886,7 +1898,7 @@ class _RecentRowState extends State<_RecentRow> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                widget.employee?.firstName.characters.firstOrNull ?? '?',
+                _employeeName.characters.firstOrNull ?? '?',
                 style: const TextStyle(
                   fontFamily: 'Vazirmatn',
                   fontSize: 12,
@@ -1901,8 +1913,7 @@ class _RecentRowState extends State<_RecentRow> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.employee?.fullName ??
-                        'کارمند #${widget.record.employeeId}',
+                    _employeeName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -1913,7 +1924,7 @@ class _RecentRowState extends State<_RecentRow> {
                     ),
                   ),
                   Text(
-                    'کد ${PersianNumberFormatter.toPersian(widget.employee?.personnelCode.toString() ?? '-')}',
+                    'کد ${PersianNumberFormatter.toPersian(_employeeCode?.toString() ?? '-')}',
                     style: TextStyle(
                       fontFamily: 'Vazirmatn',
                       fontSize: 10,

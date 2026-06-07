@@ -415,6 +415,16 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     );
   }
 
+  String _employeeNameForRecord(SalaryRecord record) {
+    final snapshot = record.employeeFullNameSnapshot?.trim();
+    if (snapshot != null && snapshot.isNotEmpty) return snapshot;
+    return _employeesMap[record.employeeId]?.fullName ?? '—';
+  }
+
+  int? _employeeCodeForRecord(SalaryRecord record) =>
+      record.employeePersonnelCodeSnapshot ??
+      _employeesMap[record.employeeId]?.personnelCode;
+
   List<ResponsiveTableColumn<SalaryRecord>> _columns(ColorScheme scheme) => [
     ResponsiveTableColumn(
       label: 'ردیف',
@@ -425,19 +435,19 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     ),
     ResponsiveTableColumn(
       label: 'کد',
-      sortValue: (r) => _employeesMap[r.employeeId]?.personnelCode ?? 0,
+      sortValue: (r) => _employeeCodeForRecord(r) ?? 0,
       cellBuilder: (r) => Text(
-        _employeesMap[r.employeeId] != null
+        _employeeCodeForRecord(r) != null
             ? PersianNumberFormatter.toPersian(
-                _employeesMap[r.employeeId]!.personnelCode.toString(),
+                _employeeCodeForRecord(r)!.toString(),
               )
             : '—',
       ),
     ),
     ResponsiveTableColumn(
       label: 'نام کارمند',
-      sortValue: (r) => _employeesMap[r.employeeId]?.fullName ?? '',
-      cellBuilder: (r) => Text(_employeesMap[r.employeeId]?.fullName ?? '—'),
+      sortValue: _employeeNameForRecord,
+      cellBuilder: (r) => Text(_employeeNameForRecord(r)),
     ),
     ResponsiveTableColumn(
       label: 'دوره',
@@ -525,14 +535,13 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
   }
 
   Widget _recordCard(SalaryRecord record, int index, ColorScheme scheme) {
-    final emp = _employeesMap[record.employeeId];
     return MobileDataCard(
       leading: CircleAvatar(
         backgroundColor: scheme.secondaryContainer,
         foregroundColor: scheme.onSecondaryContainer,
         child: Text(PersianNumberFormatter.toPersian((index + 1).toString())),
       ),
-      title: emp?.fullName ?? 'کارمند نامشخص',
+      title: _employeeNameForRecord(record),
       subtitle:
           '${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())} • کارکرد ${_formatDays(record.workDays)} روز',
       metrics: [

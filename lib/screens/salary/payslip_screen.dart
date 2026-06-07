@@ -47,6 +47,23 @@ class PayslipScreen extends StatelessWidget {
     required this.record,
   });
 
+  String get _employeeFullName {
+    final snapshot = record.employeeFullNameSnapshot?.trim();
+    return snapshot != null && snapshot.isNotEmpty
+        ? snapshot
+        : employee.fullName;
+  }
+
+  int get _employeePersonnelCode =>
+      record.employeePersonnelCodeSnapshot ?? employee.personnelCode;
+
+  String get _employeeNationalId {
+    final snapshot = record.employeeNationalIdSnapshot?.trim();
+    return snapshot != null && snapshot.isNotEmpty
+        ? snapshot
+        : employee.nationalId;
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -215,19 +232,19 @@ class PayslipScreen extends StatelessWidget {
                 context,
                 'کد کارمند',
                 PersianNumberFormatter.toPersian(
-                  employee.personnelCode.toString(),
+                  _employeePersonnelCode.toString(),
                 ),
               ),
               _infoBox(
                 context,
                 'نام و نام خانوادگی',
-                employee.fullName,
+                _employeeFullName,
                 flex: 2,
               ),
               _infoBox(
                 context,
                 'کد ملی',
-                PersianNumberFormatter.toPersian(employee.nationalId),
+                PersianNumberFormatter.toPersian(_employeeNationalId),
               ),
             ],
           ),
@@ -733,7 +750,7 @@ class PayslipScreen extends StatelessWidget {
       await Printing.layoutPdf(
         onLayout: (format) async => _buildPdfBytes(),
         name:
-            'فیش حقوق ${employee.fullName} - ${PersianDateHelper.monthName(record.month)} ${record.year}',
+            'فیش حقوق $_employeeFullName - ${PersianDateHelper.monthName(record.month)} ${record.year}',
       );
     } catch (e) {
       messenger.showSnackBar(
@@ -747,10 +764,10 @@ class PayslipScreen extends StatelessWidget {
 
   String _buildTextContent() {
     final rows = [
-      'فیش حقوق ${employee.fullName}',
+      'فیش حقوق $_employeeFullName',
       'دوره: ${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())}',
-      'کد پرسنلی: ${PersianNumberFormatter.toPersian(employee.personnelCode.toString())}',
-      'کد ملی: ${PersianNumberFormatter.toPersian(employee.nationalId)}',
+      'کد پرسنلی: ${PersianNumberFormatter.toPersian(_employeePersonnelCode.toString())}',
+      'کد ملی: ${PersianNumberFormatter.toPersian(_employeeNationalId)}',
       'کارکرد: ${_formatDays(record.workDays)} روز',
       'مرخصی: ${_formatDays(record.leaveDays)} روز',
       '',
@@ -806,10 +823,10 @@ class PayslipScreen extends StatelessWidget {
     }
 
     row(['فیش حقوق', settings.companyName], header: true);
-    row(['نام کارمند', employee.fullName]);
+    row(['نام کارمند', _employeeFullName]);
     row([
       'کد پرسنلی',
-      PersianNumberFormatter.toPersian(employee.personnelCode.toString()),
+      PersianNumberFormatter.toPersian(_employeePersonnelCode.toString()),
     ]);
     row([
       'دوره',
@@ -851,7 +868,7 @@ class PayslipScreen extends StatelessWidget {
   String _fileBaseName() {
     final period =
         '${PersianDateHelper.monthName(record.month)}-${record.year}';
-    final cleanName = employee.fullName.replaceAll(
+    final cleanName = _employeeFullName.replaceAll(
       RegExp(r'[\\/:*?"<>|]'),
       '-',
     );
@@ -909,20 +926,20 @@ class PayslipScreen extends StatelessWidget {
             children: [
               pw.Expanded(
                 child: pw.Text(
-                  'کد کارمند: ${employee.personnelCode}',
+                  'کد کارمند: $_employeePersonnelCode',
                   style: const pw.TextStyle(fontSize: 10),
                 ),
               ),
               pw.Expanded(
                 flex: 2,
                 child: pw.Text(
-                  'نام و نام خانوادگی: ${employee.fullName}',
+                  'نام و نام خانوادگی: $_employeeFullName',
                   style: const pw.TextStyle(fontSize: 10),
                 ),
               ),
               pw.Expanded(
                 child: pw.Text(
-                  'کد ملی: ${employee.nationalId}',
+                  'کد ملی: $_employeeNationalId',
                   style: const pw.TextStyle(fontSize: 10),
                 ),
               ),

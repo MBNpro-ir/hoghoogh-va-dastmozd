@@ -5,9 +5,11 @@ import '../../models/loan.dart';
 import '../../services/employee_service.dart';
 import '../../services/loan_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/persian_date_picker.dart';
 import '../../widgets/persian_number_field.dart';
 
 class LoanFormScreen extends StatefulWidget {
@@ -42,7 +44,9 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
   void initState() {
     super.initState();
     final l = widget.loan;
-    _startDateCtrl = TextEditingController(text: l?.startDate ?? '1405/01/01');
+    _startDateCtrl = TextEditingController(
+      text: PersianNumberFormatter.toPersian(l?.startDate ?? '1405/01/01'),
+    );
     _notesCtrl = TextEditingController(text: l?.notes ?? '');
     _installmentsCtrl = TextEditingController(
       text: l != null
@@ -91,6 +95,24 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
       _installmentAmount = (_amount / installments).roundToDouble();
       setState(() {});
     }
+  }
+
+  Future<void> _pickStartDate() async {
+    final initial =
+        PersianDateHelper.parseJalali(
+          PersianNumberFormatter.toEnglish(_startDateCtrl.text),
+        ) ??
+        PersianDateHelper.parseJalali('1405/01/01');
+    final selected = await showPersianDatePicker(
+      context: context,
+      initialDate: initial,
+    );
+    if (selected == null) return;
+    setState(() {
+      _startDateCtrl.text = PersianNumberFormatter.toPersian(
+        PersianDateHelper.formatJalali(selected),
+      );
+    });
   }
 
   Future<void> _save() async {
@@ -387,15 +409,26 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                           children: [
                             TextFormField(
                               controller: _startDateCtrl,
+                              readOnly: true,
+                              onTap: _pickStartDate,
                               textDirection: TextDirection.ltr,
                               decoration: const InputDecoration(
                                 labelText: 'تاریخ شروع وام (شمسی) *',
                                 prefixIcon: Icon(Icons.calendar_today_rounded),
+                                suffixIcon: Icon(Icons.edit_calendar_rounded),
                                 hintText: '1405/01/01',
                               ),
-                              validator: (v) => v == null || v.trim().isEmpty
-                                  ? 'الزامی است'
-                                  : null,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'الزامی است';
+                                }
+                                final parsed = PersianDateHelper.parseJalali(
+                                  PersianNumberFormatter.toEnglish(v),
+                                );
+                                return parsed == null
+                                    ? 'تاریخ نامعتبر است'
+                                    : null;
+                              },
                             ),
                             const SizedBox(height: 12),
                             TextFormField(

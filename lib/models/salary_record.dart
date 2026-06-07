@@ -2,6 +2,9 @@
 class SalaryRecord {
   final int? id;
   final int employeeId;
+  final String? employeeFullNameSnapshot;
+  final int? employeePersonnelCodeSnapshot;
+  final String? employeeNationalIdSnapshot;
   final int year; // سال شمسی
   final int month; // ماه شمسی (1 تا 12)
 
@@ -53,6 +56,9 @@ class SalaryRecord {
   SalaryRecord({
     this.id,
     required this.employeeId,
+    this.employeeFullNameSnapshot,
+    this.employeePersonnelCodeSnapshot,
+    this.employeeNationalIdSnapshot,
     required this.year,
     required this.month,
     required this.totalDays,
@@ -94,6 +100,9 @@ class SalaryRecord {
   Map<String, dynamic> toMap() => {
     'id': id,
     'employee_id': employeeId,
+    'employee_full_name_snapshot': employeeFullNameSnapshot,
+    'employee_personnel_code_snapshot': employeePersonnelCodeSnapshot,
+    'employee_national_id_snapshot': employeeNationalIdSnapshot,
     'year': year,
     'month': month,
     'total_days': totalDays,
@@ -135,6 +144,10 @@ class SalaryRecord {
   factory SalaryRecord.fromMap(Map<String, dynamic> map) => SalaryRecord(
     id: map['id'] as int?,
     employeeId: map['employee_id'] as int,
+    employeeFullNameSnapshot: map['employee_full_name_snapshot'] as String?,
+    employeePersonnelCodeSnapshot:
+        (map['employee_personnel_code_snapshot'] as num?)?.toInt(),
+    employeeNationalIdSnapshot: map['employee_national_id_snapshot'] as String?,
     year: map['year'] as int,
     month: map['month'] as int,
     totalDays: map['total_days'] as int,
@@ -179,6 +192,9 @@ class SalaryRecord {
   SalaryRecord copyWithId(int newId) => SalaryRecord(
     id: newId,
     employeeId: employeeId,
+    employeeFullNameSnapshot: employeeFullNameSnapshot,
+    employeePersonnelCodeSnapshot: employeePersonnelCodeSnapshot,
+    employeeNationalIdSnapshot: employeeNationalIdSnapshot,
     year: year,
     month: month,
     totalDays: totalDays,
@@ -219,6 +235,9 @@ class SalaryRecord {
 
   SalaryRecord copyWith({
     int? id,
+    String? employeeFullNameSnapshot,
+    int? employeePersonnelCodeSnapshot,
+    String? employeeNationalIdSnapshot,
     double? leaveDays,
     double? workDays,
     double? hourlyBenefitHours,
@@ -234,6 +253,12 @@ class SalaryRecord {
   }) => SalaryRecord(
     id: id ?? this.id,
     employeeId: employeeId,
+    employeeFullNameSnapshot:
+        employeeFullNameSnapshot ?? this.employeeFullNameSnapshot,
+    employeePersonnelCodeSnapshot:
+        employeePersonnelCodeSnapshot ?? this.employeePersonnelCodeSnapshot,
+    employeeNationalIdSnapshot:
+        employeeNationalIdSnapshot ?? this.employeeNationalIdSnapshot,
     year: year,
     month: month,
     totalDays: totalDays,
