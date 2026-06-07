@@ -13,6 +13,9 @@ jobs:
   build_all:
     name: Analyze, test, build (Android + Windows) and release
     runs-on: windows-latest
+    env:
+      FLUTTER_STORAGE_BASE_URL: https://storage.googleapis.com
+      PUB_HOSTED_URL: https://pub.dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
