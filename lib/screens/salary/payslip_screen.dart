@@ -28,6 +28,8 @@ enum _PayslipExportAction {
   saveText,
   savePdfAndImage,
   saveExcel,
+  saveTax,
+  saveInsurance,
   sharePdf,
   shareImage,
   shareText,
@@ -62,6 +64,12 @@ class PayslipScreen extends StatelessWidget {
     return snapshot != null && snapshot.isNotEmpty
         ? snapshot
         : employee.nationalId;
+  }
+
+  String get _employeeFooterNote {
+    final snapshot = record.employeePayslipFooterNoteSnapshot?.trim();
+    if (snapshot != null && snapshot.isNotEmpty) return snapshot;
+    return employee.payslipFooterNote.trim();
   }
 
   @override
@@ -119,6 +127,14 @@ class PayslipScreen extends StatelessWidget {
               PopupMenuItem(
                 value: _PayslipExportAction.saveExcel,
                 child: Text('ذخیره Excel'),
+              ),
+              PopupMenuItem(
+                value: _PayslipExportAction.saveTax,
+                child: Text('خروجی مالیات'),
+              ),
+              PopupMenuItem(
+                value: _PayslipExportAction.saveInsurance,
+                child: Text('خروجی بیمه'),
               ),
             ],
           ),
@@ -399,6 +415,21 @@ class PayslipScreen extends StatelessWidget {
             ],
           ),
         ],
+        if (_employeeFooterNote.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(color: scheme.outlineVariant),
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              color: scheme.surfaceContainerLowest,
+            ),
+            child: Text(
+              _employeeFooterNote,
+              style: TextStyle(fontSize: 12, color: scheme.onSurface),
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         Row(
           children: [
@@ -652,6 +683,16 @@ class PayslipScreen extends StatelessWidget {
             extension: 'xlsx',
           );
           break;
+        case _PayslipExportAction.saveTax:
+          await _saveTaxFiles();
+          break;
+        case _PayslipExportAction.saveInsurance:
+          await _saveBytes(
+            bytes: Uint8List(0),
+            fileName: 'insurance_${record.year}${_twoDigit(record.month)}.txt',
+            extension: 'txt',
+          );
+          break;
         case _PayslipExportAction.sharePdf:
           await _shareFile(await _buildPdfBytes(), '${_fileBaseName()}.pdf');
           break;
@@ -697,6 +738,137 @@ class PayslipScreen extends StatelessWidget {
     if (path == null) return;
     await File(path).writeAsBytes(bytes, flush: true);
   }
+
+  Future<void> _saveTaxFiles() async {
+    final period = '${record.year}${_twoDigit(record.month)}';
+    await _saveBytes(
+      bytes: Uint8List.fromList(utf8.encode(_buildTaxEmployeeFile())),
+      fileName: 'WP$period.TXT',
+      extension: 'txt',
+    );
+    await _saveBytes(
+      bytes: Uint8List.fromList(utf8.encode(_buildTaxSalaryFile())),
+      fileName: 'WH$period.TXT',
+      extension: 'txt',
+    );
+  }
+
+  String _buildTaxEmployeeFile() {
+    final fields = [
+      '1',
+      _employeeNationalId,
+      employee.firstName,
+      employee.lastName,
+      employee.fatherName,
+      _taxDate(employee.birthDate),
+      employee.birthCertificateNumber,
+      employee.birthPlace,
+      _educationCode(employee.education),
+      employee.insuranceNumber.trim().isEmpty ? '5' : '2',
+      employee.insuranceNumber,
+      employee.insuranceNumber.trim().isEmpty ? '' : 'تامین اجتماعی',
+      '1',
+      '103',
+      '103',
+      '',
+      employee.address,
+      '13',
+      employee.position.trim().isNotEmpty
+          ? employee.position
+          : employee.jobTitle,
+      _employmentTypeCode(employee.employmentType),
+      _taxDate(employee.startDate),
+      employee.isActive ? '' : _taxDate(employee.endDate),
+      '',
+    ];
+    return '${_csvRow(fields)}\r\n';
+  }
+
+  String _buildTaxSalaryFile() {
+    final continuousCash =
+        record.baseSalary +
+        record.housing +
+        record.food +
+        record.marriage +
+        record.childAllowance +
+        record.seniority;
+    final otherCash = record.otherBenefits + record.hourlyBenefitsAmount;
+    final fields = [
+      _employeeNationalId,
+      '1',
+      '1',
+      '1',
+      '84',
+      '1',
+      _rial(continuousCash),
+      '0',
+      '1',
+      '0',
+      '1',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      _rial(record.overtimeAmount),
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      _rial(otherCash),
+      '0',
+      '0',
+      '0',
+      '0',
+      '0',
+      _rial(record.finalPayment),
+      '0',
+      _rial(record.shiftWork),
+      '0',
+      '0',
+    ];
+    return '${_csvRow(fields)}\r\n';
+  }
+
+  String _csvRow(List<Object?> fields) {
+    return fields
+        .map((value) => (value ?? '').toString().replaceAll(',', ' '))
+        .join(',');
+  }
+
+  String _taxDate(String value) {
+    return PersianNumberFormatter.toEnglish(
+      value,
+    ).replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  String _educationCode(String education) {
+    return switch (education) {
+      'زیر دیپلم' => '1',
+      'دیپلم' => '2',
+      'فوق دیپلم' => '3',
+      'کارشناسی' => '4',
+      'کارشناسی ارشد' => '5',
+      'دکتری' => '6',
+      'فوق دکتری' => '7',
+      _ => '',
+    };
+  }
+
+  String _employmentTypeCode(String employmentType) {
+    return employmentType == 'قراردادی' ? '1' : '12';
+  }
+
+  String _rial(double value) => value.round().toString();
+
+  String _twoDigit(int value) => value.toString().padLeft(2, '0');
 
   Future<void> _shareFile(Uint8List bytes, String fileName) async {
     final file = await _writeTempFile(bytes, fileName);
@@ -786,6 +958,7 @@ class PayslipScreen extends StatelessWidget {
       'جمع حقوق و مزایا: ${PersianNumberFormatter.formatRial(record.totalEarnings, showUnit: true)}',
       'جمع کسورات: ${PersianNumberFormatter.formatRial(record.totalDeductions, showUnit: true)}',
       'خالص پرداختی: ${PersianNumberFormatter.formatRial(record.finalPayment, showUnit: true)}',
+      if (_employeeFooterNote.isNotEmpty) ...['', _employeeFooterNote],
     ];
     return rows.join('\n');
   }
@@ -856,6 +1029,10 @@ class PayslipScreen extends StatelessWidget {
       'خالص پرداختی',
       PersianNumberFormatter.formatRial(record.finalPayment),
     ], header: true);
+    if (_employeeFooterNote.isNotEmpty) {
+      row([]);
+      row(['توضیحات انتهای فیش', _employeeFooterNote]);
+    }
 
     for (var col = 0; col < 2; col++) {
       sheet.setColumnWidth(col, col == 0 ? 24 : 28);
@@ -1124,6 +1301,17 @@ class PayslipScreen extends StatelessWidget {
             ],
           ),
         ),
+        if (_employeeFooterNote.isNotEmpty) ...[
+          pw.SizedBox(height: 8),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.7)),
+            child: pw.Text(
+              _employeeFooterNote,
+              style: const pw.TextStyle(fontSize: 9),
+            ),
+          ),
+        ],
       ],
     );
   }

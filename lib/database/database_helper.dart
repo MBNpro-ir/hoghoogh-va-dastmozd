@@ -1,14 +1,16 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../models/app_settings.dart';
+import '../models/company_profile.dart';
+import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const String _dbName = 'payroll.db';
-  static const int _dbVersion = 4;
+  static const int _dbVersion = 5;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -40,7 +42,7 @@ class DatabaseHelper {
     if (!await dbDir.exists()) {
       await dbDir.create(recursive: true);
     }
-    final dbPath = p.join(dbDir.path, _dbName);
+    final dbPath = p.join(dbDir.path, await _activeDbName());
 
     return await databaseFactory.openDatabase(
       dbPath,
@@ -64,6 +66,18 @@ class DatabaseHelper {
         first_name TEXT NOT NULL,
         last_name TEXT NOT NULL,
         national_id TEXT NOT NULL,
+        father_name TEXT DEFAULT '',
+        birth_certificate_number TEXT DEFAULT '',
+        gender TEXT DEFAULT 'مرد',
+        workplace TEXT DEFAULT '',
+        bank_name TEXT DEFAULT '',
+        bank_account_type TEXT DEFAULT '',
+        bank_account_number TEXT DEFAULT '',
+        job_code TEXT DEFAULT '',
+        job_title TEXT DEFAULT '',
+        birth_date TEXT DEFAULT '',
+        birth_place TEXT DEFAULT '',
+        phone TEXT DEFAULT '',
         has_prior_experience INTEGER NOT NULL DEFAULT 1,
         is_married INTEGER NOT NULL DEFAULT 0,
         children_count INTEGER NOT NULL DEFAULT 0,
@@ -80,6 +94,15 @@ class DatabaseHelper {
         hourly_benefits REAL DEFAULT 0,
         start_date TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 1,
+        end_date TEXT DEFAULT '',
+        card_number TEXT DEFAULT '',
+        insurance_number TEXT DEFAULT '',
+        education TEXT DEFAULT '',
+        position TEXT DEFAULT '',
+        employment_type TEXT DEFAULT 'قراردادی',
+        address TEXT DEFAULT '',
+        hard_and_harmful_job INTEGER NOT NULL DEFAULT 0,
+        payslip_footer_note TEXT DEFAULT '',
         notes TEXT
       );
     ''');
@@ -110,6 +133,7 @@ class DatabaseHelper {
         employee_full_name_snapshot TEXT,
         employee_personnel_code_snapshot INTEGER,
         employee_national_id_snapshot TEXT,
+        employee_payslip_footer_note_snapshot TEXT,
         year INTEGER NOT NULL,
         month INTEGER NOT NULL,
         total_days INTEGER NOT NULL,
@@ -288,6 +312,58 @@ class DatabaseHelper {
         WHERE employee_national_id_snapshot IS NULL;
       ''');
     }
+    if (oldVersion < 5) {
+      await _safeAddColumn(db, 'employees', "father_name TEXT DEFAULT ''");
+      await _safeAddColumn(
+        db,
+        'employees',
+        "birth_certificate_number TEXT DEFAULT ''",
+      );
+      await _safeAddColumn(db, 'employees', "gender TEXT DEFAULT 'مرد'");
+      await _safeAddColumn(db, 'employees', "workplace TEXT DEFAULT ''");
+      await _safeAddColumn(db, 'employees', "bank_name TEXT DEFAULT ''");
+      await _safeAddColumn(
+        db,
+        'employees',
+        "bank_account_type TEXT DEFAULT ''",
+      );
+      await _safeAddColumn(
+        db,
+        'employees',
+        "bank_account_number TEXT DEFAULT ''",
+      );
+      await _safeAddColumn(db, 'employees', "job_code TEXT DEFAULT ''");
+      await _safeAddColumn(db, 'employees', "job_title TEXT DEFAULT ''");
+      await _safeAddColumn(db, 'employees', "birth_date TEXT DEFAULT ''");
+      await _safeAddColumn(db, 'employees', "birth_place TEXT DEFAULT ''");
+      await _safeAddColumn(db, 'employees', "phone TEXT DEFAULT ''");
+      await _safeAddColumn(db, 'employees', "end_date TEXT DEFAULT ''");
+      await _safeAddColumn(db, 'employees', "card_number TEXT DEFAULT ''");
+      await _safeAddColumn(db, 'employees', "insurance_number TEXT DEFAULT ''");
+      await _safeAddColumn(db, 'employees', "education TEXT DEFAULT ''");
+      await _safeAddColumn(db, 'employees', "position TEXT DEFAULT ''");
+      await _safeAddColumn(
+        db,
+        'employees',
+        "employment_type TEXT DEFAULT 'قراردادی'",
+      );
+      await _safeAddColumn(db, 'employees', "address TEXT DEFAULT ''");
+      await _safeAddColumn(
+        db,
+        'employees',
+        'hard_and_harmful_job INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'employees',
+        "payslip_footer_note TEXT DEFAULT ''",
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'employee_payslip_footer_note_snapshot TEXT',
+      );
+    }
   }
 
   Future<void> _safeAddColumn(
@@ -312,9 +388,18 @@ class DatabaseHelper {
     }
   }
 
+  Future<String> _activeDbName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dbName = prefs.getString(CompanyService.currentCompanyDbPrefsKey);
+    if (dbName == null || dbName.trim().isEmpty) {
+      return CompanyServiceDefaults.defaultDbName;
+    }
+    return dbName;
+  }
+
   Future<String> get databasePath async {
     final docsDir = await getApplicationDocumentsDirectory();
-    return p.join(docsDir.path, 'payroll_app', _dbName);
+    return p.join(docsDir.path, 'payroll_app', await _activeDbName());
   }
 
   /// حذف کل دیتابیس (برای reset)

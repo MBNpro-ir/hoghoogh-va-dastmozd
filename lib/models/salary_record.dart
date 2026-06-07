@@ -5,6 +5,7 @@ class SalaryRecord {
   final String? employeeFullNameSnapshot;
   final int? employeePersonnelCodeSnapshot;
   final String? employeeNationalIdSnapshot;
+  final String? employeePayslipFooterNoteSnapshot;
   final int year; // سال شمسی
   final int month; // ماه شمسی (1 تا 12)
 
@@ -59,6 +60,7 @@ class SalaryRecord {
     this.employeeFullNameSnapshot,
     this.employeePersonnelCodeSnapshot,
     this.employeeNationalIdSnapshot,
+    this.employeePayslipFooterNoteSnapshot,
     required this.year,
     required this.month,
     required this.totalDays,
@@ -103,6 +105,7 @@ class SalaryRecord {
     'employee_full_name_snapshot': employeeFullNameSnapshot,
     'employee_personnel_code_snapshot': employeePersonnelCodeSnapshot,
     'employee_national_id_snapshot': employeeNationalIdSnapshot,
+    'employee_payslip_footer_note_snapshot': employeePayslipFooterNoteSnapshot,
     'year': year,
     'month': month,
     'total_days': totalDays,
@@ -148,6 +151,8 @@ class SalaryRecord {
     employeePersonnelCodeSnapshot:
         (map['employee_personnel_code_snapshot'] as num?)?.toInt(),
     employeeNationalIdSnapshot: map['employee_national_id_snapshot'] as String?,
+    employeePayslipFooterNoteSnapshot:
+        map['employee_payslip_footer_note_snapshot'] as String?,
     year: map['year'] as int,
     month: map['month'] as int,
     totalDays: map['total_days'] as int,
@@ -195,6 +200,7 @@ class SalaryRecord {
     employeeFullNameSnapshot: employeeFullNameSnapshot,
     employeePersonnelCodeSnapshot: employeePersonnelCodeSnapshot,
     employeeNationalIdSnapshot: employeeNationalIdSnapshot,
+    employeePayslipFooterNoteSnapshot: employeePayslipFooterNoteSnapshot,
     year: year,
     month: month,
     totalDays: totalDays,
@@ -238,6 +244,7 @@ class SalaryRecord {
     String? employeeFullNameSnapshot,
     int? employeePersonnelCodeSnapshot,
     String? employeeNationalIdSnapshot,
+    String? employeePayslipFooterNoteSnapshot,
     double? leaveDays,
     double? workDays,
     double? hourlyBenefitHours,
@@ -259,6 +266,9 @@ class SalaryRecord {
         employeePersonnelCodeSnapshot ?? this.employeePersonnelCodeSnapshot,
     employeeNationalIdSnapshot:
         employeeNationalIdSnapshot ?? this.employeeNationalIdSnapshot,
+    employeePayslipFooterNoteSnapshot:
+        employeePayslipFooterNoteSnapshot ??
+        this.employeePayslipFooterNoteSnapshot,
     year: year,
     month: month,
     totalDays: totalDays,

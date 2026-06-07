@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../database/database_helper.dart';
+import '../models/company_profile.dart';
 import '../providers/theme_controller.dart';
+import '../services/company_service.dart';
+import '../services/settings_service.dart';
 import '../utils/constants.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_sidebar.dart';
@@ -23,7 +27,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
+  int _workspaceVersion = 0;
   final PageController _pageController = PageController();
+  final _companyService = CompanyService();
+  final _settingsService = SettingsService();
+  List<CompanyProfile> _companies = const [];
+  CompanyProfile? _currentCompany;
 
   List<Widget> get _pages => [
     DashboardView(
@@ -59,6 +68,12 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadCompanies();
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     super.dispose();
@@ -81,12 +96,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 currentIndex: _index,
                 onSelect: (i) => _goToIndex(i),
                 items: _items,
-                header: _SidebarHeader(),
+                header: _SidebarHeader(
+                  companyName: _currentCompany?.name,
+                  onManageCompanies: _showCompanyDialog,
+                ),
                 footer: _SidebarFooter(),
               ),
             ),
             VerticalDivider(width: 1, color: scheme.outlineVariant),
-            Expanded(child: _AnimatedPageSwitcher(child: _buildCurrentPage())),
+            Expanded(
+              child: _AnimatedPageSwitcher(
+                pageKey: ValueKey('$_workspaceVersion-$_index'),
+                child: _buildCurrentPage(),
+              ),
+            ),
           ],
         ),
       );
@@ -108,7 +131,10 @@ class _HomeScreenState extends State<HomeScreen> {
               _goToIndex(i);
             },
             items: _items,
-            header: _SidebarHeader(),
+            header: _SidebarHeader(
+              companyName: _currentCompany?.name,
+              onManageCompanies: _showCompanyDialog,
+            ),
             footer: _SidebarFooter(),
           ),
         ),
@@ -129,6 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         body: PageView(
+          key: ValueKey(_workspaceVersion),
           controller: _pageController,
           physics: const BouncingScrollPhysics(),
           reverse: false, // RTL: swipe چپ به راست = صفحه بعد
@@ -227,12 +254,131 @@ class _HomeScreenState extends State<HomeScreen> {
     ThemeMode.light => 'تم روشن',
     ThemeMode.dark => 'تم تاریک',
   };
+
+  // -------- سوئیچ صفحه با انیمیشن --------
+  Future<void> _loadCompanies() async {
+    var companies = await _companyService.getCompanies();
+    var current = await _companyService.getCurrentCompany();
+    final settings = await _settingsService.getCurrentSettings();
+    if (settings.companyName.trim().isNotEmpty &&
+        current.name != settings.companyName) {
+      await _companyService.syncCurrentCompanyName(settings.companyName);
+      companies = await _companyService.getCompanies();
+      current = await _companyService.getCurrentCompany();
+    }
+    if (!mounted) return;
+    setState(() {
+      _companies = companies;
+      _currentCompany = current;
+    });
+  }
+
+  Future<void> _showCompanyDialog() async {
+    await _loadCompanies();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('مدیریت شرکت‌ها', style: Theme.of(ctx).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              for (final company in _companies)
+                ListTile(
+                  leading: Icon(
+                    company.dbName == _currentCompany?.dbName
+                        ? Icons.check_circle_rounded
+                        : Icons.business_rounded,
+                  ),
+                  title: Text(company.name),
+                  subtitle: Text(company.dbName),
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    await _activateCompany(company);
+                  },
+                ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await _showAddCompanyDialog();
+                },
+                icon: const Icon(Icons.add_business_rounded),
+                label: const Text('افزودن شرکت جدید'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAddCompanyDialog() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('شرکت جدید'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'نام شرکت',
+            prefixIcon: Icon(Icons.business_rounded),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('ایجاد'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.trim().isEmpty) return;
+    final company = await _companyService.addCompany(name);
+    await DatabaseHelper.instance.close();
+    final settings = await _settingsService.getCurrentSettings();
+    await _settingsService.update(settings.copyWith(companyName: name));
+    await _refreshWorkspace(company);
+  }
+
+  Future<void> _activateCompany(CompanyProfile company) async {
+    if (company.dbName == _currentCompany?.dbName) return;
+    await _companyService.switchCompany(company);
+    await DatabaseHelper.instance.close();
+    await _refreshWorkspace(company);
+  }
+
+  Future<void> _refreshWorkspace(CompanyProfile company) async {
+    final companies = await _companyService.getCompanies();
+    if (!mounted) return;
+    setState(() {
+      _companies = companies;
+      _currentCompany = company;
+      _index = 0;
+      _workspaceVersion++;
+    });
+    if (_pageController.hasClients) {
+      _pageController.jumpToPage(0);
+    }
+  }
 }
 
-// -------- سوئیچ صفحه با انیمیشن --------
 class _AnimatedPageSwitcher extends StatelessWidget {
   final Widget child;
-  const _AnimatedPageSwitcher({required this.child});
+  final Key pageKey;
+  const _AnimatedPageSwitcher({required this.child, required this.pageKey});
 
   @override
   Widget build(BuildContext context) {
@@ -252,13 +398,18 @@ class _AnimatedPageSwitcher extends StatelessWidget {
           ),
         );
       },
-      child: KeyedSubtree(key: ValueKey(child.runtimeType), child: child),
+      child: KeyedSubtree(key: pageKey, child: child),
     );
   }
 }
 
 // -------- هدر سایدبار --------
 class _SidebarHeader extends StatelessWidget {
+  final String? companyName;
+  final VoidCallback onManageCompanies;
+
+  const _SidebarHeader({this.companyName, required this.onManageCompanies});
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -281,7 +432,7 @@ class _SidebarHeader extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            'سیستم حقوق و دستمزد',
+            companyName ?? 'سیستم حقوق و دستمزد',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Vazirmatn',
@@ -299,6 +450,12 @@ class _SidebarHeader extends StatelessWidget {
               fontSize: 11,
               color: scheme.onSurfaceVariant,
             ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: onManageCompanies,
+            icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+            label: const Text('تعویض شرکت'),
           ),
         ],
       ),

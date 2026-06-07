@@ -65,8 +65,14 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
         ? PersianNumberFormatter.formatNumber(widget.initialValue!)
         : '';
     if (_controller.text != nextText) {
-      _controller.text = nextText;
-      _controller.selection = TextSelection.collapsed(offset: nextText.length);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_ownsController || _focusNode.hasFocus) return;
+        if (_controller.text == nextText) return;
+        _controller.value = TextEditingValue(
+          text: nextText,
+          selection: TextSelection.collapsed(offset: nextText.length),
+        );
+      });
     }
   }
 

@@ -85,7 +85,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   }
 
   Future<void> _init() async {
-    _employees = await _employeeService.getAll(onlyActive: true);
+    _employees = await _employeeService.getAll(onlyActive: !_isEditMode);
     _settings = await _settingsService.getCurrentSettings();
     if (_editRecord != null) {
       _year = _editRecord!.year;
@@ -244,6 +244,17 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
 
   Future<void> _saveAndShowPayslip({bool deductLoanInstallments = true}) async {
     if (_result == null || _selectedEmployee == null) return;
+    if (!_isEditMode && !_selectedEmployee!.isActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'برای کارمند غیرفعال امکان ثبت فیش حقوق جدید وجود ندارد',
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
     setState(() => _saving = true);
 
     final workDays = (_totalDays - _leaveDays)
@@ -254,6 +265,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       employeeFullNameSnapshot: _selectedEmployee!.fullName,
       employeePersonnelCodeSnapshot: _selectedEmployee!.personnelCode,
       employeeNationalIdSnapshot: _selectedEmployee!.nationalId,
+      employeePayslipFooterNoteSnapshot: _selectedEmployee!.payslipFooterNote,
       year: _year,
       month: _month,
       totalDays: _totalDays,
@@ -420,6 +432,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                   employeePersonnelCodeSnapshot:
                       _selectedEmployee!.personnelCode,
                   employeeNationalIdSnapshot: _selectedEmployee!.nationalId,
+                  employeePayslipFooterNoteSnapshot:
+                      _selectedEmployee!.payslipFooterNote,
                   year: _year,
                   month: _month,
                   totalDays: _totalDays,

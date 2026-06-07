@@ -1,27 +1,47 @@
-/// مدل کارمند - مطابق ستون‌های فایل اکسل حقوق مصوب 1405
 class Employee {
   final int? id;
-  final int personnelCode; // کد پرسنلی
-  final String firstName; // نام
-  final String lastName; // نام خانوادگی
-  final String nationalId; // شماره ملی
-  final bool hasPriorExperience; // بیش از 4 سال سابقه
-  final bool isMarried; // تاهل
-  final int childrenCount; // تعداد فرزند
-  final double lastYearSeniority; // پایه سنوات سال گذشته (روزانه)
-  final double baseSalary30Days; // حقوق پایه (30 روز)
-  final double dailyWage1405; // دستمزد روزانه 1405
-  final double dailyWage1404; // دستمزد روزانه 1404
-  final double dailyHousing; // حق مسکن روزانه
-  final double dailyFood; // حق خواروبار روزانه
-  final double dailyMarriage; // حق تاهل روزانه
-  final double dailyChildAllowance; // حق فرزند روزانه
-  final double dailySeniority; // پایه سنوات روزانه
-  final double otherBenefitsDaily; // سایر مزایا نسبت به کارکرد (روزانه)
-  final double hourlyBenefits; // مزایای ساعتی
-  final String startDate; // تاریخ شروع به کار (شمسی - YYYY/MM/DD)
-  final bool isActive; // فعال
-  final String? notes; // یادداشت
+  final int personnelCode;
+  final String firstName;
+  final String lastName;
+  final String nationalId;
+  final String fatherName;
+  final String birthCertificateNumber;
+  final String gender;
+  final String workplace;
+  final String bankName;
+  final String bankAccountType;
+  final String bankAccountNumber;
+  final String jobCode;
+  final String jobTitle;
+  final String birthDate;
+  final String birthPlace;
+  final String phone;
+  final bool hasPriorExperience;
+  final bool isMarried;
+  final int childrenCount;
+  final double lastYearSeniority;
+  final double baseSalary30Days;
+  final double dailyWage1405;
+  final double dailyWage1404;
+  final double dailyHousing;
+  final double dailyFood;
+  final double dailyMarriage;
+  final double dailyChildAllowance;
+  final double dailySeniority;
+  final double otherBenefitsDaily;
+  final double hourlyBenefits;
+  final String startDate;
+  final bool isActive;
+  final String endDate;
+  final String cardNumber;
+  final String insuranceNumber;
+  final String education;
+  final String position;
+  final String employmentType;
+  final String address;
+  final bool hardAndHarmfulJob;
+  final String payslipFooterNote;
+  final String? notes;
 
   Employee({
     this.id,
@@ -29,6 +49,18 @@ class Employee {
     required this.firstName,
     required this.lastName,
     required this.nationalId,
+    this.fatherName = '',
+    this.birthCertificateNumber = '',
+    this.gender = 'مرد',
+    this.workplace = '',
+    this.bankName = '',
+    this.bankAccountType = '',
+    this.bankAccountNumber = '',
+    this.jobCode = '',
+    this.jobTitle = '',
+    this.birthDate = '',
+    this.birthPlace = '',
+    this.phone = '',
     this.hasPriorExperience = true,
     this.isMarried = false,
     this.childrenCount = 0,
@@ -45,10 +77,28 @@ class Employee {
     this.hourlyBenefits = 0,
     required this.startDate,
     this.isActive = true,
+    this.endDate = '',
+    this.cardNumber = '',
+    this.insuranceNumber = '',
+    this.education = '',
+    this.position = '',
+    this.employmentType = 'قراردادی',
+    this.address = '',
+    this.hardAndHarmfulJob = false,
+    this.payslipFooterNote = '',
     this.notes,
   });
 
-  String get fullName => '$firstName $lastName';
+  String get fullName => '$firstName $lastName'.trim();
+
+  String get displayJob {
+    if (jobTitle.trim().isNotEmpty && jobCode.trim().isNotEmpty) {
+      return '$jobTitle - $jobCode';
+    }
+    if (jobTitle.trim().isNotEmpty) return jobTitle;
+    if (position.trim().isNotEmpty) return position;
+    return '';
+  }
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -56,6 +106,18 @@ class Employee {
     'first_name': firstName,
     'last_name': lastName,
     'national_id': nationalId,
+    'father_name': fatherName,
+    'birth_certificate_number': birthCertificateNumber,
+    'gender': gender,
+    'workplace': workplace,
+    'bank_name': bankName,
+    'bank_account_type': bankAccountType,
+    'bank_account_number': bankAccountNumber,
+    'job_code': jobCode,
+    'job_title': jobTitle,
+    'birth_date': birthDate,
+    'birth_place': birthPlace,
+    'phone': phone,
     'has_prior_experience': hasPriorExperience ? 1 : 0,
     'is_married': isMarried ? 1 : 0,
     'children_count': childrenCount,
@@ -72,18 +134,39 @@ class Employee {
     'hourly_benefits': hourlyBenefits,
     'start_date': startDate,
     'is_active': isActive ? 1 : 0,
+    'end_date': endDate,
+    'card_number': cardNumber,
+    'insurance_number': insuranceNumber,
+    'education': education,
+    'position': position,
+    'employment_type': employmentType,
+    'address': address,
+    'hard_and_harmful_job': hardAndHarmfulJob ? 1 : 0,
+    'payslip_footer_note': payslipFooterNote,
     'notes': notes,
   };
 
   factory Employee.fromMap(Map<String, dynamic> map) => Employee(
     id: map['id'] as int?,
-    personnelCode: map['personnel_code'] as int,
-    firstName: map['first_name'] as String,
-    lastName: map['last_name'] as String,
-    nationalId: map['national_id'] as String,
+    personnelCode: (map['personnel_code'] as num).toInt(),
+    firstName: map['first_name'] as String? ?? '',
+    lastName: map['last_name'] as String? ?? '',
+    nationalId: map['national_id'] as String? ?? '',
+    fatherName: map['father_name'] as String? ?? '',
+    birthCertificateNumber: map['birth_certificate_number'] as String? ?? '',
+    gender: map['gender'] as String? ?? 'مرد',
+    workplace: map['workplace'] as String? ?? '',
+    bankName: map['bank_name'] as String? ?? '',
+    bankAccountType: map['bank_account_type'] as String? ?? '',
+    bankAccountNumber: map['bank_account_number'] as String? ?? '',
+    jobCode: map['job_code'] as String? ?? '',
+    jobTitle: map['job_title'] as String? ?? '',
+    birthDate: map['birth_date'] as String? ?? '',
+    birthPlace: map['birth_place'] as String? ?? '',
+    phone: map['phone'] as String? ?? '',
     hasPriorExperience: (map['has_prior_experience'] as int? ?? 0) == 1,
     isMarried: (map['is_married'] as int? ?? 0) == 1,
-    childrenCount: map['children_count'] as int? ?? 0,
+    childrenCount: (map['children_count'] as num?)?.toInt() ?? 0,
     lastYearSeniority: (map['last_year_seniority'] as num?)?.toDouble() ?? 0,
     baseSalary30Days: (map['base_salary_30_days'] as num?)?.toDouble() ?? 0,
     dailyWage1405: (map['daily_wage_1405'] as num?)?.toDouble() ?? 0,
@@ -98,6 +181,15 @@ class Employee {
     hourlyBenefits: (map['hourly_benefits'] as num?)?.toDouble() ?? 0,
     startDate: map['start_date'] as String? ?? '',
     isActive: (map['is_active'] as int? ?? 1) == 1,
+    endDate: map['end_date'] as String? ?? '',
+    cardNumber: map['card_number'] as String? ?? '',
+    insuranceNumber: map['insurance_number'] as String? ?? '',
+    education: map['education'] as String? ?? '',
+    position: map['position'] as String? ?? '',
+    employmentType: map['employment_type'] as String? ?? 'قراردادی',
+    address: map['address'] as String? ?? '',
+    hardAndHarmfulJob: (map['hard_and_harmful_job'] as int? ?? 0) == 1,
+    payslipFooterNote: map['payslip_footer_note'] as String? ?? '',
     notes: map['notes'] as String?,
   );
 
@@ -107,6 +199,18 @@ class Employee {
     String? firstName,
     String? lastName,
     String? nationalId,
+    String? fatherName,
+    String? birthCertificateNumber,
+    String? gender,
+    String? workplace,
+    String? bankName,
+    String? bankAccountType,
+    String? bankAccountNumber,
+    String? jobCode,
+    String? jobTitle,
+    String? birthDate,
+    String? birthPlace,
+    String? phone,
     bool? hasPriorExperience,
     bool? isMarried,
     int? childrenCount,
@@ -123,6 +227,15 @@ class Employee {
     double? hourlyBenefits,
     String? startDate,
     bool? isActive,
+    String? endDate,
+    String? cardNumber,
+    String? insuranceNumber,
+    String? education,
+    String? position,
+    String? employmentType,
+    String? address,
+    bool? hardAndHarmfulJob,
+    String? payslipFooterNote,
     String? notes,
   }) => Employee(
     id: id ?? this.id,
@@ -130,6 +243,19 @@ class Employee {
     firstName: firstName ?? this.firstName,
     lastName: lastName ?? this.lastName,
     nationalId: nationalId ?? this.nationalId,
+    fatherName: fatherName ?? this.fatherName,
+    birthCertificateNumber:
+        birthCertificateNumber ?? this.birthCertificateNumber,
+    gender: gender ?? this.gender,
+    workplace: workplace ?? this.workplace,
+    bankName: bankName ?? this.bankName,
+    bankAccountType: bankAccountType ?? this.bankAccountType,
+    bankAccountNumber: bankAccountNumber ?? this.bankAccountNumber,
+    jobCode: jobCode ?? this.jobCode,
+    jobTitle: jobTitle ?? this.jobTitle,
+    birthDate: birthDate ?? this.birthDate,
+    birthPlace: birthPlace ?? this.birthPlace,
+    phone: phone ?? this.phone,
     hasPriorExperience: hasPriorExperience ?? this.hasPriorExperience,
     isMarried: isMarried ?? this.isMarried,
     childrenCount: childrenCount ?? this.childrenCount,
@@ -146,6 +272,15 @@ class Employee {
     hourlyBenefits: hourlyBenefits ?? this.hourlyBenefits,
     startDate: startDate ?? this.startDate,
     isActive: isActive ?? this.isActive,
+    endDate: endDate ?? this.endDate,
+    cardNumber: cardNumber ?? this.cardNumber,
+    insuranceNumber: insuranceNumber ?? this.insuranceNumber,
+    education: education ?? this.education,
+    position: position ?? this.position,
+    employmentType: employmentType ?? this.employmentType,
+    address: address ?? this.address,
+    hardAndHarmfulJob: hardAndHarmfulJob ?? this.hardAndHarmfulJob,
+    payslipFooterNote: payslipFooterNote ?? this.payslipFooterNote,
     notes: notes ?? this.notes,
   );
 }

@@ -45,6 +45,9 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
     return _employees.where((e) {
       return e.firstName.contains(_filter) ||
           e.lastName.contains(_filter) ||
+          e.fatherName.contains(_filter) ||
+          e.jobTitle.contains(_filter) ||
+          e.position.contains(_filter) ||
           e.nationalId.contains(f) ||
           e.personnelCode.toString().contains(f);
     }).toList();
@@ -222,6 +225,17 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
       cellBuilder: (e) => Text(PersianNumberFormatter.toPersian(e.nationalId)),
     ),
     ResponsiveTableColumn(
+      label: 'وضعیت',
+      sortValue: (e) => e.isActive ? 0 : 1,
+      cellBuilder: (e) => Chip(
+        label: Text(e.isActive ? 'مشغول به کار' : 'ترک کار'),
+        avatar: Icon(
+          e.isActive ? Icons.work_rounded : Icons.work_off_rounded,
+          size: 16,
+        ),
+      ),
+    ),
+    ResponsiveTableColumn(
       label: 'تاهل',
       sortValue: (e) => e.isMarried ? 1 : 0,
       cellBuilder: (e) => Icon(
@@ -287,10 +301,14 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
       subtitle:
           'کد ملی ${PersianNumberFormatter.toPersian(e.nationalId)} • شروع ${PersianNumberFormatter.toPersian(e.startDate)}',
       trailing: Icon(
-        e.isMarried ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-        color: e.isMarried ? AppTheme.errorColor : scheme.outline,
+        e.isActive ? Icons.work_rounded : Icons.work_off_rounded,
+        color: e.isActive ? AppTheme.successColor : scheme.error,
       ),
       metrics: [
+        MobileMetric(
+          label: 'وضعیت',
+          value: Text(e.isActive ? 'مشغول' : 'ترک کار'),
+        ),
         MobileMetric(
           label: 'فرزند',
           value: Text(
