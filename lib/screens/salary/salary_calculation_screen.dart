@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/app_settings.dart';
 import '../../models/employee.dart';
 import '../../models/loan.dart';
+import '../../models/salary_record.dart';
 import '../../services/employee_service.dart';
 import '../../services/loan_service.dart';
 import '../../services/salary_calculator.dart';
@@ -18,8 +19,17 @@ import '../../widgets/currency_text.dart';
 import '../../widgets/persian_number_field.dart';
 import 'payslip_screen.dart';
 
+enum _ExistingRecordAction { replace, showExisting }
+
 class SalaryCalculationScreen extends StatefulWidget {
-  const SalaryCalculationScreen({super.key});
+  final Employee? initialEmployee;
+  final SalaryRecord? editRecord;
+
+  const SalaryCalculationScreen({
+    super.key,
+    this.initialEmployee,
+    this.editRecord,
+  });
 
   @override
   State<SalaryCalculationScreen> createState() =>
@@ -43,11 +53,12 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   int _year = AppConstants.currentYear;
   int _month = 1;
   int _totalDays = 31;
-  int _leaveDays = 0;
+  double _leaveDays = 0;
 
   double _overtimeHours = 0;
   double _shiftWork = 0;
   double _hourlyBenefitsAmount = 0;
+  double _hourlyBenefitHours = 0;
   double _otherBenefitsOverride = -1;
   double _loanInstallment = 0;
   double _advance = 0;
@@ -57,10 +68,13 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   bool _useAutoOtherBenefits = true;
   bool _useAutoShiftWork = false;
   bool _useAutoHourlyBenefits = true;
+  bool _includeLeaveInPayslip = true;
   bool _insuranceExempt = false;
   bool _taxExempt = false;
 
   SalaryCalculationResult? _result;
+  SalaryRecord? get _editRecord => widget.editRecord;
+  bool get _isEditMode => _editRecord != null;
 
   @override
   void initState() {
@@ -72,7 +86,32 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   Future<void> _init() async {
     _employees = await _employeeService.getAll(onlyActive: true);
     _settings = await _settingsService.getCurrentSettings();
+    if (_editRecord != null) {
+      _year = _editRecord!.year;
+      _month = _editRecord!.month;
+      for (final employee in _employees) {
+        if (employee.id == _editRecord!.employeeId) {
+          _selectedEmployee = employee;
+          break;
+        }
+      }
+      if (_selectedEmployee != null && _selectedEmployee!.id != null) {
+        _employeeLoans = await _loanService.getActiveLoansForEmployee(
+          _selectedEmployee!.id!,
+        );
+      }
+      _applyRecordToInputs(_editRecord!, notify: false);
+    } else if (widget.initialEmployee != null) {
+      _selectedEmployee = widget.initialEmployee;
+      if (_selectedEmployee!.id != null) {
+        _employeeLoans = await _loanService.getActiveLoansForEmployee(
+          _selectedEmployee!.id!,
+        );
+      }
+      _resetInputs(notify: false);
+    }
     if (mounted) setState(() => _loading = false);
+    _calculate();
   }
 
   Future<void> _onEmployeeChanged(Employee? emp) async {
@@ -97,46 +136,71 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _year,
       _month,
     );
-    if (existing != null) {
-      setState(() {
-        _totalDays = existing.totalDays;
-        _leaveDays = existing.leaveDays;
-        _overtimeHours = existing.overtimeHours;
-        _shiftWork = existing.shiftWork;
-        _hourlyBenefitsAmount = existing.hourlyBenefitsAmount;
-        _useAutoShiftWork = false;
-        _useAutoHourlyBenefits = false;
-        _otherBenefitsOverride = existing.otherBenefits;
-        _useAutoOtherBenefits = false;
-        _loanInstallment = existing.loanInstallment;
-        _useAutoLoanInstallment = false;
-        _insuranceExempt =
-            existing.insuranceBase == 0 && existing.totalEarnings > 0;
-        _taxExempt = existing.tax == 0 && existing.totalEarnings > 400000000;
-        _advance = existing.advance;
-        _otherDeductions = existing.otherDeductions;
-      });
+    if (_isEditMode && existing?.id == _editRecord?.id) {
+      _applyRecordToInputs(existing!, notify: true);
     } else {
-      setState(() {
-        _totalDays = PersianDateHelper.daysInMonth(_year, _month);
-        _leaveDays = 0;
-        _overtimeHours = 0;
-        _shiftWork = 0;
-        _hourlyBenefitsAmount = 0;
-        _useAutoShiftWork = false;
-        _useAutoHourlyBenefits = true;
-        _otherBenefitsOverride = -1;
-        _useAutoOtherBenefits = true;
-        _useAutoLoanInstallment = true;
-        _loanInstallment = _employeeLoans.fold(
-          0,
-          (s, l) => s + l.installmentAmount,
-        );
-        _insuranceExempt = false;
-        _taxExempt = false;
-        _advance = 0;
-        _otherDeductions = 0;
-      });
+      _resetInputs();
+    }
+  }
+
+  void _applyRecordToInputs(SalaryRecord record, {bool notify = true}) {
+    void apply() {
+      _totalDays = record.totalDays;
+      _leaveDays = record.leaveDays;
+      _overtimeHours = record.overtimeHours;
+      _shiftWork = record.shiftWork;
+      _hourlyBenefitsAmount = record.hourlyBenefitsAmount;
+      _hourlyBenefitHours = record.hourlyBenefitHours;
+      _useAutoShiftWork = false;
+      _useAutoHourlyBenefits = record.hourlyBenefitHours > 0;
+      _otherBenefitsOverride = record.workDays > 0
+          ? record.otherBenefits / record.workDays
+          : record.otherBenefits;
+      _useAutoOtherBenefits = false;
+      _loanInstallment = record.loanInstallment;
+      _useAutoLoanInstallment = false;
+      _includeLeaveInPayslip = record.includeLeaveInPayslip;
+      _insuranceExempt = record.insuranceBase == 0 && record.totalEarnings > 0;
+      _taxExempt = record.tax == 0 && record.totalEarnings > 400000000;
+      _advance = record.advance;
+      _otherDeductions = record.otherDeductions;
+    }
+
+    if (notify && mounted) {
+      setState(apply);
+    } else {
+      apply();
+    }
+  }
+
+  void _resetInputs({bool notify = true}) {
+    void apply() {
+      _totalDays = PersianDateHelper.daysInMonth(_year, _month);
+      _leaveDays = 0;
+      _overtimeHours = 0;
+      _shiftWork = 0;
+      _hourlyBenefitsAmount = 0;
+      _hourlyBenefitHours = _selectedEmployee?.hourlyBenefits ?? 0;
+      _useAutoShiftWork = false;
+      _useAutoHourlyBenefits = true;
+      _includeLeaveInPayslip = true;
+      _otherBenefitsOverride = -1;
+      _useAutoOtherBenefits = true;
+      _useAutoLoanInstallment = true;
+      _loanInstallment = _employeeLoans.fold(
+        0,
+        (s, l) => s + l.installmentAmount,
+      );
+      _insuranceExempt = false;
+      _taxExempt = false;
+      _advance = 0;
+      _otherDeductions = 0;
+    }
+
+    if (notify && mounted) {
+      setState(apply);
+    } else {
+      apply();
     }
   }
 
@@ -151,8 +215,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       overtimeHours: _overtimeHours,
       shiftWork: _shiftWork,
       hourlyBenefitsAmount: _hourlyBenefitsAmount,
+      hourlyBenefitHours: _hourlyBenefitHours,
       autoShiftWork: _useAutoShiftWork,
       autoHourlyBenefits: _useAutoHourlyBenefits,
+      includeLeaveInPayslip: _includeLeaveInPayslip,
       insuranceExempt: _insuranceExempt,
       taxExempt: _taxExempt,
       otherBenefitsOverride: _useAutoOtherBenefits
@@ -174,7 +240,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     if (_result == null || _selectedEmployee == null) return;
     setState(() => _saving = true);
 
-    final workDays = (_totalDays - _leaveDays).clamp(0, _totalDays);
+    final workDays = (_totalDays - _leaveDays)
+        .clamp(0.0, _totalDays.toDouble())
+        .toDouble();
     final record = _result!.toRecord(
       employeeId: _selectedEmployee!.id!,
       year: _year,
@@ -183,9 +251,37 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       leaveDays: _leaveDays,
       workDays: workDays,
       overtimeHours: _overtimeHours,
+      hourlyBenefitHours: _useAutoHourlyBenefits ? _hourlyBenefitHours : 0,
+      includeLeaveInPayslip: _includeLeaveInPayslip,
     );
 
     try {
+      if (!_isEditMode) {
+        final existing = await _salaryService.getByEmployeeYearMonth(
+          _selectedEmployee!.id!,
+          _year,
+          _month,
+        );
+        if (existing != null) {
+          final action = await _showExistingRecordDialog();
+          if (action == _ExistingRecordAction.showExisting) {
+            if (!mounted) return;
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PayslipScreen(
+                  employee: _selectedEmployee!,
+                  settings: _settings!,
+                  record: existing,
+                ),
+              ),
+            );
+            return;
+          }
+          if (action != _ExistingRecordAction.replace) return;
+        }
+      }
+
       final recordId = await _salaryService.insertOrUpdate(record);
 
       if (deductLoanInstallments && _useAutoLoanInstallment) {
@@ -231,9 +327,39 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     }
   }
 
+  Future<_ExistingRecordAction?> _showExistingRecordDialog() {
+    return showDialog<_ExistingRecordAction>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('فیش تکراری'),
+        content: const Text(
+          'برای این کارمند در این ماه قبلاً یک فیش ثبت شده است. فیش قبلی جایگزین شود یا همان فیش قبلی نمایش داده شود؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('انصراف'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(ctx, _ExistingRecordAction.showExisting),
+            child: const Text('نمایش فیش قبلی'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, _ExistingRecordAction.replace),
+            child: const Text('جایگزینی'),
+          ),
+        ],
+      ),
+    );
+  }
+
   bool get _isMobile => MediaQuery.sizeOf(context).width < 600;
 
-  Widget _responsiveRow({required bool isMobile, required List<Widget> children}) {
+  Widget _responsiveRow({
+    required bool isMobile,
+    required List<Widget> children,
+  }) {
     if (isMobile) {
       return Column(
         children: [
@@ -266,14 +392,16 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('محاسبه حقوق ماهانه'),
+        title: Text(_isEditMode ? 'ویرایش فیش حقوق' : 'محاسبه حقوق ماهانه'),
         actions: [
           if (_result != null && _selectedEmployee != null)
             IconButton(
               icon: const Icon(Icons.print_rounded),
               tooltip: 'مشاهده فیش حقوق',
               onPressed: () {
-                final workDays = (_totalDays - _leaveDays).clamp(0, _totalDays);
+                final workDays = (_totalDays - _leaveDays)
+                    .clamp(0.0, _totalDays.toDouble())
+                    .toDouble();
                 final rec = _result!.toRecord(
                   employeeId: _selectedEmployee!.id!,
                   year: _year,
@@ -282,6 +410,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                   leaveDays: _leaveDays,
                   workDays: workDays,
                   overtimeHours: _overtimeHours,
+                  hourlyBenefitHours: _useAutoHourlyBenefits
+                      ? _hourlyBenefitHours
+                      : 0,
+                  includeLeaveInPayslip: _includeLeaveInPayslip,
                 );
                 Navigator.push(
                   context,
@@ -380,10 +512,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                       if (v != null) {
                         setState(() {
                           _month = v;
-                          _totalDays = PersianDateHelper.daysInMonth(
-                            _year,
-                            v,
-                          );
+                          _totalDays = PersianDateHelper.daysInMonth(_year, v);
                         });
                         await _checkExistingRecord();
                         _calculate();
@@ -410,10 +539,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                       if (v != null) {
                         setState(() {
                           _year = v;
-                          _totalDays = PersianDateHelper.daysInMonth(
-                            v,
-                            _month,
-                          );
+                          _totalDays = PersianDateHelper.daysInMonth(v, _month);
                         });
                         await _checkExistingRecord();
                         _calculate();
@@ -442,17 +568,33 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                       _calculate();
                     },
                   ),
-                  _intField(
+                  PersianNumberField(
                     label: 'مرخصی (روز)',
-                    icon: Icons.beach_access_rounded,
-                    value: _leaveDays,
+                    prefixIcon: Icons.beach_access_rounded,
+                    suffix: 'روز',
+                    initialValue: _leaveDays,
                     onChanged: (v) {
-                      setState(() => _leaveDays = v);
+                      setState(() => _leaveDays = v?.toDouble() ?? 0);
                       _calculate();
                     },
                   ),
                   _workDaysCard(),
                 ],
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('محاسبه مرخصی در فیش حقوقی'),
+                subtitle: Text(
+                  _settings == null
+                      ? ''
+                      : 'سقف ماهانه ${PersianNumberFormatter.toPersian(_settings!.monthlyLeaveAllowance.toString())} روز، سالانه ${PersianNumberFormatter.toPersian(_settings!.annualLeaveAllowance.toString())} روز',
+                ),
+                value: _includeLeaveInPayslip,
+                onChanged: (v) {
+                  setState(() => _includeLeaveInPayslip = v);
+                  _calculate();
+                },
               ),
               const SizedBox(height: 12),
               _responsiveRow(
@@ -494,19 +636,34 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               if (!_useAutoShiftWork) const SizedBox(height: 12),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('محاسبه خودکار مزایای ساعتی قرارداد'),
+                title: const Text('محاسبه خودکار مزایای ساعتی'),
                 subtitle: Text(
                   _selectedEmployee == null
                       ? 'بعد از انتخاب کارمند، ساعت قرارداد خوانده می‌شود'
-                      : 'ساعت قرارداد: ${PersianNumberFormatter.toPersian(_selectedEmployee!.hourlyBenefits.toString())}',
+                      : 'فرمول: دستمزد روزانه / ۷.۳۳ × ۱.۴ × ساعت',
                 ),
                 value: _useAutoHourlyBenefits,
                 onChanged: (v) {
+                  if (v && _hourlyBenefitHours == 0) {
+                    _hourlyBenefitHours =
+                        _selectedEmployee?.hourlyBenefits ?? 0;
+                  }
                   setState(() => _useAutoHourlyBenefits = v);
                   _calculate();
                 },
               ),
-              if (!_useAutoHourlyBenefits)
+              if (_useAutoHourlyBenefits)
+                PersianNumberField(
+                  label: 'ساعت مزایای ساعتی',
+                  prefixIcon: Icons.access_time_filled_rounded,
+                  suffix: 'ساعت',
+                  initialValue: _hourlyBenefitHours,
+                  onChanged: (v) {
+                    _hourlyBenefitHours = v?.toDouble() ?? 0;
+                    _calculate();
+                  },
+                )
+              else
                 PersianNumberField(
                   label: 'مزایای ساعتی (مبلغ دستی)',
                   isCurrency: true,
@@ -527,7 +684,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
             children: [
               SwitchListTile(
                 title: const Text(
-                  'محاسبه خودکار سایر مزایا (روزانه × کل کارکرد)',
+                  'محاسبه خودکار سایر مزایا (روزانه × کارکرد خالص)',
                 ),
                 value: _useAutoOtherBenefits,
                 onChanged: (v) {
@@ -537,7 +694,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               ),
               if (!_useAutoOtherBenefits)
                 PersianNumberField(
-                  label: 'مبلغ سایر مزایا (ریال) - دستی',
+                  label: 'سایر مزایا روزانه (ریال) - دستی',
                   isCurrency: true,
                   prefixIcon: Icons.edit_rounded,
                   initialValue: _otherBenefitsOverride >= 0
@@ -660,10 +817,14 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                     ),
                   )
                 : const Icon(Icons.save_rounded),
-            label: const Text('ذخیره و چاپ فیش حقوق'),
+            label: Text(
+              _isEditMode ? 'ویرایش و چاپ فیش حقوق' : 'ذخیره و چاپ فیش حقوق',
+            ),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: AppTheme.successColor,
+              backgroundColor: _isEditMode
+                  ? AppTheme.warningColor
+                  : AppTheme.successColor,
               foregroundColor: Colors.white,
               textStyle: const TextStyle(
                 fontSize: 16,
@@ -694,7 +855,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${PersianNumberFormatter.toPersian((_totalDays - _leaveDays).clamp(0, _totalDays).toString())} روز',
+            '${_formatDays((_totalDays - _leaveDays).clamp(0.0, _totalDays.toDouble()).toDouble())} روز',
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -704,6 +865,13 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         ],
       ),
     );
+  }
+
+  String _formatDays(double value) {
+    final text = value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return PersianNumberFormatter.toPersian(text);
   }
 
   Widget _employeeLoansList() {
@@ -832,6 +1000,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               _resultRow('قسط وام', _result!.loanInstallment),
               _resultRow('مساعده', _result!.advance),
               _resultRow('سایر کسورات', _result!.otherDeductions),
+              _resultRow('کسر مرخصی مازاد', _result!.leaveDeduction),
             ],
             total: _result!.totalDeductions,
             totalLabel: 'جمع کسورات',
@@ -952,6 +1121,14 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         _resultRow('مبنای بیمه', _result!.insuranceBase),
         _resultRow('مبنای مالیات', _result!.taxBase),
         _resultRow('معافیت دو هفتم', _result!.twoSevenExemption),
+        _plainDetailRow(
+          'مرخصی مجاز ماهانه',
+          '${_formatDays(_result!.leaveAllowanceDays)} روز',
+        ),
+        _plainDetailRow(
+          'مرخصی مازاد',
+          '${_formatDays(_result!.excessLeaveDays)} روز',
+        ),
         const Divider(),
         _resultRow('سهم کارفرما (۲۰٪)', _result!.employerInsurance),
         _resultRow('بیمه بیکاری (۳٪)', _result!.unemploymentInsurance),
@@ -1112,6 +1289,33 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           Text(
             'ریال',
             style: TextStyle(fontSize: 10, color: color.withValues(alpha: 0.6)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _plainDetailRow(String label, String value) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: scheme.onSurface.withValues(alpha: 0.85),
+            ),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),

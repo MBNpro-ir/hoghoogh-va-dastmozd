@@ -39,7 +39,10 @@ class PayrollApp extends StatelessWidget {
                 theme: themeController.lightTheme,
                 darkTheme: themeController.darkTheme,
                 locale: const Locale('fa', 'IR'),
-                supportedLocales: const [Locale('fa', 'IR'), Locale('en', 'US')],
+                supportedLocales: const [
+                  Locale('fa', 'IR'),
+                  Locale('en', 'US'),
+                ],
                 localizationsDelegates: const [
                   GlobalMaterialLocalizations.delegate,
                   GlobalWidgetsLocalizations.delegate,
@@ -56,7 +59,9 @@ class PayrollApp extends StatelessWidget {
                       : baseScale;
                   return MediaQuery(
                     data: mq.copyWith(
-                      textScaler: TextScaler.linear(adjustedScale.clamp(0.85, 1.6)),
+                      textScaler: TextScaler.linear(
+                        adjustedScale.clamp(0.85, 1.6),
+                      ),
                       disableAnimations: themeController.reduceMotion,
                     ),
                     child: Directionality(

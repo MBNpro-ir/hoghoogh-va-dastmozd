@@ -41,10 +41,11 @@ class DashboardService {
 
     // روند ۶ ماه اخیر (از آخرین ماه ثبت‌شده به عقب)
     final monthlyHistory = <MonthlyPoint>[];
-    final sortedMonths = [...recordedMonths]..sort((a, b) {
-      if (a.$1 != b.$1) return a.$1.compareTo(b.$1);
-      return a.$2.compareTo(b.$2);
-    });
+    final sortedMonths = [...recordedMonths]
+      ..sort((a, b) {
+        if (a.$1 != b.$1) return a.$1.compareTo(b.$1);
+        return a.$2.compareTo(b.$2);
+      });
     final historyMonths = sortedMonths.length > 6
         ? sortedMonths.sublist(sortedMonths.length - 6)
         : sortedMonths;
@@ -93,7 +94,10 @@ class DashboardService {
     );
 
     // آمار ماه جاری
-    final monthNet = currentRecords.fold<double>(0, (s, r) => s + r.finalPayment);
+    final monthNet = currentRecords.fold<double>(
+      0,
+      (s, r) => s + r.finalPayment,
+    );
     final monthGross = currentRecords.fold<double>(
       0,
       (s, r) => s + r.totalEarnings,
@@ -136,9 +140,7 @@ class DashboardService {
     final withChildren = activeEmployees
         .where((e) => e.childrenCount > 0)
         .length;
-    final priorExp = activeEmployees
-        .where((e) => e.hasPriorExperience)
-        .length;
+    final priorExp = activeEmployees.where((e) => e.hasPriorExperience).length;
 
     // آمار وام
     final totalActiveLoanAmount = activeLoans.fold<double>(

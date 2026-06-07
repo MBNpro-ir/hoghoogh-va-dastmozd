@@ -8,7 +8,7 @@ import '../models/app_settings.dart';
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
   static const String _dbName = 'payroll.db';
-  static const int _dbVersion = 2;
+  static const int _dbVersion = 3;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -110,12 +110,13 @@ class DatabaseHelper {
         year INTEGER NOT NULL,
         month INTEGER NOT NULL,
         total_days INTEGER NOT NULL,
-        leave_days INTEGER NOT NULL DEFAULT 0,
-        work_days INTEGER NOT NULL,
+        leave_days REAL NOT NULL DEFAULT 0,
+        work_days REAL NOT NULL,
         overtime_hours REAL DEFAULT 0,
         overtime_amount REAL DEFAULT 0,
         shift_work REAL DEFAULT 0,
         hourly_benefits_amount REAL DEFAULT 0,
+        hourly_benefit_hours REAL DEFAULT 0,
         base_salary REAL NOT NULL,
         housing REAL DEFAULT 0,
         food REAL DEFAULT 0,
@@ -129,6 +130,10 @@ class DatabaseHelper {
         loan_installment REAL DEFAULT 0,
         advance REAL DEFAULT 0,
         other_deductions REAL DEFAULT 0,
+        include_leave_in_payslip INTEGER NOT NULL DEFAULT 1,
+        leave_allowance_days REAL NOT NULL DEFAULT 2.5,
+        excess_leave_days REAL NOT NULL DEFAULT 0,
+        leave_deduction REAL NOT NULL DEFAULT 0,
         total_deductions REAL NOT NULL,
         insurance_base REAL NOT NULL,
         tax_base REAL NOT NULL,
@@ -161,6 +166,8 @@ class DatabaseHelper {
         employer_insurance_rate REAL NOT NULL,
         unemployment_insurance_rate REAL NOT NULL,
         two_seven_base_rate REAL NOT NULL,
+        monthly_leave_allowance REAL NOT NULL DEFAULT 2.5,
+        annual_leave_allowance REAL NOT NULL DEFAULT 30,
         company_name TEXT NOT NULL,
         UNIQUE (year)
       );
@@ -182,6 +189,8 @@ class DatabaseHelper {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       final defaults = AppSettings().toMap()..remove('id');
+      defaults.remove('monthly_leave_allowance');
+      defaults.remove('annual_leave_allowance');
       await db.update(
         'app_settings',
         defaults,
@@ -194,6 +203,57 @@ class DatabaseHelper {
         where: 'daily_child_allowance = ?',
         whereArgs: [166667],
       );
+    }
+    if (oldVersion < 3) {
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'hourly_benefit_hours REAL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'include_leave_in_payslip INTEGER NOT NULL DEFAULT 1',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'leave_allowance_days REAL NOT NULL DEFAULT 2.5',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'excess_leave_days REAL NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'leave_deduction REAL NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'app_settings',
+        'monthly_leave_allowance REAL NOT NULL DEFAULT 2.5',
+      );
+      await _safeAddColumn(
+        db,
+        'app_settings',
+        'annual_leave_allowance REAL NOT NULL DEFAULT 30',
+      );
+    }
+  }
+
+  Future<void> _safeAddColumn(
+    Database db,
+    String table,
+    String columnSql,
+  ) async {
+    try {
+      await db.execute('ALTER TABLE $table ADD COLUMN $columnSql;');
+    } catch (e) {
+      if (!e.toString().toLowerCase().contains('duplicate column')) {
+        rethrow;
+      }
     }
   }
 

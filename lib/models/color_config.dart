@@ -25,12 +25,11 @@ class ColorConfig {
     bool? useDynamicColors,
     int? seedColorValue,
     DynamicSchemeVariant? variant,
-  }) =>
-      ColorConfig(
-        useDynamicColors: useDynamicColors ?? this.useDynamicColors,
-        seedColorValue: seedColorValue ?? this.seedColorValue,
-        variant: variant ?? this.variant,
-      );
+  }) => ColorConfig(
+    useDynamicColors: useDynamicColors ?? this.useDynamicColors,
+    seedColorValue: seedColorValue ?? this.seedColorValue,
+    variant: variant ?? this.variant,
+  );
 
   Map<String, dynamic> toJson() => {
     'useDynamicColors': useDynamicColors,

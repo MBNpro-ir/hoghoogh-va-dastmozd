@@ -11,6 +11,7 @@ import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
 import '../../widgets/responsive_data_view.dart';
+import 'salary_calculation_screen.dart';
 import 'payslip_screen.dart';
 
 class SalaryRecordsScreen extends StatefulWidget {
@@ -76,6 +77,20 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
             PayslipScreen(employee: emp, settings: _settings!, record: record),
       ),
     );
+  }
+
+  Future<void> _editPayslip(SalaryRecord record) async {
+    final emp = _employeesMap[record.employeeId];
+    if (emp == null) return;
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            SalaryCalculationScreen(initialEmployee: emp, editRecord: record),
+      ),
+    );
+    if (!mounted) return;
+    if (changed == true || changed == null) await _load();
   }
 
   Future<void> _delete(SalaryRecord record) async {
@@ -147,17 +162,25 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.filter_alt_rounded, color: scheme.primary, size: 20),
+                        Icon(
+                          Icons.filter_alt_rounded,
+                          color: scheme.primary,
+                          size: 20,
+                        ),
                         const SizedBox(width: 6),
                         const Text(
                           'فیلتر دوره',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<(int, int)?>(
-                      initialValue: (_filterYear != null && _filterMonth != null)
+                      initialValue:
+                          (_filterYear != null && _filterMonth != null)
                           ? (_filterYear!, _filterMonth!)
                           : null,
                       decoration: const InputDecoration(
@@ -212,7 +235,8 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: DropdownButtonFormField<(int, int)?>(
-                        initialValue: (_filterYear != null && _filterMonth != null)
+                        initialValue:
+                            (_filterYear != null && _filterMonth != null)
                             ? (_filterYear!, _filterMonth!)
                             : null,
                         decoration: const InputDecoration(
@@ -317,11 +341,7 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     if (isMobile) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: cards,
-        ),
+        child: Wrap(spacing: 8, runSpacing: 8, children: cards),
       );
     }
 
@@ -334,12 +354,7 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     );
   }
 
-  Widget _summaryCard(
-    String label,
-    String value,
-    Color color,
-    bool isMobile,
-  ) {
+  Widget _summaryCard(String label, String value, Color color, bool isMobile) {
     return Container(
       width: isMobile ? null : 200,
       padding: EdgeInsets.all(isMobile ? 8 : 10),
@@ -352,7 +367,10 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: TextStyle(fontSize: isMobile ? 10 : 11, color: color)),
+          Text(
+            label,
+            style: TextStyle(fontSize: isMobile ? 10 : 11, color: color),
+          ),
           const SizedBox(height: 4),
           Text(
             value,
@@ -432,8 +450,7 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       label: 'کارکرد',
       numeric: true,
       sortValue: (r) => r.workDays,
-      cellBuilder: (r) =>
-          Text(PersianNumberFormatter.toPersian(r.workDays.toString())),
+      cellBuilder: (r) => Text(_formatDays(r.workDays)),
     ),
     ResponsiveTableColumn(
       label: 'جمع حقوق و مزایا',
@@ -485,6 +502,15 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
+          icon: Icon(
+            Icons.edit_rounded,
+            size: 20,
+            color: AppTheme.warningColor,
+          ),
+          tooltip: 'ویرایش فیش',
+          onPressed: () => _editPayslip(record),
+        ),
+        IconButton(
           icon: Icon(Icons.print_rounded, size: 20, color: scheme.primary),
           tooltip: 'مشاهده / چاپ',
           onPressed: () => _openPayslip(record),
@@ -508,7 +534,7 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       ),
       title: emp?.fullName ?? 'کارمند نامشخص',
       subtitle:
-          '${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())} • کارکرد ${PersianNumberFormatter.toPersian(record.workDays.toString())} روز',
+          '${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())} • کارکرد ${_formatDays(record.workDays)} روز',
       metrics: [
         MobileMetric(
           label: 'حقوق و مزایا',
@@ -532,6 +558,11 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       ],
       actions: [
         IconButton(
+          icon: Icon(Icons.edit_rounded, color: AppTheme.warningColor),
+          tooltip: 'ویرایش فیش',
+          onPressed: () => _editPayslip(record),
+        ),
+        IconButton(
           icon: Icon(Icons.print_rounded, color: scheme.primary),
           tooltip: 'مشاهده / چاپ',
           onPressed: () => _openPayslip(record),
@@ -543,6 +574,13 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
         ),
       ],
     );
+  }
+
+  String _formatDays(double value) {
+    final text = value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return PersianNumberFormatter.toPersian(text);
   }
 }
 

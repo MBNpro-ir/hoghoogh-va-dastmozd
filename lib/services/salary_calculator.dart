@@ -16,6 +16,7 @@ class SalaryCalculationResult {
   final double shiftWork; // نوبت‌کاری
   final double overtimeAmount; // اضافه‌کاری
   final double hourlyBenefitsAmount; // مزایای ساعتی
+  final double hourlyBenefitHours; // ساعت مزایای ساعتی
   final double totalEarnings; // جمع حقوق و مزایا
 
   // کسورات
@@ -24,6 +25,9 @@ class SalaryCalculationResult {
   final double loanInstallment; // قسط وام
   final double advance; // مساعده
   final double otherDeductions; // سایر کسورات
+  final double leaveAllowanceDays; // مرخصی مجاز ماهانه
+  final double excessLeaveDays; // مرخصی مازاد
+  final double leaveDeduction; // کسر مرخصی مازاد
   final double totalDeductions; // جمع کسورات
 
   // محاسبات
@@ -51,12 +55,16 @@ class SalaryCalculationResult {
     required this.shiftWork,
     required this.overtimeAmount,
     required this.hourlyBenefitsAmount,
+    required this.hourlyBenefitHours,
     required this.totalEarnings,
     required this.insurance,
     required this.tax,
     required this.loanInstallment,
     required this.advance,
     required this.otherDeductions,
+    required this.leaveAllowanceDays,
+    required this.excessLeaveDays,
+    required this.leaveDeduction,
     required this.totalDeductions,
     required this.insuranceBase,
     required this.taxBase,
@@ -73,9 +81,11 @@ class SalaryCalculationResult {
     required int year,
     required int month,
     required int totalDays,
-    required int leaveDays,
-    required int workDays,
+    required double leaveDays,
+    required double workDays,
     required double overtimeHours,
+    required double hourlyBenefitHours,
+    required bool includeLeaveInPayslip,
     String? notes,
   }) => SalaryRecord(
     employeeId: employeeId,
@@ -88,6 +98,7 @@ class SalaryCalculationResult {
     overtimeAmount: overtimeAmount,
     shiftWork: shiftWork,
     hourlyBenefitsAmount: hourlyBenefitsAmount,
+    hourlyBenefitHours: hourlyBenefitHours,
     baseSalary: baseSalary,
     housing: housing,
     food: food,
@@ -101,6 +112,10 @@ class SalaryCalculationResult {
     loanInstallment: loanInstallment,
     advance: advance,
     otherDeductions: otherDeductions,
+    includeLeaveInPayslip: includeLeaveInPayslip,
+    leaveAllowanceDays: leaveAllowanceDays,
+    excessLeaveDays: excessLeaveDays,
+    leaveDeduction: leaveDeduction,
     totalDeductions: totalDeductions,
     insuranceBase: insuranceBase,
     taxBase: taxBase,
@@ -115,12 +130,14 @@ class SalaryCalculationResult {
 /// ورودی‌های محاسبه ماهانه
 class SalaryCalculationInput {
   final int totalDays; // کل کارکرد (روزهای ماه)
-  final int leaveDays; // مرخصی
+  final double leaveDays; // مرخصی
   final double overtimeHours; // ساعت اضافه‌کاری
   final double shiftWork; // مبلغ نوبت‌کاری
   final double hourlyBenefitsAmount; // مزایای ساعتی محاسبه‌شده
+  final double hourlyBenefitHours; // ساعت مزایای ساعتی
   final bool autoShiftWork; // محاسبه ۱۵٪ نوبت‌کاری از حقوق ثابت
   final bool autoHourlyBenefits; // محاسبه از ساعت مزایای ثبت‌شده در قرارداد
+  final bool includeLeaveInPayslip; // محاسبه مرخصی در فیش
   final bool insuranceExempt; // عدم شمول بیمه برای ردیف‌های خاص
   final bool taxExempt; // عدم شمول مالیات برای ردیف‌های خاص
   final double otherBenefitsOverride; // سایر مزایا - دستی
@@ -134,8 +151,10 @@ class SalaryCalculationInput {
     this.overtimeHours = 0,
     this.shiftWork = 0,
     this.hourlyBenefitsAmount = 0,
+    this.hourlyBenefitHours = 0,
     this.autoShiftWork = false,
     this.autoHourlyBenefits = false,
+    this.includeLeaveInPayslip = true,
     this.insuranceExempt = false,
     this.taxExempt = false,
     this.otherBenefitsOverride = -1, // -1 = خودکار (از کارمند)
@@ -144,7 +163,8 @@ class SalaryCalculationInput {
     this.otherDeductions = 0,
   });
 
-  int get workDays => (totalDays - leaveDays).clamp(0, totalDays);
+  double get workDays =>
+      (totalDays - leaveDays).clamp(0.0, totalDays.toDouble()).toDouble();
 }
 
 /// سرویس محاسبه حقوق - منطق اصلی برنامه
@@ -209,6 +229,7 @@ class SalaryCalculator {
   }) {
     final totalDays = input.totalDays;
     final benefitDays = totalDays.clamp(0, AppConstants.standardMonthDays);
+    final workDays = input.workDays;
 
     // 1) حقوق ثابت = دستمزد روزانه × کل روزها
     final baseSalary = employee.dailyWage1405 * totalDays;
@@ -231,17 +252,22 @@ class SalaryCalculator {
     // 6) پایه سنوات در اکسل با کل کارکرد محاسبه می‌شود.
     final seniority = employee.dailySeniority * totalDays;
 
-    // 7) سایر مزایا = روزانه × کل کارکرد (یا مقدار override)
+    // 7) سایر مزایا دستی = مبلغ روزانه × کارکرد خالص؛ خودکار مطابق قرارداد/اکسل.
     final otherBenefits = input.otherBenefitsOverride >= 0
-        ? input.otherBenefitsOverride
+        ? input.otherBenefitsOverride * workDays
         : employee.otherBenefitsDaily * totalDays;
 
     // 8) اضافه‌کاری و مزایای ساعتی = ساعت × (دستمزد ساعتی × 1.40)
     final hourlyRate = employee.dailyWage1405 / AppConstants.dailyWorkHours;
     final overtimeRate = hourlyRate * AppConstants.overtimeMultiplier;
     final overtimeAmount = input.overtimeHours * overtimeRate;
+    final hourlyBenefitHours = input.autoHourlyBenefits
+        ? (input.hourlyBenefitHours > 0
+              ? input.hourlyBenefitHours
+              : employee.hourlyBenefits)
+        : 0.0;
     final hourlyBenefitsAmount = input.autoHourlyBenefits
-        ? employee.hourlyBenefits * overtimeRate
+        ? hourlyBenefitHours * overtimeRate
         : input.hourlyBenefitsAmount;
 
     // 9) نوبت‌کاری در اکسل برای افراد مشمول، 15٪ حقوق ثابت است.
@@ -292,13 +318,22 @@ class SalaryCalculator {
 
     final tax = input.taxExempt ? 0.0 : calculateTax(taxBase);
 
+    final leaveAllowanceDays = settings.monthlyLeaveAllowance;
+    final excessLeaveDays = input.includeLeaveInPayslip
+        ? (input.leaveDays - leaveAllowanceDays)
+              .clamp(0.0, double.infinity)
+              .toDouble()
+        : 0.0;
+    final leaveDeduction = excessLeaveDays * employee.dailyWage1405;
+
     // 14) جمع کسورات
     final totalDeductions =
         insurance +
         tax +
         input.loanInstallment +
         input.advance +
-        input.otherDeductions;
+        input.otherDeductions +
+        leaveDeduction;
 
     // 15) خالص حقوق
     final netSalary = totalEarnings - totalDeductions;
@@ -323,12 +358,16 @@ class SalaryCalculator {
       shiftWork: shiftWork,
       overtimeAmount: overtimeAmount,
       hourlyBenefitsAmount: hourlyBenefitsAmount,
+      hourlyBenefitHours: hourlyBenefitHours,
       totalEarnings: totalEarnings,
       insurance: insurance,
       tax: tax,
       loanInstallment: input.loanInstallment,
       advance: input.advance,
       otherDeductions: input.otherDeductions,
+      leaveAllowanceDays: leaveAllowanceDays,
+      excessLeaveDays: excessLeaveDays,
+      leaveDeduction: leaveDeduction,
       totalDeductions: totalDeductions,
       insuranceBase: insuranceBase,
       taxBase: taxBase,

@@ -10,8 +10,10 @@ class AppConstants {
   static String get appVersion {
     try {
       final pubspec = File('pubspec.yaml').readAsStringSync();
-      final match = RegExp(r'^version:\s*(.+)$', multiLine: true)
-          .firstMatch(pubspec);
+      final match = RegExp(
+        r'^version:\s*(.+)$',
+        multiLine: true,
+      ).firstMatch(pubspec);
       if (match != null) {
         final raw = match.group(1)!.trim();
         // تبدیل "0.0.4-alpha+4" به "0.0.4 alpha"
@@ -25,6 +27,7 @@ class AppConstants {
   static const int currentYear = 1405;
 
   // ----- مقادیر پیش‌فرض حقوق مصوب 1405 (ریال) -----
+  static const double defaultDailyWage1404 = 3463656;
   static const double defaultDailyWage = 5541850; // دستمزد روزانه پایه
   static const double defaultMonthlyFood = 22000000; // بن (ماهانه)
   static const double defaultMonthlyHousing = 30000000; // حق مسکن (ماهانه)
@@ -62,6 +65,8 @@ class AppConstants {
 
   // ----- روزهای استاندارد ماه -----
   static const int standardMonthDays = 30;
+  static const double defaultMonthlyLeaveAllowance = 2.5;
+  static const double defaultAnnualLeaveAllowance = 30;
 
   // ساعت کار استاندارد ماه
   static const double standardMonthlyHours = 176; // 22 روز * 8 ساعت

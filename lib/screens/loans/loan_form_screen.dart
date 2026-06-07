@@ -158,7 +158,10 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
 
   bool get _isMobile => MediaQuery.sizeOf(context).width < 600;
 
-  Widget _responsiveRow({required bool isMobile, required List<Widget> children}) {
+  Widget _responsiveRow({
+    required bool isMobile,
+    required List<Widget> children,
+  }) {
     if (isMobile) {
       return Column(
         children: [
@@ -295,8 +298,7 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                                     labelText: 'تعداد کل اقساط *',
                                     prefixIcon: Icon(Icons.numbers_rounded),
                                   ),
-                                  onChanged: (_) =>
-                                      _autoCalculateInstallment(),
+                                  onChanged: (_) => _autoCalculateInstallment(),
                                   validator: (v) {
                                     if (v == null || v.trim().isEmpty) {
                                       return 'الزامی است';

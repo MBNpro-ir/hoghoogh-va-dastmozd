@@ -34,9 +34,10 @@ class _CountUpTextState extends State<CountUpText>
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: widget.duration);
-    _animation = Tween<double>(begin: 0, end: widget.value).animate(
-      CurvedAnimation(parent: _controller, curve: widget.curve),
-    );
+    _animation = Tween<double>(
+      begin: 0,
+      end: widget.value,
+    ).animate(CurvedAnimation(parent: _controller, curve: widget.curve));
     Future.delayed(widget.delay, () {
       if (mounted) _controller.forward();
     });
@@ -46,10 +47,10 @@ class _CountUpTextState extends State<CountUpText>
   void didUpdateWidget(covariant CountUpText oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.value != widget.value) {
-      _animation = Tween<double>(begin: _animation.value, end: widget.value)
-          .animate(
-            CurvedAnimation(parent: _controller, curve: widget.curve),
-          );
+      _animation = Tween<double>(
+        begin: _animation.value,
+        end: widget.value,
+      ).animate(CurvedAnimation(parent: _controller, curve: widget.curve));
       _controller
         ..reset()
         ..forward();

@@ -8,6 +8,7 @@ import '../widgets/app_sidebar.dart';
 import 'employees/employees_list_screen.dart';
 import 'help/help_support_screen.dart';
 import 'home/dashboard_view.dart';
+import 'leaves/employee_leaves_screen.dart';
 import 'loans/loans_list_screen.dart';
 import 'salary/salary_calculation_screen.dart';
 import 'salary/salary_records_screen.dart';
@@ -29,13 +30,14 @@ class _HomeScreenState extends State<HomeScreen> {
       onNavigateToEmployees: () => _goToIndex(1),
       onNavigateToSalaryCalc: () => _goToIndex(2),
       onNavigateToSalaryRecords: () => _goToIndex(3),
-      onNavigateToLoans: () => _goToIndex(4),
-      onNavigateToSettings: () => _goToIndex(5),
-      onNavigateToHelp: () => _goToIndex(6),
+      onNavigateToLoans: () => _goToIndex(5),
+      onNavigateToSettings: () => _goToIndex(6),
+      onNavigateToHelp: () => _goToIndex(7),
     ),
     const EmployeesListScreen(),
     const SalaryCalculationScreen(),
     const SalaryRecordsScreen(),
+    const EmployeeLeavesScreen(),
     const LoansListScreen(),
   ];
 
@@ -44,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
     const SidebarItem(label: 'مدیریت کارکنان', icon: Icons.groups_rounded),
     const SidebarItem(label: 'محاسبه حقوق', icon: Icons.calculate_rounded),
     const SidebarItem(label: 'فیش‌های حقوقی', icon: Icons.receipt_long_rounded),
+    const SidebarItem(label: 'مرخصی کارکنان', icon: Icons.beach_access_rounded),
     const SidebarItem(
       label: 'وام و اقساط',
       icon: Icons.account_balance_wallet_rounded,
@@ -133,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: _pages,
         ),
         bottomNavigationBar: NavigationBar(
-          selectedIndex: _index < 5 ? _index : 0,
+          selectedIndex: _index < 6 ? _index : 0,
           onDestinationSelected: (i) => _goToIndex(i),
           destinations: const [
             NavigationDestination(
@@ -153,6 +156,10 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'فیش‌ها',
             ),
             NavigationDestination(
+              icon: Icon(Icons.beach_access_rounded),
+              label: 'مرخصی',
+            ),
+            NavigationDestination(
               icon: Icon(Icons.account_balance_wallet_rounded),
               label: 'وام',
             ),
@@ -170,14 +177,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
 
     // تنظیمات و راهنما: صفحه جداگانه
-    if (index == 5) {
+    if (index == 6) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const SettingsScreen()),
       );
       return;
     }
-    if (index == 6) {
+    if (index == 7) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const HelpSupportScreen()),

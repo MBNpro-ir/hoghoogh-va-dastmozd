@@ -74,6 +74,20 @@ class SalaryService {
     }
   }
 
+  Future<int> update(SalaryRecord record) async {
+    if (record.id == null) {
+      throw ArgumentError('Salary record id is required for update.');
+    }
+    final db = await _db.database;
+    final map = record.toMap()..remove('id');
+    return await db.update(
+      'salary_records',
+      map,
+      where: 'id = ?',
+      whereArgs: [record.id],
+    );
+  }
+
   Future<int> delete(int id) async {
     final db = await _db.database;
     return await db.delete('salary_records', where: 'id = ?', whereArgs: [id]);

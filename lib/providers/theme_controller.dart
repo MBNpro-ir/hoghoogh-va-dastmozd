@@ -42,7 +42,9 @@ class ThemeController extends ChangeNotifier {
 
   /// اطمینان از ساخت هر دو تم با هم (جلوگیری از باگ کش)
   void _ensureThemesBuilt() {
-    if (!_themeDirty && _cachedLightTheme != null && _cachedDarkTheme != null) return;
+    if (!_themeDirty && _cachedLightTheme != null && _cachedDarkTheme != null) {
+      return;
+    }
 
     _cachedLightTheme = AppTheme.lightTheme(
       highContrast: highContrast,
@@ -133,7 +135,8 @@ class ThemeController extends ChangeNotifier {
     if (!_firstRunAutoEnabled && light != null) {
       _firstRunAutoEnabled = true;
       // فقط اگر seed color پیش‌فرض باشد (یعنی کاربر هنوز چیزی تغییر نداده)
-      if (_colorConfig.seedColorValue == 0xFF004394 && !_colorConfig.useDynamicColors) {
+      if (_colorConfig.seedColorValue == 0xFF004394 &&
+          !_colorConfig.useDynamicColors) {
         _colorConfig = _colorConfig.copyWith(useDynamicColors: true);
         _service.saveColorConfig(_colorConfig);
         _themeDirty = true;

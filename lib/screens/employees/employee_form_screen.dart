@@ -7,7 +7,10 @@ import '../../services/salary_calculator.dart';
 import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
+import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
+import '../../utils/seniority_helper.dart';
+import '../../widgets/persian_date_picker.dart';
 import '../../widgets/persian_number_field.dart';
 
 class EmployeeFormScreen extends StatefulWidget {
@@ -62,7 +65,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     _firstNameCtrl = TextEditingController(text: e?.firstName ?? '');
     _lastNameCtrl = TextEditingController(text: e?.lastName ?? '');
     _nationalIdCtrl = TextEditingController(text: e?.nationalId ?? '');
-    _startDateCtrl = TextEditingController(text: e?.startDate ?? '1405/01/01');
+    _startDateCtrl = TextEditingController(
+      text: PersianNumberFormatter.toPersian(e?.startDate ?? '1405/01/01'),
+    );
     _notesCtrl = TextEditingController(text: e?.notes ?? '');
 
     if (e != null) {
@@ -89,8 +94,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     if (widget.employee == null) {
       final nextCode = await _service.getNextPersonnelCode();
       _personnelCodeCtrl.text = nextCode.toString();
-      _dailyWage1404 = _settings!.dailyWage;
+      _dailyWage1404 = AppConstants.defaultDailyWage1404;
       _autoCalculate1405();
+      _syncExperienceAndSeniorityFromDate(notify: false);
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -116,6 +122,85 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         ? _settings!.monthlyMarriage / AppConstants.standardMonthDays
         : 0;
     // فقط یکبار setState فراخوانی شود
+    if (mounted) setState(() {});
+  }
+
+  String get _startDateEnglish =>
+      PersianNumberFormatter.toEnglish(_startDateCtrl.text.trim());
+
+  void _syncExperienceAndSeniorityFromDate({bool notify = true}) {
+    if (_settings == null) return;
+    final hasFourYears = SeniorityHelper.hasAtLeastFourYears(_startDateEnglish);
+    _hasPriorExperience = hasFourYears;
+    _dailySeniority = hasFourYears
+        ? SeniorityHelper.calculateDailySeniority(
+            startDate: _startDateEnglish,
+            settings: _settings!,
+          )
+        : 0;
+    if (notify && mounted) setState(() {});
+  }
+
+  Future<void> _pickStartDate() async {
+    final initial =
+        SeniorityHelper.parseStartDate(_startDateEnglish) ??
+        SeniorityHelper.parseStartDate('1405/01/01');
+    final selected = await showPersianDatePicker(
+      context: context,
+      initialDate: initial,
+    );
+    if (selected == null) return;
+    _startDateCtrl.text = PersianNumberFormatter.toPersian(
+      PersianDateHelper.formatJalali(selected),
+    );
+    _syncExperienceAndSeniorityFromDate();
+  }
+
+  Future<void> _setPriorExperienceManually(bool value) async {
+    if (_settings == null) return;
+    final expected = SeniorityHelper.hasAtLeastFourYears(_startDateEnglish);
+    var confirmed = true;
+    if (value != expected) {
+      confirmed =
+          await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('تغییر دستی سابقه'),
+              content: Text(
+                expected
+                    ? 'این شخص بیش از ۴ سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را غیر فعال کنید؟'
+                    : 'این شخص کمتر از ۴ سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را فعال کنید؟',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('انصراف'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('تایید'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
+    if (!confirmed) return;
+    setState(() {
+      _hasPriorExperience = value;
+      _dailySeniority = value
+          ? SeniorityHelper.calculateDailySeniority(
+              startDate: _startDateEnglish,
+              settings: _settings!,
+            )
+          : 0;
+    });
+  }
+
+  double _toMonthly(double daily) => daily * AppConstants.standardMonthDays;
+
+  void _setDailyFromMonthly(double monthly, ValueChanged<double> updateDaily) {
+    updateDaily(monthly / AppConstants.standardMonthDays);
     if (mounted) setState(() {});
   }
 
@@ -339,14 +424,22 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               flex: 1,
               child: TextFormField(
                 controller: _startDateCtrl,
+                readOnly: true,
+                onTap: _pickStartDate,
                 decoration: const InputDecoration(
                   labelText: 'تاریخ شروع *',
                   prefixIcon: Icon(Icons.calendar_today_rounded, size: 20),
+                  suffixIcon: Icon(Icons.edit_calendar_rounded, size: 20),
                   hintText: 'مثلا: 1402/01/01',
                 ),
                 textDirection: TextDirection.ltr,
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'الزامی است' : null,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return 'الزامی است';
+                  final parsed = SeniorityHelper.parseStartDate(
+                    PersianNumberFormatter.toEnglish(v),
+                  );
+                  return parsed == null ? 'تاریخ نامعتبر است' : null;
+                },
               ),
             ),
           ],
@@ -384,10 +477,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               SwitchListTile(
                 title: const Text('بیش از ۴ سال سابقه'),
                 value: _hasPriorExperience,
-                onChanged: (v) {
-                  _hasPriorExperience = v;
-                  _autoCalculate1405();
-                },
+                onChanged: _setPriorExperienceManually,
                 secondary: Icon(
                   Icons.workspace_premium_rounded,
                   color: AppTheme.warningColor,
@@ -421,10 +511,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 child: SwitchListTile(
                   title: const Text('بیش از ۴ سال سابقه'),
                   value: _hasPriorExperience,
-                  onChanged: (v) {
-                    _hasPriorExperience = v;
-                    _autoCalculate1405();
-                  },
+                  onChanged: _setPriorExperienceManually,
                   secondary: Icon(
                     Icons.workspace_premium_rounded,
                     color: AppTheme.warningColor,
@@ -447,8 +534,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         alignment: Alignment.center,
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment:
-              isMobile ? MainAxisAlignment.start : MainAxisAlignment.center,
+          mainAxisAlignment: isMobile
+              ? MainAxisAlignment.start
+              : MainAxisAlignment.center,
           children: [
             Icon(Icons.child_care_rounded, color: scheme.tertiary, size: 20),
             const SizedBox(width: 6),
@@ -470,7 +558,10 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               child: Text(
                 PersianNumberFormatter.toPersian(_childrenCount.toString()),
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             IconButton(
@@ -506,7 +597,11 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
           ),
           child: Row(
             children: [
-              Icon(Icons.info_outline_rounded, color: AppTheme.warningColor, size: 20),
+              Icon(
+                Icons.info_outline_rounded,
+                color: AppTheme.warningColor,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -575,7 +670,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             _responsiveField(
               isMobile: isMobile,
               child: PersianNumberField(
-                key: ValueKey('dw1405_$_dailyWage1405'),
                 label: 'دستمزد ۱۴۰۵ (خودکار)',
                 isCurrency: true,
                 prefixIcon: Icons.calculate_rounded,
@@ -597,13 +691,11 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             _responsiveField(
               isMobile: isMobile,
               child: PersianNumberField(
-                key: ValueKey('bs30_$_baseSalary30Days'),
                 label: 'حقوق پایه (۳۰ روز)',
                 isCurrency: true,
                 prefixIcon: Icons.attach_money_rounded,
                 initialValue: _baseSalary30Days,
-                onChanged: (v) =>
-                    _baseSalary30Days = v?.toDouble() ?? 0,
+                onChanged: (v) => _baseSalary30Days = v?.toDouble() ?? 0,
               ),
             ),
           ],
@@ -629,7 +721,8 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 isCurrency: true,
                 prefixIcon: Icons.home_rounded,
                 initialValue: _dailyHousing,
-                onChanged: (v) => _dailyHousing = v?.toDouble() ?? 0,
+                onChanged: (v) =>
+                    setState(() => _dailyHousing = v?.toDouble() ?? 0),
               ),
             ),
             _responsiveField(
@@ -639,7 +732,8 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 isCurrency: true,
                 prefixIcon: Icons.shopping_basket_rounded,
                 initialValue: _dailyFood,
-                onChanged: (v) => _dailyFood = v?.toDouble() ?? 0,
+                onChanged: (v) =>
+                    setState(() => _dailyFood = v?.toDouble() ?? 0),
               ),
             ),
           ],
@@ -651,12 +745,12 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             _responsiveField(
               isMobile: isMobile,
               child: PersianNumberField(
-                key: ValueKey('mar_$_dailyMarriage'),
                 label: 'حق تاهل',
                 isCurrency: true,
                 prefixIcon: Icons.favorite_rounded,
                 initialValue: _dailyMarriage,
-                onChanged: (v) => _dailyMarriage = v?.toDouble() ?? 0,
+                onChanged: (v) =>
+                    setState(() => _dailyMarriage = v?.toDouble() ?? 0),
               ),
             ),
             _responsiveField(
@@ -667,7 +761,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 prefixIcon: Icons.child_care_rounded,
                 initialValue: _dailyChildAllowance,
                 onChanged: (v) =>
-                    _dailyChildAllowance = v?.toDouble() ?? 0,
+                    setState(() => _dailyChildAllowance = v?.toDouble() ?? 0),
               ),
             ),
           ],
@@ -679,12 +773,12 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             _responsiveField(
               isMobile: isMobile,
               child: PersianNumberField(
-                key: ValueKey('sen_$_dailySeniority'),
                 label: 'پایه سنوات',
                 isCurrency: true,
                 prefixIcon: Icons.workspace_premium_rounded,
                 initialValue: _dailySeniority,
-                onChanged: (v) => _dailySeniority = v?.toDouble() ?? 0,
+                onChanged: (v) =>
+                    setState(() => _dailySeniority = v?.toDouble() ?? 0),
               ),
             ),
             _responsiveField(
@@ -695,7 +789,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 prefixIcon: Icons.history_toggle_off_rounded,
                 initialValue: _lastYearSeniority,
                 onChanged: (v) =>
-                    _lastYearSeniority = v?.toDouble() ?? 0,
+                    setState(() => _lastYearSeniority = v?.toDouble() ?? 0),
               ),
             ),
           ],
@@ -712,17 +806,139 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 prefixIcon: Icons.add_box_rounded,
                 initialValue: _otherBenefitsDaily,
                 onChanged: (v) =>
-                    _otherBenefitsDaily = v?.toDouble() ?? 0,
+                    setState(() => _otherBenefitsDaily = v?.toDouble() ?? 0),
               ),
             ),
             _responsiveField(
               isMobile: isMobile,
               child: PersianNumberField(
-                label: 'مزایای ساعتی',
-                isCurrency: true,
+                label: 'ساعت مزایای ساعتی قرارداد',
                 prefixIcon: Icons.access_time_rounded,
+                suffix: 'ساعت',
                 initialValue: _hourlyBenefits,
-                onChanged: (v) => _hourlyBenefits = v?.toDouble() ?? 0,
+                onChanged: (v) =>
+                    setState(() => _hourlyBenefits = v?.toDouble() ?? 0),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _buildMonthlyBenefitsSection(context, isMobile),
+      ],
+    );
+  }
+
+  Widget _buildMonthlyBenefitsSection(BuildContext context, bool isMobile) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.calendar_month_rounded,
+              size: 20,
+              color: scheme.secondary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'مزایای ماهانه',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
+        ),
+        const Divider(height: 18),
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'حق مسکن ماهانه',
+                isCurrency: true,
+                prefixIcon: Icons.home_work_rounded,
+                initialValue: _toMonthly(_dailyHousing),
+                onChanged: (v) => _setDailyFromMonthly(
+                  v?.toDouble() ?? 0,
+                  (daily) => _dailyHousing = daily,
+                ),
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'حق خواروبار ماهانه',
+                isCurrency: true,
+                prefixIcon: Icons.shopping_cart_rounded,
+                initialValue: _toMonthly(_dailyFood),
+                onChanged: (v) => _setDailyFromMonthly(
+                  v?.toDouble() ?? 0,
+                  (daily) => _dailyFood = daily,
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: isMobile ? 8 : 12),
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'حق تاهل ماهانه',
+                isCurrency: true,
+                prefixIcon: Icons.favorite_rounded,
+                initialValue: _toMonthly(_dailyMarriage),
+                onChanged: (v) => _setDailyFromMonthly(
+                  v?.toDouble() ?? 0,
+                  (daily) => _dailyMarriage = daily,
+                ),
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'حق فرزند ماهانه (هر فرزند)',
+                isCurrency: true,
+                prefixIcon: Icons.child_friendly_rounded,
+                initialValue: _toMonthly(_dailyChildAllowance),
+                onChanged: (v) => _setDailyFromMonthly(
+                  v?.toDouble() ?? 0,
+                  (daily) => _dailyChildAllowance = daily,
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: isMobile ? 8 : 12),
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'پایه سنوات ماهانه',
+                isCurrency: true,
+                prefixIcon: Icons.workspace_premium_rounded,
+                initialValue: _toMonthly(_dailySeniority),
+                onChanged: (v) => _setDailyFromMonthly(
+                  v?.toDouble() ?? 0,
+                  (daily) => _dailySeniority = daily,
+                ),
+              ),
+            ),
+            _responsiveField(
+              isMobile: isMobile,
+              child: PersianNumberField(
+                label: 'سایر مزایا ماهانه',
+                isCurrency: true,
+                prefixIcon: Icons.add_card_rounded,
+                initialValue: _toMonthly(_otherBenefitsDaily),
+                onChanged: (v) => _setDailyFromMonthly(
+                  v?.toDouble() ?? 0,
+                  (daily) => _otherBenefitsDaily = daily,
+                ),
               ),
             ),
           ],
@@ -765,9 +981,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             onPressed: _saving ? null : _save,
             icon: const Icon(Icons.save_rounded),
             label: Text(
-              widget.employee == null
-                  ? 'افزودن کارمند'
-                  : 'ذخیره تغییرات',
+              widget.employee == null ? 'افزودن کارمند' : 'ذخیره تغییرات',
             ),
           ),
         ],
@@ -789,9 +1003,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             onPressed: _saving ? null : _save,
             icon: const Icon(Icons.save_rounded),
             label: Text(
-              widget.employee == null
-                  ? 'افزودن کارمند'
-                  : 'ذخیره تغییرات',
+              widget.employee == null ? 'افزودن کارمند' : 'ذخیره تغییرات',
             ),
           ),
         ),

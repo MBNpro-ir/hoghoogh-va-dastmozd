@@ -19,6 +19,8 @@ class AppSettings {
   final double unemploymentInsuranceRate; // درصد بیمه بیکاری
 
   final double twoSevenBaseRate; // ضریب معافیت دو هفتم
+  final double monthlyLeaveAllowance;
+  final double annualLeaveAllowance;
   final String companyName; // نام شرکت
 
   AppSettings({
@@ -37,6 +39,8 @@ class AppSettings {
     this.employerInsuranceRate = AppConstants.employerInsuranceRate,
     this.unemploymentInsuranceRate = AppConstants.unemploymentInsuranceRate,
     this.twoSevenBaseRate = AppConstants.twoSevenBaseRate,
+    this.monthlyLeaveAllowance = AppConstants.defaultMonthlyLeaveAllowance,
+    this.annualLeaveAllowance = AppConstants.defaultAnnualLeaveAllowance,
     this.companyName = 'شرکت فرایند کود و سم بافق',
   });
 
@@ -56,6 +60,8 @@ class AppSettings {
     'employer_insurance_rate': employerInsuranceRate,
     'unemployment_insurance_rate': unemploymentInsuranceRate,
     'two_seven_base_rate': twoSevenBaseRate,
+    'monthly_leave_allowance': monthlyLeaveAllowance,
+    'annual_leave_allowance': annualLeaveAllowance,
     'company_name': companyName,
   };
 
@@ -98,6 +104,12 @@ class AppSettings {
     twoSevenBaseRate:
         (map['two_seven_base_rate'] as num?)?.toDouble() ??
         AppConstants.twoSevenBaseRate,
+    monthlyLeaveAllowance:
+        (map['monthly_leave_allowance'] as num?)?.toDouble() ??
+        AppConstants.defaultMonthlyLeaveAllowance,
+    annualLeaveAllowance:
+        (map['annual_leave_allowance'] as num?)?.toDouble() ??
+        AppConstants.defaultAnnualLeaveAllowance,
     companyName: map['company_name'] as String? ?? 'شرکت فرایند کود و سم بافق',
   );
 
@@ -116,6 +128,8 @@ class AppSettings {
     double? employerInsuranceRate,
     double? unemploymentInsuranceRate,
     double? twoSevenBaseRate,
+    double? monthlyLeaveAllowance,
+    double? annualLeaveAllowance,
     String? companyName,
   }) => AppSettings(
     id: id,
@@ -134,6 +148,8 @@ class AppSettings {
     unemploymentInsuranceRate:
         unemploymentInsuranceRate ?? this.unemploymentInsuranceRate,
     twoSevenBaseRate: twoSevenBaseRate ?? this.twoSevenBaseRate,
+    monthlyLeaveAllowance: monthlyLeaveAllowance ?? this.monthlyLeaveAllowance,
+    annualLeaveAllowance: annualLeaveAllowance ?? this.annualLeaveAllowance,
     companyName: companyName ?? this.companyName,
   );
 }

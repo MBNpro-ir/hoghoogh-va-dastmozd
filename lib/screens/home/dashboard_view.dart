@@ -1219,7 +1219,9 @@ class _ActionCardState extends State<_ActionCard>
               1.0,
             ),
             decoration: BoxDecoration(
-              color: isDark ? scheme.surfaceContainer : scheme.surfaceContainerLowest,
+              color: isDark
+                  ? scheme.surfaceContainer
+                  : scheme.surfaceContainerLowest,
               borderRadius: BorderRadius.circular(AppTheme.radiusLg),
               border: Border.all(
                 color: widget.hovered
@@ -1237,7 +1239,9 @@ class _ActionCardState extends State<_ActionCard>
                     ]
                   : [
                       BoxShadow(
-                        color: scheme.shadow.withValues(alpha: isDark ? 0 : 0.06),
+                        color: scheme.shadow.withValues(
+                          alpha: isDark ? 0 : 0.06,
+                        ),
                         blurRadius: 8,
                         offset: const Offset(0, 3),
                       ),
@@ -1272,7 +1276,9 @@ class _ActionCardState extends State<_ActionCard>
                       height: 90,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: accent.withValues(alpha: widget.hovered ? 0.12 : 0.06),
+                        color: accent.withValues(
+                          alpha: widget.hovered ? 0.12 : 0.06,
+                        ),
                       ),
                     ),
                   ),
@@ -1307,7 +1313,9 @@ class _ActionCardState extends State<_ActionCard>
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: accent.withValues(alpha: widget.hovered ? 0.4 : 0.2),
+                                color: accent.withValues(
+                                  alpha: widget.hovered ? 0.4 : 0.2,
+                                ),
                                 blurRadius: widget.hovered ? 12 : 6,
                                 offset: const Offset(0, 4),
                               ),
@@ -1346,7 +1354,9 @@ class _ActionCardState extends State<_ActionCard>
                                 style: TextStyle(
                                   fontFamily: 'Vazirmatn',
                                   fontSize: 11,
-                                  color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
+                                  color: scheme.onSurfaceVariant.withValues(
+                                    alpha: 0.8,
+                                  ),
                                 ),
                               ),
                             ],
@@ -1357,7 +1367,9 @@ class _ActionCardState extends State<_ActionCard>
                           width: 32,
                           height: 32,
                           decoration: BoxDecoration(
-                            color: accent.withValues(alpha: widget.hovered ? 0.15 : 0.08),
+                            color: accent.withValues(
+                              alpha: widget.hovered ? 0.15 : 0.08,
+                            ),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: AnimatedContainer(
@@ -1370,7 +1382,9 @@ class _ActionCardState extends State<_ActionCard>
                             child: Icon(
                               Icons.arrow_back_ios_new_rounded,
                               size: 14,
-                              color: accent.withValues(alpha: widget.hovered ? 1.0 : 0.7),
+                              color: accent.withValues(
+                                alpha: widget.hovered ? 1.0 : 0.7,
+                              ),
                             ),
                           ),
                         ),

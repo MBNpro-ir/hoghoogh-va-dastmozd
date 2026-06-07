@@ -53,10 +53,11 @@ void main() {
         settings: settings,
         input: SalaryCalculationInput(
           totalDays: _asInt(record['totalDays']),
-          leaveDays: _asInt(record['leaveDays']),
+          leaveDays: _asDouble(record['leaveDays']),
           overtimeHours: _asDouble(record['overtimeHours']),
           shiftWork: _asDouble(record['shiftWork']),
           hourlyBenefitsAmount: _asDouble(record['hourlyBenefitsAmount']),
+          includeLeaveInPayslip: false,
           insuranceExempt:
               _asDouble(record['insuranceBase']) == 0 &&
               _asDouble(record['totalEarnings']) > 0,

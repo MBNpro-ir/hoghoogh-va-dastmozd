@@ -156,43 +156,45 @@ class AppTheme {
     ColorScheme? colorScheme,
   }) {
     const family = AppConstants.fontFamily;
-    final scheme = colorScheme ?? const ColorScheme(
-      brightness: Brightness.light,
-      primary: lightPrimary,
-      onPrimary: lightOnPrimary,
-      primaryContainer: lightPrimaryContainer,
-      onPrimaryContainer: lightOnPrimaryContainer,
-      secondary: lightSecondary,
-      onSecondary: lightOnSecondary,
-      secondaryContainer: lightSecondaryContainer,
-      onSecondaryContainer: lightOnSecondaryContainer,
-      tertiary: lightTertiary,
-      onTertiary: lightOnTertiary,
-      tertiaryContainer: lightTertiaryContainer,
-      onTertiaryContainer: lightOnTertiaryContainer,
-      error: lightError,
-      onError: lightOnError,
-      errorContainer: lightErrorContainer,
-      onErrorContainer: lightOnErrorContainer,
-      surface: lightSurface,
-      onSurface: lightOnSurface,
-      surfaceContainerLowest: lightSurfaceContainerLowest,
-      surfaceContainerLow: lightSurfaceContainerLow,
-      surfaceContainer: lightSurfaceContainer,
-      surfaceContainerHigh: lightSurfaceContainerHigh,
-      surfaceContainerHighest: lightSurfaceContainerHighest,
-      onSurfaceVariant: lightOnSurfaceVariant,
-      outline: lightOutline,
-      outlineVariant: lightOutlineVariant,
-      inverseSurface: lightInverseSurface,
-      onInverseSurface: lightInverseOnSurface,
-      inversePrimary: lightInversePrimary,
-      surfaceTint: lightPrimary,
-      // ignore: deprecated_member_use
-      surfaceVariant: lightSurfaceContainerHighest,
-      scrim: Color(0x99000000),
-      shadow: Color(0xFF000000),
-    );
+    final scheme =
+        colorScheme ??
+        const ColorScheme(
+          brightness: Brightness.light,
+          primary: lightPrimary,
+          onPrimary: lightOnPrimary,
+          primaryContainer: lightPrimaryContainer,
+          onPrimaryContainer: lightOnPrimaryContainer,
+          secondary: lightSecondary,
+          onSecondary: lightOnSecondary,
+          secondaryContainer: lightSecondaryContainer,
+          onSecondaryContainer: lightOnSecondaryContainer,
+          tertiary: lightTertiary,
+          onTertiary: lightOnTertiary,
+          tertiaryContainer: lightTertiaryContainer,
+          onTertiaryContainer: lightOnTertiaryContainer,
+          error: lightError,
+          onError: lightOnError,
+          errorContainer: lightErrorContainer,
+          onErrorContainer: lightOnErrorContainer,
+          surface: lightSurface,
+          onSurface: lightOnSurface,
+          surfaceContainerLowest: lightSurfaceContainerLowest,
+          surfaceContainerLow: lightSurfaceContainerLow,
+          surfaceContainer: lightSurfaceContainer,
+          surfaceContainerHigh: lightSurfaceContainerHigh,
+          surfaceContainerHighest: lightSurfaceContainerHighest,
+          onSurfaceVariant: lightOnSurfaceVariant,
+          outline: lightOutline,
+          outlineVariant: lightOutlineVariant,
+          inverseSurface: lightInverseSurface,
+          onInverseSurface: lightInverseOnSurface,
+          inversePrimary: lightInversePrimary,
+          surfaceTint: lightPrimary,
+          // ignore: deprecated_member_use
+          surfaceVariant: lightSurfaceContainerHighest,
+          scrim: Color(0x99000000),
+          shadow: Color(0xFF000000),
+        );
 
     final base = ThemeData(
       useMaterial3: true,
@@ -364,16 +366,12 @@ class AppTheme {
           fontSize: 14,
         ),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surfaceContainerHigh,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         titleTextStyle: TextStyle(
           fontFamily: family,
           fontSize: 20,
@@ -399,9 +397,7 @@ class AppTheme {
         backgroundColor: scheme.primaryContainer,
         foregroundColor: scheme.onPrimaryContainer,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       tabBarTheme: TabBarThemeData(
         labelColor: scheme.primary,
@@ -441,9 +437,7 @@ class AppTheme {
         collapsedBackgroundColor: scheme.surfaceContainerLowest,
         iconColor: scheme.onSurfaceVariant,
         textColor: scheme.onSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
@@ -461,9 +455,7 @@ class AppTheme {
           return Colors.transparent;
         }),
         side: BorderSide(color: scheme.outline),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       ),
       radioTheme: RadioThemeData(
         fillColor: WidgetStateProperty.resolveWith((states) {
@@ -484,43 +476,45 @@ class AppTheme {
     ColorScheme? colorScheme,
   }) {
     const family = AppConstants.fontFamily;
-    final scheme = colorScheme ?? const ColorScheme(
-      brightness: Brightness.dark,
-      primary: darkPrimary,
-      onPrimary: darkOnPrimary,
-      primaryContainer: darkPrimaryContainer,
-      onPrimaryContainer: darkOnPrimaryContainer,
-      secondary: darkSecondary,
-      onSecondary: darkOnSecondary,
-      secondaryContainer: darkSecondaryContainer,
-      onSecondaryContainer: darkOnSecondaryContainer,
-      tertiary: darkTertiary,
-      onTertiary: darkOnTertiary,
-      tertiaryContainer: darkTertiaryContainer,
-      onTertiaryContainer: darkOnTertiaryContainer,
-      error: darkError,
-      onError: darkOnError,
-      errorContainer: darkErrorContainer,
-      onErrorContainer: darkOnErrorContainer,
-      surface: darkSurface,
-      onSurface: darkOnSurface,
-      surfaceContainerLowest: darkSurfaceContainerLowest,
-      surfaceContainerLow: darkSurfaceContainerLow,
-      surfaceContainer: darkSurfaceContainer,
-      surfaceContainerHigh: darkSurfaceContainerHigh,
-      surfaceContainerHighest: darkSurfaceContainerHighest,
-      onSurfaceVariant: darkOnSurfaceVariant,
-      outline: darkOutline,
-      outlineVariant: darkOutlineVariant,
-      inverseSurface: darkInverseSurface,
-      onInverseSurface: darkInverseOnSurface,
-      inversePrimary: darkInversePrimary,
-      surfaceTint: darkPrimary,
-      // ignore: deprecated_member_use
-      surfaceVariant: darkSurfaceContainerHighest,
-      scrim: Color(0xCC000000),
-      shadow: Color(0xFF000000),
-    );
+    final scheme =
+        colorScheme ??
+        const ColorScheme(
+          brightness: Brightness.dark,
+          primary: darkPrimary,
+          onPrimary: darkOnPrimary,
+          primaryContainer: darkPrimaryContainer,
+          onPrimaryContainer: darkOnPrimaryContainer,
+          secondary: darkSecondary,
+          onSecondary: darkOnSecondary,
+          secondaryContainer: darkSecondaryContainer,
+          onSecondaryContainer: darkOnSecondaryContainer,
+          tertiary: darkTertiary,
+          onTertiary: darkOnTertiary,
+          tertiaryContainer: darkTertiaryContainer,
+          onTertiaryContainer: darkOnTertiaryContainer,
+          error: darkError,
+          onError: darkOnError,
+          errorContainer: darkErrorContainer,
+          onErrorContainer: darkOnErrorContainer,
+          surface: darkSurface,
+          onSurface: darkOnSurface,
+          surfaceContainerLowest: darkSurfaceContainerLowest,
+          surfaceContainerLow: darkSurfaceContainerLow,
+          surfaceContainer: darkSurfaceContainer,
+          surfaceContainerHigh: darkSurfaceContainerHigh,
+          surfaceContainerHighest: darkSurfaceContainerHighest,
+          onSurfaceVariant: darkOnSurfaceVariant,
+          outline: darkOutline,
+          outlineVariant: darkOutlineVariant,
+          inverseSurface: darkInverseSurface,
+          onInverseSurface: darkInverseOnSurface,
+          inversePrimary: darkInversePrimary,
+          surfaceTint: darkPrimary,
+          // ignore: deprecated_member_use
+          surfaceVariant: darkSurfaceContainerHighest,
+          scrim: Color(0xCC000000),
+          shadow: Color(0xFF000000),
+        );
 
     final base = ThemeData(
       useMaterial3: true,
@@ -543,7 +537,10 @@ class AppTheme {
     final theme = base.copyWith(
       visualDensity: density,
       textTheme: _persianTextTheme(base.textTheme, scheme.onSurface),
-      primaryTextTheme: _persianTextTheme(base.primaryTextTheme, scheme.onPrimary),
+      primaryTextTheme: _persianTextTheme(
+        base.primaryTextTheme,
+        scheme.onPrimary,
+      ),
       iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surface,

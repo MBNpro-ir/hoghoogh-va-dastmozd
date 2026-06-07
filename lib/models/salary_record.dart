@@ -7,14 +7,15 @@ class SalaryRecord {
 
   // ورودی‌های زمانی
   final int totalDays; // کل کارکرد (روز)
-  final int leaveDays; // مرخصی
-  final int workDays; // کارکرد خالص
+  final double leaveDays; // مرخصی
+  final double workDays; // کارکرد خالص
 
   // ساعات و مزایا
   final double overtimeHours; // ساعت اضافه‌کاری
   final double overtimeAmount; // مبلغ اضافه‌کاری
   final double shiftWork; // نوبت‌کاری
   final double hourlyBenefitsAmount; // مزایای 60-64-160 ساعته
+  final double hourlyBenefitHours; // ساعت مزایای ساعتی
 
   // اجزای حقوق و مزایا
   final double baseSalary; // حقوق ثابت
@@ -32,6 +33,10 @@ class SalaryRecord {
   final double loanInstallment; // قسط وام
   final double advance; // مساعده
   final double otherDeductions; // سایر کسورات (مابه‌تفاوت)
+  final bool includeLeaveInPayslip; // محاسبه محدودیت مرخصی در فیش
+  final double leaveAllowanceDays; // سقف مرخصی مجاز ماهانه
+  final double excessLeaveDays; // مرخصی مازاد
+  final double leaveDeduction; // کسر مرخصی مازاد
   final double totalDeductions; // جمع کسورات
 
   // محاسبات نهایی
@@ -57,6 +62,7 @@ class SalaryRecord {
     this.overtimeAmount = 0,
     this.shiftWork = 0,
     this.hourlyBenefitsAmount = 0,
+    this.hourlyBenefitHours = 0,
     required this.baseSalary,
     required this.housing,
     required this.food,
@@ -70,6 +76,10 @@ class SalaryRecord {
     this.loanInstallment = 0,
     this.advance = 0,
     this.otherDeductions = 0,
+    this.includeLeaveInPayslip = true,
+    this.leaveAllowanceDays = 2.5,
+    this.excessLeaveDays = 0,
+    this.leaveDeduction = 0,
     required this.totalDeductions,
     required this.insuranceBase,
     required this.taxBase,
@@ -93,6 +103,7 @@ class SalaryRecord {
     'overtime_amount': overtimeAmount,
     'shift_work': shiftWork,
     'hourly_benefits_amount': hourlyBenefitsAmount,
+    'hourly_benefit_hours': hourlyBenefitHours,
     'base_salary': baseSalary,
     'housing': housing,
     'food': food,
@@ -106,6 +117,10 @@ class SalaryRecord {
     'loan_installment': loanInstallment,
     'advance': advance,
     'other_deductions': otherDeductions,
+    'include_leave_in_payslip': includeLeaveInPayslip ? 1 : 0,
+    'leave_allowance_days': leaveAllowanceDays,
+    'excess_leave_days': excessLeaveDays,
+    'leave_deduction': leaveDeduction,
     'total_deductions': totalDeductions,
     'insurance_base': insuranceBase,
     'tax_base': taxBase,
@@ -123,13 +138,14 @@ class SalaryRecord {
     year: map['year'] as int,
     month: map['month'] as int,
     totalDays: map['total_days'] as int,
-    leaveDays: map['leave_days'] as int,
-    workDays: map['work_days'] as int,
+    leaveDays: (map['leave_days'] as num).toDouble(),
+    workDays: (map['work_days'] as num).toDouble(),
     overtimeHours: (map['overtime_hours'] as num?)?.toDouble() ?? 0,
     overtimeAmount: (map['overtime_amount'] as num?)?.toDouble() ?? 0,
     shiftWork: (map['shift_work'] as num?)?.toDouble() ?? 0,
     hourlyBenefitsAmount:
         (map['hourly_benefits_amount'] as num?)?.toDouble() ?? 0,
+    hourlyBenefitHours: (map['hourly_benefit_hours'] as num?)?.toDouble() ?? 0,
     baseSalary: (map['base_salary'] as num).toDouble(),
     housing: (map['housing'] as num).toDouble(),
     food: (map['food'] as num).toDouble(),
@@ -143,6 +159,11 @@ class SalaryRecord {
     loanInstallment: (map['loan_installment'] as num?)?.toDouble() ?? 0,
     advance: (map['advance'] as num?)?.toDouble() ?? 0,
     otherDeductions: (map['other_deductions'] as num?)?.toDouble() ?? 0,
+    includeLeaveInPayslip: (map['include_leave_in_payslip'] as int? ?? 1) == 1,
+    leaveAllowanceDays:
+        (map['leave_allowance_days'] as num?)?.toDouble() ?? 2.5,
+    excessLeaveDays: (map['excess_leave_days'] as num?)?.toDouble() ?? 0,
+    leaveDeduction: (map['leave_deduction'] as num?)?.toDouble() ?? 0,
     totalDeductions: (map['total_deductions'] as num).toDouble(),
     insuranceBase: (map['insurance_base'] as num).toDouble(),
     taxBase: (map['tax_base'] as num).toDouble(),
@@ -167,6 +188,7 @@ class SalaryRecord {
     overtimeAmount: overtimeAmount,
     shiftWork: shiftWork,
     hourlyBenefitsAmount: hourlyBenefitsAmount,
+    hourlyBenefitHours: hourlyBenefitHours,
     baseSalary: baseSalary,
     housing: housing,
     food: food,
@@ -180,6 +202,10 @@ class SalaryRecord {
     loanInstallment: loanInstallment,
     advance: advance,
     otherDeductions: otherDeductions,
+    includeLeaveInPayslip: includeLeaveInPayslip,
+    leaveAllowanceDays: leaveAllowanceDays,
+    excessLeaveDays: excessLeaveDays,
+    leaveDeduction: leaveDeduction,
     totalDeductions: totalDeductions,
     insuranceBase: insuranceBase,
     taxBase: taxBase,
@@ -187,6 +213,61 @@ class SalaryRecord {
     netSalary: netSalary,
     rounding: rounding,
     finalPayment: finalPayment,
+    notes: notes,
+    createdAt: createdAt,
+  );
+
+  SalaryRecord copyWith({
+    int? id,
+    double? leaveDays,
+    double? workDays,
+    double? hourlyBenefitHours,
+    double? hourlyBenefitsAmount,
+    bool? includeLeaveInPayslip,
+    double? leaveAllowanceDays,
+    double? excessLeaveDays,
+    double? leaveDeduction,
+    double? totalDeductions,
+    double? netSalary,
+    int? rounding,
+    double? finalPayment,
+  }) => SalaryRecord(
+    id: id ?? this.id,
+    employeeId: employeeId,
+    year: year,
+    month: month,
+    totalDays: totalDays,
+    leaveDays: leaveDays ?? this.leaveDays,
+    workDays: workDays ?? this.workDays,
+    overtimeHours: overtimeHours,
+    overtimeAmount: overtimeAmount,
+    shiftWork: shiftWork,
+    hourlyBenefitsAmount: hourlyBenefitsAmount ?? this.hourlyBenefitsAmount,
+    hourlyBenefitHours: hourlyBenefitHours ?? this.hourlyBenefitHours,
+    baseSalary: baseSalary,
+    housing: housing,
+    food: food,
+    marriage: marriage,
+    childAllowance: childAllowance,
+    seniority: seniority,
+    otherBenefits: otherBenefits,
+    totalEarnings: totalEarnings,
+    insurance: insurance,
+    tax: tax,
+    loanInstallment: loanInstallment,
+    advance: advance,
+    otherDeductions: otherDeductions,
+    includeLeaveInPayslip: includeLeaveInPayslip ?? this.includeLeaveInPayslip,
+    leaveAllowanceDays: leaveAllowanceDays ?? this.leaveAllowanceDays,
+    excessLeaveDays: excessLeaveDays ?? this.excessLeaveDays,
+    leaveDeduction: leaveDeduction ?? this.leaveDeduction,
+    totalDeductions: totalDeductions ?? this.totalDeductions,
+    insuranceBase: insuranceBase,
+    taxBase: taxBase,
+    twoSevenExemption: twoSevenExemption,
+    netSalary: netSalary ?? this.netSalary,
+    rounding: rounding ?? this.rounding,
+    finalPayment: finalPayment ?? this.finalPayment,
     notes: notes,
     createdAt: createdAt,
   );

@@ -1,8 +1,18 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:excel/excel.dart' as xls;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../models/app_settings.dart';
 import '../../models/employee.dart';
@@ -12,12 +22,25 @@ import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
 
+enum _PayslipExportAction {
+  savePdf,
+  saveImage,
+  saveText,
+  savePdfAndImage,
+  saveExcel,
+  sharePdf,
+  shareImage,
+  shareText,
+  shareExcel,
+}
+
 class PayslipScreen extends StatelessWidget {
   final Employee employee;
   final AppSettings settings;
   final SalaryRecord record;
+  final GlobalKey _payslipKey = GlobalKey();
 
-  const PayslipScreen({
+  PayslipScreen({
     super.key,
     required this.employee,
     required this.settings,
@@ -32,9 +55,59 @@ class PayslipScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('فیش حقوق'),
         actions: [
+          PopupMenuButton<_PayslipExportAction>(
+            icon: const Icon(Icons.ios_share_rounded),
+            tooltip: 'اشتراک‌گذاری',
+            onSelected: (action) => _handleExport(context, action),
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _PayslipExportAction.shareImage,
+                child: Text('اشتراک عکس'),
+              ),
+              PopupMenuItem(
+                value: _PayslipExportAction.sharePdf,
+                child: Text('اشتراک PDF'),
+              ),
+              PopupMenuItem(
+                value: _PayslipExportAction.shareText,
+                child: Text('اشتراک متن'),
+              ),
+              PopupMenuItem(
+                value: _PayslipExportAction.shareExcel,
+                child: Text('اشتراک Excel'),
+              ),
+            ],
+          ),
+          PopupMenuButton<_PayslipExportAction>(
+            icon: const Icon(Icons.save_alt_rounded),
+            tooltip: 'ذخیره',
+            onSelected: (action) => _handleExport(context, action),
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: _PayslipExportAction.saveImage,
+                child: Text('ذخیره عکس'),
+              ),
+              PopupMenuItem(
+                value: _PayslipExportAction.savePdf,
+                child: Text('ذخیره PDF'),
+              ),
+              PopupMenuItem(
+                value: _PayslipExportAction.saveText,
+                child: Text('ذخیره TXT'),
+              ),
+              PopupMenuItem(
+                value: _PayslipExportAction.savePdfAndImage,
+                child: Text('ذخیره PDF و عکس'),
+              ),
+              PopupMenuItem(
+                value: _PayslipExportAction.saveExcel,
+                child: Text('ذخیره Excel'),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.print_rounded),
-            tooltip: 'چاپ / ذخیره PDF',
+            tooltip: 'چاپ',
             onPressed: () => _printPdf(context),
           ),
         ],
@@ -42,21 +115,24 @@ class PayslipScreen extends StatelessWidget {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 750),
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-              boxShadow: [
-                BoxShadow(
-                  color: scheme.shadow.withValues(alpha: 0.15),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+          child: RepaintBoundary(
+            key: _payslipKey,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 750),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                boxShadow: [
+                  BoxShadow(
+                    color: scheme.shadow.withValues(alpha: 0.15),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(24),
+              child: _buildPayslip(context),
             ),
-            padding: const EdgeInsets.all(24),
-            child: _buildPayslip(context),
           ),
         ),
       ),
@@ -159,21 +235,13 @@ class PayslipScreen extends StatelessWidget {
         const SizedBox(height: 12),
         Row(
           children: [
-            _topBox(
-              context,
-              'کارکرد-روز',
-              PersianNumberFormatter.toPersian(record.workDays.toString()),
-            ),
+            _topBox(context, 'کارکرد-روز', _formatDays(record.workDays)),
             _topBox(
               context,
               'اضافه کار',
               '${PersianNumberFormatter.toPersian(record.overtimeHours.toStringAsFixed(0))} ساعت',
             ),
-            _topBox(
-              context,
-              'مرخصی',
-              PersianNumberFormatter.toPersian(record.leaveDays.toString()),
-            ),
+            _topBox(context, 'مرخصی', _formatDays(record.leaveDays)),
           ],
         ),
         const SizedBox(height: 16),
@@ -461,6 +529,7 @@ class PayslipScreen extends StatelessWidget {
       ('قسط وام', record.loanInstallment),
       ('مساعده', record.advance),
       ('سایر کسورات', record.otherDeductions),
+      ('کسر مرخصی مازاد', record.leaveDeduction),
     ];
     return Column(
       children: items
@@ -511,29 +580,158 @@ class PayslipScreen extends StatelessWidget {
     );
   }
 
+  String _formatDays(double value, {bool persian = true}) {
+    final text = value == value.roundToDouble()
+        ? value.toStringAsFixed(0)
+        : value.toStringAsFixed(1);
+    return persian ? PersianNumberFormatter.toPersian(text) : text;
+  }
+
+  Future<void> _handleExport(
+    BuildContext context,
+    _PayslipExportAction action,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    try {
+      switch (action) {
+        case _PayslipExportAction.savePdf:
+          await _saveBytes(
+            bytes: await _buildPdfBytes(),
+            fileName: '${_fileBaseName()}.pdf',
+            extension: 'pdf',
+          );
+          break;
+        case _PayslipExportAction.saveImage:
+          await _saveBytes(
+            bytes: await _capturePngBytes(),
+            fileName: '${_fileBaseName()}.png',
+            extension: 'png',
+          );
+          break;
+        case _PayslipExportAction.saveText:
+          await _saveBytes(
+            bytes: Uint8List.fromList(utf8.encode(_buildTextContent())),
+            fileName: '${_fileBaseName()}.txt',
+            extension: 'txt',
+          );
+          break;
+        case _PayslipExportAction.savePdfAndImage:
+          await _saveBytes(
+            bytes: await _buildPdfBytes(),
+            fileName: '${_fileBaseName()}.pdf',
+            extension: 'pdf',
+          );
+          await _saveBytes(
+            bytes: await _capturePngBytes(),
+            fileName: '${_fileBaseName()}.png',
+            extension: 'png',
+          );
+          break;
+        case _PayslipExportAction.saveExcel:
+          await _saveBytes(
+            bytes: await _buildExcelBytes(),
+            fileName: '${_fileBaseName()}.xlsx',
+            extension: 'xlsx',
+          );
+          break;
+        case _PayslipExportAction.sharePdf:
+          await _shareFile(await _buildPdfBytes(), '${_fileBaseName()}.pdf');
+          break;
+        case _PayslipExportAction.shareImage:
+          await _shareFile(await _capturePngBytes(), '${_fileBaseName()}.png');
+          break;
+        case _PayslipExportAction.shareText:
+          await SharePlus.instance.share(
+            ShareParams(title: 'فیش حقوق', text: _buildTextContent()),
+          );
+          break;
+        case _PayslipExportAction.shareExcel:
+          await _shareFile(await _buildExcelBytes(), '${_fileBaseName()}.xlsx');
+          break;
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('عملیات خروجی انجام شد'),
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('خطا در خروجی: $e'),
+          backgroundColor: scheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _saveBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required String extension,
+  }) async {
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'ذخیره فیش حقوق',
+      fileName: fileName,
+      type: FileType.custom,
+      allowedExtensions: [extension],
+    );
+    if (path == null) return;
+    await File(path).writeAsBytes(bytes, flush: true);
+  }
+
+  Future<void> _shareFile(Uint8List bytes, String fileName) async {
+    final file = await _writeTempFile(bytes, fileName);
+    await SharePlus.instance.share(
+      ShareParams(title: 'فیش حقوق', files: [XFile(file.path)]),
+    );
+  }
+
+  Future<File> _writeTempFile(Uint8List bytes, String fileName) async {
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}${Platform.pathSeparator}$fileName');
+    return file.writeAsBytes(bytes, flush: true);
+  }
+
+  Future<Uint8List> _capturePngBytes() async {
+    final boundary =
+        _payslipKey.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
+    if (boundary == null) {
+      throw StateError('فیش برای خروجی عکس آماده نیست.');
+    }
+    final image = await boundary.toImage(pixelRatio: 2.5);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (data == null) throw StateError('ساخت عکس انجام نشد.');
+    return data.buffer.asUint8List();
+  }
+
+  Future<Uint8List> _buildPdfBytes() async {
+    final fontRegular = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Vazirmatn-Regular.ttf'),
+    );
+    final fontBold = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Vazirmatn-Bold.ttf'),
+    );
+    final doc = pw.Document();
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a5.landscape,
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
+        build: (ctx) => _buildPdfContent(),
+      ),
+    );
+    return doc.save();
+  }
+
   Future<void> _printPdf(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final scheme = Theme.of(context).colorScheme;
     try {
-      final fontRegular = pw.Font.ttf(
-        await rootBundle.load('assets/fonts/Vazirmatn-Regular.ttf'),
-      );
-      final fontBold = pw.Font.ttf(
-        await rootBundle.load('assets/fonts/Vazirmatn-Bold.ttf'),
-      );
-
-      final doc = pw.Document();
-      doc.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          textDirection: pw.TextDirection.rtl,
-          theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
-          build: (ctx) => _buildPdfContent(),
-        ),
-      );
-
       await Printing.layoutPdf(
-        onLayout: (format) async => doc.save(),
+        onLayout: (format) async => _buildPdfBytes(),
         name:
             'فیش حقوق ${employee.fullName} - ${PersianDateHelper.monthName(record.month)} ${record.year}',
       );
@@ -545,6 +743,119 @@ class PayslipScreen extends StatelessWidget {
         ),
       );
     }
+  }
+
+  String _buildTextContent() {
+    final rows = [
+      'فیش حقوق ${employee.fullName}',
+      'دوره: ${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())}',
+      'کد پرسنلی: ${PersianNumberFormatter.toPersian(employee.personnelCode.toString())}',
+      'کد ملی: ${PersianNumberFormatter.toPersian(employee.nationalId)}',
+      'کارکرد: ${_formatDays(record.workDays)} روز',
+      'مرخصی: ${_formatDays(record.leaveDays)} روز',
+      '',
+      'حقوق و مزایا:',
+      ..._earningsRows().map(
+        (r) =>
+            '${r.$1}: ${PersianNumberFormatter.formatRial(r.$2, showUnit: true)}',
+      ),
+      '',
+      'کسورات:',
+      ..._deductionsRows().map(
+        (r) =>
+            '${r.$1}: ${PersianNumberFormatter.formatRial(r.$2, showUnit: true)}',
+      ),
+      '',
+      'جمع حقوق و مزایا: ${PersianNumberFormatter.formatRial(record.totalEarnings, showUnit: true)}',
+      'جمع کسورات: ${PersianNumberFormatter.formatRial(record.totalDeductions, showUnit: true)}',
+      'خالص پرداختی: ${PersianNumberFormatter.formatRial(record.finalPayment, showUnit: true)}',
+    ];
+    return rows.join('\n');
+  }
+
+  Future<Uint8List> _buildExcelBytes() async {
+    final excel = xls.Excel.createExcel();
+    final sheet = excel['فیش حقوق'];
+    excel.delete('Sheet1');
+    sheet.isRTL = true;
+    final headerStyle = xls.CellStyle(
+      bold: true,
+      fontFamily: 'Vazirmatn',
+      fontSize: 12,
+      horizontalAlign: xls.HorizontalAlign.Center,
+    );
+    final cellStyle = xls.CellStyle(
+      fontFamily: 'Vazirmatn',
+      horizontalAlign: xls.HorizontalAlign.Right,
+    );
+    void row(List<String> values, {bool header = false}) {
+      sheet.appendRow(values.map((v) => xls.TextCellValue(v)).toList());
+      final rowIndex = sheet.maxRows - 1;
+      for (var col = 0; col < values.length; col++) {
+        sheet
+            .cell(
+              xls.CellIndex.indexByColumnRow(
+                columnIndex: col,
+                rowIndex: rowIndex,
+              ),
+            )
+            .cellStyle = header
+            ? headerStyle
+            : cellStyle;
+      }
+    }
+
+    row(['فیش حقوق', settings.companyName], header: true);
+    row(['نام کارمند', employee.fullName]);
+    row([
+      'کد پرسنلی',
+      PersianNumberFormatter.toPersian(employee.personnelCode.toString()),
+    ]);
+    row([
+      'دوره',
+      '${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())}',
+    ]);
+    row(['کارکرد', '${_formatDays(record.workDays)} روز']);
+    row(['مرخصی', '${_formatDays(record.leaveDays)} روز']);
+    row([]);
+    row(['حقوق و مزایا', 'مبلغ'], header: true);
+    for (final item in _earningsRows()) {
+      row([item.$1, PersianNumberFormatter.formatRial(item.$2)]);
+    }
+    row([
+      'جمع حقوق و مزایا',
+      PersianNumberFormatter.formatRial(record.totalEarnings),
+    ], header: true);
+    row([]);
+    row(['کسورات', 'مبلغ'], header: true);
+    for (final item in _deductionsRows()) {
+      row([item.$1, PersianNumberFormatter.formatRial(item.$2)]);
+    }
+    row([
+      'جمع کسورات',
+      PersianNumberFormatter.formatRial(record.totalDeductions),
+    ], header: true);
+    row([
+      'خالص پرداختی',
+      PersianNumberFormatter.formatRial(record.finalPayment),
+    ], header: true);
+
+    for (var col = 0; col < 2; col++) {
+      sheet.setColumnWidth(col, col == 0 ? 24 : 28);
+    }
+    final bytes = excel.encode();
+    if (bytes == null) throw StateError('ساخت فایل Excel انجام نشد.');
+    return Uint8List.fromList(bytes);
+  }
+
+  String _fileBaseName() {
+    final period =
+        '${PersianDateHelper.monthName(record.month)}-${record.year}';
+    final cleanName = employee.fullName.replaceAll(
+      RegExp(r'[\\/:*?"<>|]'),
+      '-',
+    );
+    return 'فیش حقوق $cleanName $period';
   }
 
   pw.Widget _buildPdfContent() {
@@ -635,7 +946,7 @@ class PayslipScreen extends StatelessWidget {
                       ),
                     ),
                     pw.Text(
-                      '${record.workDays}',
+                      _formatDays(record.workDays, persian: false),
                       style: pw.TextStyle(
                         fontSize: 13,
                         fontWeight: pw.FontWeight.bold,
@@ -685,7 +996,7 @@ class PayslipScreen extends StatelessWidget {
                       ),
                     ),
                     pw.Text(
-                      '${record.leaveDays}',
+                      _formatDays(record.leaveDays, persian: false),
                       style: pw.TextStyle(
                         fontSize: 13,
                         fontWeight: pw.FontWeight.bold,
@@ -819,6 +1130,7 @@ class PayslipScreen extends StatelessWidget {
     ('قسط وام', record.loanInstallment),
     ('مساعده', record.advance),
     ('سایر کسورات', record.otherDeductions),
+    ('کسر مرخصی مازاد', record.leaveDeduction),
   ];
 
   pw.Widget _pdfTable(List<(String, double)> rows) {

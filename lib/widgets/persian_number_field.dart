@@ -38,6 +38,7 @@ class PersianNumberField extends StatefulWidget {
 
 class _PersianNumberFieldState extends State<PersianNumberField> {
   late TextEditingController _controller;
+  late FocusNode _focusNode;
   bool _ownsController = false;
 
   @override
@@ -53,6 +54,20 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
       );
       _ownsController = true;
     }
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant PersianNumberField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_ownsController || _focusNode.hasFocus) return;
+    final nextText = widget.initialValue != null
+        ? PersianNumberFormatter.formatNumber(widget.initialValue!)
+        : '';
+    if (_controller.text != nextText) {
+      _controller.text = nextText;
+      _controller.selection = TextSelection.collapsed(offset: nextText.length);
+    }
   }
 
   @override
@@ -60,6 +75,7 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
     if (_ownsController) {
       _controller.dispose();
     }
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -67,6 +83,7 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
   Widget build(BuildContext context) {
     return TextFormField(
       controller: _controller,
+      focusNode: _focusNode,
       enabled: widget.enabled,
       autofocus: widget.autofocus,
       textDirection: TextDirection.ltr,
