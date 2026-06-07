@@ -9,37 +9,23 @@ on:
 permissions:
   contents: write
 
+env:
+  FLUTTER_STORAGE_BASE_URL: https://storage.googleapis.com
+  PUB_HOSTED_URL: https://pub.dev
+
 jobs:
-  build_all:
-    name: Analyze, test, build (Android + Windows) and release
+  checks:
+    name: Analyze and test
     runs-on: windows-latest
-    env:
-      FLUTTER_STORAGE_BASE_URL: https://storage.googleapis.com
-      PUB_HOSTED_URL: https://pub.dev
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
-
-      - name: Enable Windows desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Use official Gradle distribution on CI
-        shell: pwsh
-        run: |
-          $wrapper = "android\gradle\wrapper\gradle-wrapper.properties"
-          (Get-Content $wrapper) -replace '^distributionUrl=.*', 'distributionUrl=https\://services.gradle.org/distributions/gradle-9.1.0-all.zip' | Set-Content $wrapper
 
       - name: Get dependencies
         run: flutter pub get
@@ -50,11 +36,79 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Build APK (split per ABI — old & new devices)
+  build_android:
+    name: Build Android APKs
+    runs-on: windows-latest
+    needs: checks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Use official Gradle distribution on CI
+        shell: pwsh
+        run: |
+          $wrapper = "android\gradle\wrapper\gradle-wrapper.properties"
+          (Get-Content $wrapper) -replace '^distributionUrl=.*', 'distributionUrl=https\://services.gradle.org/distributions/gradle-9.1.0-all.zip' | Set-Content $wrapper
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build APKs
         run: flutter build apk --release --split-per-abi --target-platform=android-arm,android-arm64
 
-      - name: Build APK (universal — all devices)
+      - name: Build universal APK
         run: flutter build apk --release
+
+      - name: Stage Android APKs
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          New-Item -ItemType Directory -Path artifacts -Force
+          Copy-Item -Path build\app\outputs\flutter-apk\app-armeabi-v7a-release.apk -Destination "artifacts/payroll-app-${tag}-android-arm.apk" -Force
+          Copy-Item -Path build\app\outputs\flutter-apk\app-arm64-v8a-release.apk -Destination "artifacts/payroll-app-${tag}-android-arm64.apk" -Force
+          Copy-Item -Path build\app\outputs\flutter-apk\app-release.apk -Destination "artifacts/payroll-app-${tag}-android-universal.apk" -Force
+
+      - name: Upload Android APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apks
+          path: artifacts/*.apk
+          if-no-files-found: error
+
+  build_windows:
+    name: Build Windows x64
+    runs-on: windows-latest
+    needs: checks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Get dependencies
+        run: flutter pub get
 
       - name: Build Windows x64
         run: flutter build windows --release
@@ -78,19 +132,31 @@ jobs:
           }
           Compress-Archive -Path "$bundle\*" -DestinationPath "artifacts/payroll-app-${tag}-windows-x64-portable.zip"
 
-      - name: Stage Android APKs
-        shell: pwsh
-        run: |
-          $tag = "${{ github.ref_name }}"
-          # Android for old devices (32-bit ARM)
-          Copy-Item -Path build\app\outputs\flutter-apk\app-armeabi-v7a-release.apk -Destination "artifacts/payroll-app-${tag}-android-arm.apk" -Force
-          # Android for new devices (64-bit ARM)
-          Copy-Item -Path build\app\outputs\flutter-apk\app-arm64-v8a-release.apk   -Destination "artifacts/payroll-app-${tag}-android-arm64.apk" -Force
-          # Android universal (all ABIs)
-          Copy-Item -Path build\app\outputs\flutter-apk\app-release.apk              -Destination "artifacts/payroll-app-${tag}-android-universal.apk" -Force
+      - name: Upload Windows portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: artifacts/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Create pre-release
+    runs-on: windows-latest
+    needs:
+      - build_android
+      - build_windows
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
 
       - name: Create pre-release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           prerelease: true
