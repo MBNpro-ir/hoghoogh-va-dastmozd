@@ -94,46 +94,65 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
     final monthly = _settings?.monthlyLeaveAllowance ?? 2.5;
     final annual = _settings?.annualLeaveAllowance ?? 30;
 
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          _summaryCard(
-            'سقف ماهانه',
-            '${_formatDays(monthly)} روز',
-            scheme.primary,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth - 24;
+        final cardWidth = availableWidth < 520
+            ? ((availableWidth - 8) / 2).clamp(140.0, 190.0).toDouble()
+            : 190.0;
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _summaryCard(
+                'سقف ماهانه',
+                '${_formatDays(monthly)} روز',
+                scheme.primary,
+                width: cardWidth,
+              ),
+              _summaryCard(
+                'سقف سالانه',
+                '${_formatDays(annual)} روز',
+                scheme.tertiary,
+                width: cardWidth,
+              ),
+              _summaryCard(
+                'کل مرخصی ثبت‌شده',
+                '${_formatDays(totalLeave)} روز',
+                scheme.secondary,
+                width: cardWidth,
+              ),
+              _summaryCard(
+                'مرخصی مازاد',
+                '${_formatDays(totalExcess)} روز',
+                scheme.error,
+                width: cardWidth,
+              ),
+              _summaryCard(
+                'کسر مرخصی',
+                PersianNumberFormatter.formatRial(totalDeduction),
+                AppTheme.warningColor,
+                width: cardWidth,
+              ),
+            ],
           ),
-          _summaryCard(
-            'سقف سالانه',
-            '${_formatDays(annual)} روز',
-            scheme.tertiary,
-          ),
-          _summaryCard(
-            'کل مرخصی ثبت‌شده',
-            '${_formatDays(totalLeave)} روز',
-            scheme.secondary,
-          ),
-          _summaryCard(
-            'مرخصی مازاد',
-            '${_formatDays(totalExcess)} روز',
-            scheme.error,
-          ),
-          _summaryCard(
-            'کسر مرخصی',
-            PersianNumberFormatter.formatRial(totalDeduction),
-            AppTheme.warningColor,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _summaryCard(String label, String value, Color color) {
+  Widget _summaryCard(
+    String label,
+    String value,
+    Color color, {
+    double width = 190,
+  }) {
     return Container(
-      width: 190,
+      width: width,
+      constraints: const BoxConstraints(minHeight: 64),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),

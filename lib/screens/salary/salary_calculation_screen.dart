@@ -65,6 +65,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   double _otherDeductions = 0;
 
   bool _useAutoLoanInstallment = true;
+  bool _skipLoanInstallmentThisMonth = false;
   bool _useAutoOtherBenefits = true;
   bool _useAutoShiftWork = false;
   bool _useAutoHourlyBenefits = true;
@@ -118,11 +119,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     setState(() => _selectedEmployee = emp);
     if (emp != null && emp.id != null) {
       _employeeLoans = await _loanService.getActiveLoansForEmployee(emp.id!);
-      if (_useAutoLoanInstallment) {
-        _loanInstallment = _employeeLoans.fold(
-          0,
-          (s, l) => s + l.installmentAmount,
-        );
+      if (_skipLoanInstallmentThisMonth) {
+        _loanInstallment = 0;
+      } else if (_useAutoLoanInstallment) {
+        _loanInstallment = _activeLoanInstallmentTotal;
       }
       await _checkExistingRecord();
     }
@@ -158,7 +158,12 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           : record.otherBenefits;
       _useAutoOtherBenefits = false;
       _loanInstallment = record.loanInstallment;
-      _useAutoLoanInstallment = false;
+      _skipLoanInstallmentThisMonth =
+          record.loanInstallment == 0 && _employeeLoans.isNotEmpty;
+      _useAutoLoanInstallment = _skipLoanInstallmentThisMonth
+          ? true
+          : record.loanInstallment == _activeLoanInstallmentTotal &&
+                _employeeLoans.isNotEmpty;
       _includeLeaveInPayslip = record.includeLeaveInPayslip;
       _insuranceExempt = record.insuranceBase == 0 && record.totalEarnings > 0;
       _taxExempt = record.tax == 0 && record.totalEarnings > 400000000;
@@ -187,10 +192,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _otherBenefitsOverride = -1;
       _useAutoOtherBenefits = true;
       _useAutoLoanInstallment = true;
-      _loanInstallment = _employeeLoans.fold(
-        0,
-        (s, l) => s + l.installmentAmount,
-      );
+      _skipLoanInstallmentThisMonth = false;
+      _loanInstallment = _activeLoanInstallmentTotal;
       _insuranceExempt = false;
       _taxExempt = false;
       _advance = 0;
@@ -235,6 +238,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     );
     setState(() => _result = result);
   }
+
+  double get _activeLoanInstallmentTotal =>
+      _employeeLoans.fold(0, (s, l) => s + l.installmentAmount);
 
   Future<void> _saveAndShowPayslip({bool deductLoanInstallments = true}) async {
     if (_result == null || _selectedEmployee == null) return;
@@ -287,7 +293,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
 
       final recordId = await _salaryService.insertOrUpdate(record);
 
-      if (deductLoanInstallments && _useAutoLoanInstallment) {
+      if (deductLoanInstallments &&
+          _useAutoLoanInstallment &&
+          !_skipLoanInstallmentThisMonth &&
+          _loanInstallment > 0) {
         for (final loan in _employeeLoans) {
           if (loan.isActive && loan.id != null) {
             await _loanService.recordInstallmentPayment(loan.id!);
@@ -731,17 +740,41 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 onChanged: (v) {
                   setState(() {
                     _useAutoLoanInstallment = v;
-                    if (v) {
-                      _loanInstallment = _employeeLoans.fold(
-                        0,
-                        (s, l) => s + l.installmentAmount,
-                      );
+                    if (!v) {
+                      _skipLoanInstallmentThisMonth = false;
+                    } else if (_skipLoanInstallmentThisMonth) {
+                      _loanInstallment = 0;
+                    } else {
+                      _loanInstallment = _activeLoanInstallmentTotal;
                     }
                   });
                   _calculate();
                 },
               ),
-              if (!_useAutoLoanInstallment)
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('معاف از محاسبه وام در این ماه'),
+                subtitle: const Text(
+                  'فقط برای همین فیش اعمال می‌شود و از ماه بعد اقساط دوباره خودکار محاسبه می‌شود.',
+                ),
+                value: _skipLoanInstallmentThisMonth,
+                onChanged: _employeeLoans.isEmpty
+                    ? null
+                    : (v) {
+                        setState(() {
+                          _skipLoanInstallmentThisMonth = v;
+                          if (v) {
+                            _useAutoLoanInstallment = true;
+                            _loanInstallment = 0;
+                          } else if (_useAutoLoanInstallment) {
+                            _loanInstallment = _activeLoanInstallmentTotal;
+                          }
+                        });
+                        _calculate();
+                      },
+              ),
+              if (!_useAutoLoanInstallment && !_skipLoanInstallmentThisMonth)
                 PersianNumberField(
                   key: ValueKey('lin_$_loanInstallment'),
                   label: 'قسط وام (ریال)',
@@ -753,7 +786,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                     _calculate();
                   },
                 ),
-              if (_useAutoLoanInstallment && _employeeLoans.isNotEmpty)
+              if (_useAutoLoanInstallment &&
+                  _employeeLoans.isNotEmpty &&
+                  !_skipLoanInstallmentThisMonth)
                 _employeeLoansList(),
               const SizedBox(height: 12),
               SwitchListTile(

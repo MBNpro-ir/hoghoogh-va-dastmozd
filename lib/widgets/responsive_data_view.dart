@@ -285,6 +285,8 @@ class _MobileSortStrip<T> extends StatelessWidget {
 
     final scheme = Theme.of(context).colorScheme;
     final color = accentColor ?? scheme.primary;
+    final chipBackground = scheme.surfaceContainerLowest;
+    final chipSelected = color.withValues(alpha: 0.16);
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       padding: const EdgeInsets.all(10),
@@ -309,6 +311,22 @@ class _MobileSortStrip<T> extends StatelessWidget {
                         label: Text(columns[index].label),
                         selected: selectedIndex == index,
                         onSelected: (_) => onColumnChanged(index),
+                        backgroundColor: chipBackground,
+                        selectedColor: chipSelected,
+                        side: BorderSide(
+                          color: selectedIndex == index
+                              ? color.withValues(alpha: 0.55)
+                              : scheme.outlineVariant,
+                        ),
+                        checkmarkColor: color,
+                        labelStyle: TextStyle(
+                          color: selectedIndex == index
+                              ? scheme.onSurface
+                              : scheme.onSurfaceVariant,
+                          fontWeight: selectedIndex == index
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                        ),
                       ),
                     ),
                 ],
