@@ -66,6 +66,10 @@ jobs:
         run: |
           sed -i '/maven\.myket\.ir/d;/en-mirror\.ir/d' android/settings.gradle.kts android/build.gradle.kts
 
+      - name: Disable Gradle file-system watching on CI
+        run: |
+          printf '\norg.gradle.vfs.watch=false\n' >> android/gradle.properties
+
       - name: Get dependencies
         run: flutter pub get
 
@@ -79,9 +83,9 @@ jobs:
         run: |
           tag="${{ github.ref_name }}"
           mkdir -p artifacts
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "artifacts/payroll-app-${tag}-android-arm.apk"
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "artifacts/payroll-app-${tag}-android-arm64.apk"
-          cp build/app/outputs/flutter-apk/app-release.apk "artifacts/payroll-app-${tag}-android-universal.apk"
+          cp "$(find build/app/outputs -name 'app-armeabi-v7a-release.apk' -print -quit)" "artifacts/payroll-app-${tag}-android-arm.apk"
+          cp "$(find build/app/outputs -name 'app-arm64-v8a-release.apk' -print -quit)" "artifacts/payroll-app-${tag}-android-arm64.apk"
+          cp "$(find build/app/outputs -name 'app-release.apk' -print -quit)" "artifacts/payroll-app-${tag}-android-universal.apk"
 
       - name: Upload Android APKs
         uses: actions/upload-artifact@v4
