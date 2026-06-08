@@ -62,6 +62,10 @@ jobs:
         run: |
           sed -i 's#^distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-9.1.0-all.zip#' android/gradle/wrapper/gradle-wrapper.properties
 
+      - name: Use official Android repositories on CI
+        run: |
+          sed -i '/maven\.myket\.ir/d;/en-mirror\.ir/d' android/settings.gradle.kts android/build.gradle.kts
+
       - name: Get dependencies
         run: flutter pub get
 
