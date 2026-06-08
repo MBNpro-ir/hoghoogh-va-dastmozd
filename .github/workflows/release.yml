@@ -38,7 +38,7 @@ jobs:
 
   build_android:
     name: Build Android APKs
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,10 +59,8 @@ jobs:
           cache: true
 
       - name: Use official Gradle distribution on CI
-        shell: pwsh
         run: |
-          $wrapper = "android\gradle\wrapper\gradle-wrapper.properties"
-          (Get-Content $wrapper) -replace '^distributionUrl=.*', 'distributionUrl=https\://services.gradle.org/distributions/gradle-9.1.0-all.zip' | Set-Content $wrapper
+          sed -i 's#^distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-9.1.0-all.zip#' android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Get dependencies
         run: flutter pub get
@@ -74,13 +72,12 @@ jobs:
         run: flutter build apk --release
 
       - name: Stage Android APKs
-        shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
-          New-Item -ItemType Directory -Path artifacts -Force
-          Copy-Item -Path build\app\outputs\flutter-apk\app-armeabi-v7a-release.apk -Destination "artifacts/payroll-app-${tag}-android-arm.apk" -Force
-          Copy-Item -Path build\app\outputs\flutter-apk\app-arm64-v8a-release.apk -Destination "artifacts/payroll-app-${tag}-android-arm64.apk" -Force
-          Copy-Item -Path build\app\outputs\flutter-apk\app-release.apk -Destination "artifacts/payroll-app-${tag}-android-universal.apk" -Force
+          tag="${{ github.ref_name }}"
+          mkdir -p artifacts
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk "artifacts/payroll-app-${tag}-android-arm.apk"
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "artifacts/payroll-app-${tag}-android-arm64.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "artifacts/payroll-app-${tag}-android-universal.apk"
 
       - name: Upload Android APKs
         uses: actions/upload-artifact@v4
