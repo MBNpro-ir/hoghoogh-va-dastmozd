@@ -58,18 +58,6 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Use official Gradle distribution on CI
-        run: |
-          sed -i 's#^distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-9.1.0-all.zip#' android/gradle/wrapper/gradle-wrapper.properties
-
-      - name: Use official Android repositories on CI
-        run: |
-          sed -i '/maven\.myket\.ir/d;/en-mirror\.ir/d' android/settings.gradle.kts android/build.gradle.kts
-
-      - name: Disable Gradle file-system watching on CI
-        run: |
-          printf '\norg.gradle.vfs.watch=false\n' >> android/gradle.properties
-
       - name: Get dependencies
         run: flutter pub get
 
@@ -167,9 +155,7 @@ jobs:
           generate_release_notes: false
           body_path: CHANGELOG.md
           files: |
-            artifacts/payroll-app-${{ github.ref_name }}-android-arm.apk
-            artifacts/payroll-app-${{ github.ref_name }}-android-arm64.apk
-            artifacts/payroll-app-${{ github.ref_name }}-android-universal.apk
-            artifacts/payroll-app-${{ github.ref_name }}-windows-x64-portable.zip
+            artifacts/*.apk
+            artifacts/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -14,8 +14,6 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
-        maven { url = uri("https://maven.myket.ir") }
-        maven { url = uri("https://en-mirror.ir") }
     }
 }
 

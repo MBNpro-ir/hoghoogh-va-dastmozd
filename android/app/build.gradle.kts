@@ -25,7 +25,7 @@ android {
         versionName = flutter.versionName
         ndk {
             abiFilters.clear()
-            abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
         }
     }
 
@@ -33,7 +33,7 @@ android {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "x86_64")
+            include("armeabi-v7a", "arm64-v8a")
             isUniversalApk = true
         }
     }
@@ -45,7 +45,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             ndk {
                 abiFilters.clear()
-                abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
+                abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
             }
         }
     }
