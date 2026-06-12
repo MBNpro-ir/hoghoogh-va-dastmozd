@@ -1,9 +1,6 @@
 name: Build release artifacts
 
 on:
-  push:
-    tags:
-      - '*'
   workflow_dispatch:
 
 permissions:
