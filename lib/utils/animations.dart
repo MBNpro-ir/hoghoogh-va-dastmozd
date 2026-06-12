@@ -1,5 +1,13 @@
 import 'package:flutter/material.dart';
 
+class AppDurations {
+  static const Duration micro = Duration(milliseconds: 180);
+  static const Duration short = Duration(milliseconds: 320);
+  static const Duration medium = Duration(milliseconds: 480);
+  static const Duration long = Duration(milliseconds: 680);
+  static const Duration extraLong = Duration(milliseconds: 900);
+}
+
 /// انیمیشن‌های سفارشی اپ
 class AppAnimations {
   // -------- مدت زمان‌های استاندارد --------

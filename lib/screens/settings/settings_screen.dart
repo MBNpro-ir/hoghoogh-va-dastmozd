@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/app_settings.dart';
 import '../../models/color_config.dart';
@@ -8,6 +9,10 @@ import '../../providers/theme_controller.dart';
 import '../../services/appearance_service.dart';
 import '../../services/backup_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/api_client.dart';
+import '../../services/local_security_service.dart';
+import '../auth/local_unlock_setup_screen.dart';
+import '../auth/server_login_screen.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/animations.dart';
 import '../../utils/constants.dart';
@@ -27,7 +32,13 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _service = SettingsService();
   final _backupService = BackupService();
+  final _security = LocalSecurityService();
+  final _apiClient = ApiClient();
   final _formKey = GlobalKey<FormState>();
+
+  LocalCredentialMethod? _localMethod;
+  bool _hasLocalCredential = false;
+  bool _biometricEnabled = false;
 
   AppSettings? _settings;
   bool _loading = true;
@@ -114,6 +125,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _initMonthlyLeaveAllowance = _settings!.monthlyLeaveAllowance;
     _initAnnualLeaveAllowance = _settings!.annualLeaveAllowance;
 
+    _hasLocalCredential = await _security.hasCredential();
+    _localMethod = await _security.getMethod();
+    _biometricEnabled = await _security.biometricsEnabled();
     if (mounted) setState(() => _loading = false);
   }
 
@@ -343,6 +357,91 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
+    );
+  }
+
+  Future<void> _changeLocalCredential() async {
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const LocalUnlockSetupScreen()),
+    );
+  }
+
+  Future<void> _toggleBiometrics() async {
+    if (!_hasLocalCredential) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ابتدا رمز محلی برنامه را بسازید')),
+      );
+      return;
+    }
+    final next = !await _security.biometricsEnabled();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hvm_biometric_enabled_v1', next);
+    setState(() => _biometricEnabled = next);
+  }
+
+  Future<void> _clearLocalCredential() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف رمز محلی'),
+        content: const Text(
+          'با حذف رمز محلی، ورود بعدی دوباره ساخت رمز PIN یا Password را درخواست می‌کند.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await _security.clearCredential();
+    setState(() {
+      _hasLocalCredential = false;
+      _localMethod = null;
+      _biometricEnabled = false;
+    });
+  }
+
+  Future<void> _changeServerAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('خروج از حساب سرور'),
+        content: const Text(
+          'برای تغییر حساب باید از حساب فعلی خارج شوید و دوباره وارد شوید.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('خروج'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await _apiClient.clearSession();
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const ServerLoginScreen()),
     );
   }
 
@@ -746,7 +845,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     const SizedBox(height: 16),
                     FadeInUp(
-                      delay: const Duration(milliseconds: 480),
+                      delay: const Duration(milliseconds: 540),
+                      child: const _AccessibilitySection(),
+                    ),
+                    const SizedBox(height: 16),
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 600),
+                      child: _SecuritySection(
+                        hasCredential: _hasLocalCredential,
+                        method: _localMethod,
+                        biometricEnabled: _biometricEnabled,
+                        onChangeCredential: _changeLocalCredential,
+                        onToggleBiometrics: _toggleBiometrics,
+                        onClearCredential: _clearLocalCredential,
+                        onChangeServerAccount: _changeServerAccount,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 660),
                       child: const _ColorSection(),
                     ),
                     const SizedBox(height: 16),
@@ -1304,6 +1421,243 @@ class _SwitchTile extends StatelessWidget {
       ),
       value: value,
       onChanged: onChanged,
+    );
+  }
+}
+
+// -------- بخش امنیت ورود به برنامه --------
+class _SecuritySection extends StatelessWidget {
+  final bool hasCredential;
+  final LocalCredentialMethod? method;
+  final bool biometricEnabled;
+  final VoidCallback onChangeCredential;
+  final VoidCallback onToggleBiometrics;
+  final VoidCallback onClearCredential;
+  final VoidCallback onChangeServerAccount;
+
+  const _SecuritySection({
+    required this.hasCredential,
+    required this.method,
+    required this.biometricEnabled,
+    required this.onChangeCredential,
+    required this.onToggleBiometrics,
+    required this.onClearCredential,
+    required this.onChangeServerAccount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: scheme.error.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.security_rounded,
+                    color: scheme.error,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'امنیت ورود به برنامه',
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.tertiaryContainer,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'جدید',
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 10,
+                      color: scheme.onTertiaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(right: 56),
+              child: Text(
+                'رمز سرور فقط برای ورود آنلاین استفاده می‌شود. رمز PIN یا Password محلی، قفل جداگانه دستگاه برای باز کردن HvM است.',
+                style: TextStyle(
+                  fontFamily: 'Vazirmatn',
+                  fontSize: 12,
+                  color: scheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Divider(color: scheme.outlineVariant, height: 1),
+            const SizedBox(height: 8),
+            _SecurityTile(
+              icon: hasCredential
+                  ? Icons.lock_rounded
+                  : Icons.lock_open_rounded,
+              title: hasCredential
+                  ? 'رمز محلی فعال است'
+                  : 'رمز محلی ساخته نشده',
+              subtitle: method == null
+                  ? 'برای ورود به برنامه PIN یا Password تعریف کنید'
+                  : 'نوع رمز: ${method == LocalCredentialMethod.pin ? 'PIN' : 'Password'}',
+              actionLabel: 'تغییر رمز',
+              onTap: onChangeCredential,
+            ),
+            _SecurityTile(
+              icon: Icons.fingerprint_rounded,
+              title: 'اثر انگشت یا تشخیص چهره',
+              subtitle: biometricEnabled
+                  ? 'برای باز کردن سریع برنامه فعال است'
+                  : 'بعد از ساخت رمز محلی می‌توانید فعال کنید',
+              actionLabel: biometricEnabled ? 'غیرفعال کردن' : 'فعال کردن',
+              onTap: onToggleBiometrics,
+            ),
+            if (hasCredential)
+              _SecurityTile(
+                icon: Icons.delete_rounded,
+                title: 'حذف رمز محلی',
+                subtitle: 'ورود بعدی دوباره ساخت رمز را درخواست می‌کند',
+                actionLabel: 'حذف',
+                destructive: true,
+                onTap: onClearCredential,
+              ),
+            _SecurityTile(
+              icon: Icons.account_circle_rounded,
+              title: 'حساب سرور',
+              subtitle: 'تغییر حساب سروری HvM',
+              actionLabel: 'خروج و ورود مجدد',
+              destructive: true,
+              onTap: onChangeServerAccount,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SecurityTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String actionLabel;
+  final VoidCallback onTap;
+  final bool destructive;
+  const _SecurityTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.actionLabel,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: AppDurations.short,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: destructive
+                ? scheme.errorContainer.withValues(alpha: 0.08)
+                : scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            textDirection: TextDirection.rtl,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: destructive
+                      ? scheme.errorContainer
+                      : scheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: destructive ? scheme.error : scheme.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'Vazirmatn',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontFamily: 'Vazirmatn',
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                actionLabel,
+                style: TextStyle(
+                  fontFamily: 'Vazirmatn',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: destructive ? scheme.error : scheme.primary,
+                ),
+              ),
+              const Icon(Icons.chevron_left_rounded),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1947,10 +2301,7 @@ class _AboutSection extends StatelessWidget {
             const SizedBox(height: 16),
             Divider(color: scheme.outlineVariant, height: 1),
             const SizedBox(height: 12),
-            _AboutRow(
-              label: 'نام',
-              value: 'حقوق و دستمزد فرایند کود و سم بافق',
-            ),
+            _AboutRow(label: 'نام', value: 'HvM'),
             _AboutRow(label: 'نسخه', value: AppConstants.appVersion),
             _AboutRow(label: 'سال مالی', value: '۱۴۰۵'),
             _AboutRow(

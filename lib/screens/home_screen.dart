@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../database/database_helper.dart';
 import '../models/company_profile.dart';
 import '../providers/theme_controller.dart';
 import '../services/company_service.dart';
@@ -27,11 +26,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
-  int _workspaceVersion = 0;
   final PageController _pageController = PageController();
   final _companyService = CompanyService();
   final _settingsService = SettingsService();
-  List<CompanyProfile> _companies = const [];
   CompanyProfile? _currentCompany;
 
   List<Widget> get _pages => [
@@ -98,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 items: _items,
                 header: _SidebarHeader(
                   companyName: _currentCompany?.name,
-                  onManageCompanies: _showCompanyDialog,
+                  canManageCompanies: false,
                 ),
                 footer: _SidebarFooter(),
               ),
@@ -106,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
             VerticalDivider(width: 1, color: scheme.outlineVariant),
             Expanded(
               child: _AnimatedPageSwitcher(
-                pageKey: ValueKey('$_workspaceVersion-$_index'),
+                pageKey: ValueKey(_index),
                 child: _buildCurrentPage(),
               ),
             ),
@@ -133,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
             items: _items,
             header: _SidebarHeader(
               companyName: _currentCompany?.name,
-              onManageCompanies: _showCompanyDialog,
+              canManageCompanies: false,
             ),
             footer: _SidebarFooter(),
           ),
@@ -155,7 +152,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         body: PageView(
-          key: ValueKey(_workspaceVersion),
           controller: _pageController,
           physics: const BouncingScrollPhysics(),
           reverse: false, // RTL: swipe چپ به راست = صفحه بعد
@@ -257,121 +253,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // -------- سوئیچ صفحه با انیمیشن --------
   Future<void> _loadCompanies() async {
-    var companies = await _companyService.getCompanies();
     var current = await _companyService.getCurrentCompany();
     final settings = await _settingsService.getCurrentSettings();
     if (settings.companyName.trim().isNotEmpty &&
         current.name != settings.companyName) {
       await _companyService.syncCurrentCompanyName(settings.companyName);
-      companies = await _companyService.getCompanies();
       current = await _companyService.getCurrentCompany();
     }
     if (!mounted) return;
     setState(() {
-      _companies = companies;
       _currentCompany = current;
     });
-  }
-
-  Future<void> _showCompanyDialog() async {
-    await _loadCompanies();
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('مدیریت شرکت‌ها', style: Theme.of(ctx).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              for (final company in _companies)
-                ListTile(
-                  leading: Icon(
-                    company.dbName == _currentCompany?.dbName
-                        ? Icons.check_circle_rounded
-                        : Icons.business_rounded,
-                  ),
-                  title: Text(company.name),
-                  subtitle: Text(company.dbName),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    await _activateCompany(company);
-                  },
-                ),
-              const SizedBox(height: 8),
-              FilledButton.icon(
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  await _showAddCompanyDialog();
-                },
-                icon: const Icon(Icons.add_business_rounded),
-                label: const Text('افزودن شرکت جدید'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showAddCompanyDialog() async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('شرکت جدید'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'نام شرکت',
-            prefixIcon: Icon(Icons.business_rounded),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('انصراف'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('ایجاد'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (name == null || name.trim().isEmpty) return;
-    final company = await _companyService.addCompany(name);
-    await DatabaseHelper.instance.close();
-    final settings = await _settingsService.getCurrentSettings();
-    await _settingsService.update(settings.copyWith(companyName: name));
-    await _refreshWorkspace(company);
-  }
-
-  Future<void> _activateCompany(CompanyProfile company) async {
-    if (company.dbName == _currentCompany?.dbName) return;
-    await _companyService.switchCompany(company);
-    await DatabaseHelper.instance.close();
-    await _refreshWorkspace(company);
-  }
-
-  Future<void> _refreshWorkspace(CompanyProfile company) async {
-    final companies = await _companyService.getCompanies();
-    if (!mounted) return;
-    setState(() {
-      _companies = companies;
-      _currentCompany = company;
-      _index = 0;
-      _workspaceVersion++;
-    });
-    if (_pageController.hasClients) {
-      _pageController.jumpToPage(0);
-    }
   }
 }
 
@@ -406,9 +298,9 @@ class _AnimatedPageSwitcher extends StatelessWidget {
 // -------- هدر سایدبار --------
 class _SidebarHeader extends StatelessWidget {
   final String? companyName;
-  final VoidCallback onManageCompanies;
+  final bool canManageCompanies;
 
-  const _SidebarHeader({this.companyName, required this.onManageCompanies});
+  const _SidebarHeader({this.companyName, required this.canManageCompanies});
 
   @override
   Widget build(BuildContext context) {
@@ -452,11 +344,12 @@ class _SidebarHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: onManageCompanies,
-            icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-            label: const Text('تعویض شرکت'),
-          ),
+          if (canManageCompanies)
+            OutlinedButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+              label: const Text('تعویض شرکت'),
+            ),
         ],
       ),
     );

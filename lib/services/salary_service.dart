@@ -1,9 +1,11 @@
 import '../database/database_helper.dart';
 import '../models/salary_record.dart';
+import 'sync_service.dart';
 
 /// سرویس مدیریت فیش‌های حقوق
 class SalaryService {
   final _db = DatabaseHelper.instance;
+  final _sync = SyncService();
 
   Future<List<SalaryRecord>> getAll() async {
     final db = await _db.database;
@@ -67,10 +69,19 @@ class SalaryService {
         where: 'id = ?',
         whereArgs: [existing.id],
       );
+      await _sync.enqueue(
+        entity: 'salary_records',
+        payload: record.copyWithId(existing.id!).toMap(),
+      );
       return existing.id!;
     } else {
       final map = record.toMap()..remove('id');
-      return await db.insert('salary_records', map);
+      final id = await db.insert('salary_records', map);
+      await _sync.enqueue(
+        entity: 'salary_records',
+        payload: record.copyWithId(id).toMap(),
+      );
+      return id;
     }
   }
 
@@ -80,17 +91,29 @@ class SalaryService {
     }
     final db = await _db.database;
     final map = record.toMap()..remove('id');
-    return await db.update(
+    final result = await db.update(
       'salary_records',
       map,
       where: 'id = ?',
-      whereArgs: [record.id],
+      whereArgs: [record.id!],
     );
+    await _sync.enqueue(entity: 'salary_records', payload: record.toMap());
+    return result;
   }
 
   Future<int> delete(int id) async {
     final db = await _db.database;
-    return await db.delete('salary_records', where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete(
+      'salary_records',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await _sync.enqueue(
+      entity: 'salary_records',
+      payload: {'id': id, 'local_id': id},
+      operation: 'delete',
+    );
+    return result;
   }
 
   Future<int> deleteByEmployeeYearMonth(

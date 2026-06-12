@@ -1,9 +1,11 @@
 import '../database/database_helper.dart';
 import '../models/loan.dart';
+import 'sync_service.dart';
 
 /// سرویس مدیریت وام و اقساط
 class LoanService {
   final _db = DatabaseHelper.instance;
+  final _sync = SyncService();
 
   Future<List<Loan>> getAll({bool onlyActive = false}) async {
     final db = await _db.database;
@@ -48,22 +50,35 @@ class LoanService {
 
   Future<int> insert(Loan loan) async {
     final db = await _db.database;
-    return await db.insert('loans', loan.toMap()..remove('id'));
+    final id = await db.insert('loans', loan.toMap()..remove('id'));
+    await _sync.enqueue(
+      entity: 'loans',
+      payload: loan.copyWith(id: id).toMap(),
+    );
+    return id;
   }
 
   Future<int> update(Loan loan) async {
     final db = await _db.database;
-    return await db.update(
+    final result = await db.update(
       'loans',
       loan.toMap()..remove('id'),
       where: 'id = ?',
       whereArgs: [loan.id],
     );
+    await _sync.enqueue(entity: 'loans', payload: loan.toMap());
+    return result;
   }
 
   Future<int> delete(int id) async {
     final db = await _db.database;
-    return await db.delete('loans', where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete('loans', where: 'id = ?', whereArgs: [id]);
+    await _sync.enqueue(
+      entity: 'loans',
+      payload: {'id': id, 'local_id': id},
+      operation: 'delete',
+    );
+    return result;
   }
 
   /// ثبت یک قسط (افزایش paid_installments)

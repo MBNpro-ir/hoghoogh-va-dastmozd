@@ -9,7 +9,7 @@ import '../../utils/animations.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
-import '../../widgets/app_sidebar.dart' show AppDurations, AppCurves;
+import '../../widgets/app_sidebar.dart' show AppCurves;
 import '../../widgets/count_up_text.dart';
 import '../../widgets/dashboard_charts.dart';
 
@@ -107,6 +107,16 @@ class _DashboardViewState extends State<DashboardView> {
                       FadeInUp(
                         delay: const Duration(milliseconds: 180),
                         duration: AppDurations.medium,
+                        child: _BottomSection(
+                          data: _data!,
+                          r: r,
+                          isDark: isDark,
+                        ),
+                      ),
+                      SizedBox(height: r.sectionGap),
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 240),
+                        duration: AppDurations.medium,
                         child: _QuickActionsGrid(
                           r: r,
                           isDark: isDark,
@@ -116,16 +126,6 @@ class _DashboardViewState extends State<DashboardView> {
                           onLoans: widget.onNavigateToLoans,
                           onSettings: widget.onNavigateToSettings,
                           onHelp: widget.onNavigateToHelp,
-                        ),
-                      ),
-                      SizedBox(height: r.sectionGap),
-                      FadeInUp(
-                        delay: const Duration(milliseconds: 240),
-                        duration: AppDurations.medium,
-                        child: _BottomSection(
-                          data: _data!,
-                          r: r,
-                          isDark: isDark,
                         ),
                       ),
                     ],
@@ -1217,9 +1217,12 @@ class _ActionCardState extends State<_ActionCard>
               1.0,
             ),
             decoration: BoxDecoration(
-              color: isDark
-                  ? scheme.surfaceContainer
-                  : scheme.surfaceContainerLowest,
+              color: Color.alphaBlend(
+                accent.withValues(alpha: widget.hovered ? 0.16 : 0.08),
+                isDark
+                    ? scheme.surfaceContainer
+                    : scheme.surfaceContainerLowest,
+              ),
               borderRadius: BorderRadius.circular(AppTheme.radiusLg),
               border: Border.all(
                 color: widget.hovered

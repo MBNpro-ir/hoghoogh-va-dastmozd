@@ -1,10 +1,12 @@
 import '../database/database_helper.dart';
 import '../models/app_settings.dart';
 import '../utils/constants.dart';
+import 'sync_service.dart';
 
 /// سرویس تنظیمات برنامه
 class SettingsService {
   final _db = DatabaseHelper.instance;
+  final _sync = SyncService();
 
   /// دریافت تنظیمات سال جاری (یا 1405 پیش‌فرض)
   Future<AppSettings> getCurrentSettings({int? year}) async {
@@ -28,21 +30,21 @@ class SettingsService {
   Future<int> update(AppSettings settings) async {
     final db = await _db.database;
     final map = settings.toMap()..remove('id');
-    if (settings.id != null) {
-      return await db.update(
-        'app_settings',
-        map,
-        where: 'id = ?',
-        whereArgs: [settings.id],
-      );
-    } else {
-      return await db.update(
-        'app_settings',
-        map,
-        where: 'year = ?',
-        whereArgs: [settings.year],
-      );
-    }
+    final result = settings.id != null
+        ? await db.update(
+            'app_settings',
+            map,
+            where: 'id = ?',
+            whereArgs: [settings.id],
+          )
+        : await db.update(
+            'app_settings',
+            map,
+            where: 'year = ?',
+            whereArgs: [settings.year],
+          );
+    await _sync.enqueue(entity: 'app_settings', payload: settings.toMap());
+    return result;
   }
 
   Future<void> resetToDefaults({int? year}) async {

@@ -2,7 +2,7 @@ import 'dart:io';
 
 /// ثابت‌های برنامه - مقادیر پیش‌فرض حقوق و دستمزد 1405
 class AppConstants {
-  static const String appName = 'حقوق و دستمزد فرایند کود و سم بافق';
+  static const String appName = 'HvM';
   static const String fontFamily = 'Vazirmatn';
 
   /// ورژن برنامه - فقط از pubspec.yaml خوانده می‌شود.
