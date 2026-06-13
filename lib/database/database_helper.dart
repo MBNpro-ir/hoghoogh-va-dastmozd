@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 5;
+  static const int _dbVersion = 6;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -103,7 +103,11 @@ class DatabaseHelper {
         address TEXT DEFAULT '',
         hard_and_harmful_job INTEGER NOT NULL DEFAULT 0,
         payslip_footer_note TEXT DEFAULT '',
-        notes TEXT
+        notes TEXT,
+        sync_id TEXT UNIQUE,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT,
+        sync_state TEXT NOT NULL DEFAULT 'synced'
       );
     ''');
 
@@ -121,6 +125,10 @@ class DatabaseHelper {
         end_date TEXT,
         notes TEXT,
         is_active INTEGER NOT NULL DEFAULT 1,
+        sync_id TEXT UNIQUE,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT,
+        sync_state TEXT NOT NULL DEFAULT 'synced',
         FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
       );
     ''');
@@ -170,6 +178,10 @@ class DatabaseHelper {
         final_payment REAL NOT NULL,
         notes TEXT,
         created_at TEXT NOT NULL,
+        sync_id TEXT UNIQUE,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT,
+        sync_state TEXT NOT NULL DEFAULT 'synced',
         UNIQUE (employee_id, year, month),
         FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
       );
@@ -196,6 +208,10 @@ class DatabaseHelper {
         monthly_leave_allowance REAL NOT NULL DEFAULT 2.5,
         annual_leave_allowance REAL NOT NULL DEFAULT 30,
         company_name TEXT NOT NULL,
+        sync_id TEXT UNIQUE,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT,
+        sync_state TEXT NOT NULL DEFAULT 'synced',
         UNIQUE (year)
       );
     ''');
@@ -211,6 +227,7 @@ class DatabaseHelper {
     await db.execute(
       'CREATE INDEX idx_salary_year_month ON salary_records(year, month);',
     );
+    await _createSyncIndexes(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -362,6 +379,47 @@ class DatabaseHelper {
         db,
         'salary_records',
         'employee_payslip_footer_note_snapshot TEXT',
+      );
+    }
+    if (oldVersion < 6) {
+      await _addSyncColumns(db, 'employees');
+      await _addSyncColumns(db, 'loans');
+      await _addSyncColumns(db, 'salary_records');
+      await _addSyncColumns(db, 'app_settings');
+      await _createSyncIndexes(db);
+    }
+  }
+
+  Future<void> _addSyncColumns(Database db, String table) async {
+    await _safeAddColumn(db, table, 'sync_id TEXT');
+    await _safeAddColumn(
+      db,
+      table,
+      'updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP',
+    );
+    await _safeAddColumn(db, table, 'deleted_at TEXT');
+    await _safeAddColumn(
+      db,
+      table,
+      "sync_state TEXT NOT NULL DEFAULT 'pending'",
+    );
+  }
+
+  Future<void> _createSyncIndexes(Database db) async {
+    for (final table in [
+      'employees',
+      'loans',
+      'salary_records',
+      'app_settings',
+    ]) {
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_${table}_sync_id ON $table(sync_id);',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_${table}_sync_state ON $table(sync_state);',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_${table}_deleted_at ON $table(deleted_at);',
       );
     }
   }

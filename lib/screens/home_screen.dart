@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,9 +7,11 @@ import '../models/company_profile.dart';
 import '../providers/theme_controller.dart';
 import '../services/company_service.dart';
 import '../services/settings_service.dart';
+import '../services/sync_service.dart';
 import '../utils/constants.dart';
 import '../utils/responsive.dart';
 import '../widgets/app_sidebar.dart';
+import '../widgets/sync_status_banner.dart';
 import 'employees/employees_list_screen.dart';
 import 'help/help_support_screen.dart';
 import 'home/dashboard_view.dart';
@@ -29,6 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final PageController _pageController = PageController();
   final _companyService = CompanyService();
   final _settingsService = SettingsService();
+  final _sync = SyncService();
   CompanyProfile? _currentCompany;
 
   List<Widget> get _pages => [
@@ -68,6 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadCompanies();
+    unawaited(_sync.syncNow(silent: true));
   }
 
   @override
@@ -102,9 +108,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             VerticalDivider(width: 1, color: scheme.outlineVariant),
             Expanded(
-              child: _AnimatedPageSwitcher(
-                pageKey: ValueKey(_index),
-                child: _buildCurrentPage(),
+              child: Column(
+                children: [
+                  const SyncStatusBanner(),
+                  Expanded(
+                    child: _AnimatedPageSwitcher(
+                      pageKey: ValueKey(_index),
+                      child: _buildCurrentPage(),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -151,12 +164,19 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        body: PageView(
-          controller: _pageController,
-          physics: const BouncingScrollPhysics(),
-          reverse: false, // RTL: swipe چپ به راست = صفحه بعد
-          onPageChanged: (i) => setState(() => _index = i),
-          children: _pages,
+        body: Column(
+          children: [
+            const SyncStatusBanner(),
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                physics: const BouncingScrollPhysics(),
+                reverse: false, // RTL: swipe چپ به راست = صفحه بعد
+                onPageChanged: (i) => setState(() => _index = i),
+                children: _pages,
+              ),
+            ),
+          ],
         ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index < 6 ? _index : 0,

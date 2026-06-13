@@ -11,7 +11,9 @@ class LoanService {
     final db = await _db.database;
     final rows = await db.query(
       'loans',
-      where: onlyActive ? 'is_active = ?' : null,
+      where: onlyActive
+          ? 'deleted_at IS NULL AND is_active = ?'
+          : 'deleted_at IS NULL',
       whereArgs: onlyActive ? [1] : null,
       orderBy: 'employee_id ASC, loan_number ASC',
     );
@@ -24,8 +26,8 @@ class LoanService {
   }) async {
     final db = await _db.database;
     final where = onlyActive
-        ? 'employee_id = ? AND is_active = ?'
-        : 'employee_id = ?';
+        ? 'employee_id = ? AND deleted_at IS NULL AND is_active = ?'
+        : 'employee_id = ? AND deleted_at IS NULL';
     final args = onlyActive ? [employeeId, 1] : [employeeId];
     final rows = await db.query(
       'loans',
@@ -40,7 +42,7 @@ class LoanService {
     final db = await _db.database;
     final rows = await db.query(
       'loans',
-      where: 'id = ?',
+      where: 'id = ? AND deleted_at IS NULL',
       whereArgs: [id],
       limit: 1,
     );
@@ -51,10 +53,7 @@ class LoanService {
   Future<int> insert(Loan loan) async {
     final db = await _db.database;
     final id = await db.insert('loans', loan.toMap()..remove('id'));
-    await _sync.enqueue(
-      entity: 'loans',
-      payload: loan.copyWith(id: id).toMap(),
-    );
+    await _sync.markUpsert('loans', id);
     return id;
   }
 
@@ -63,22 +62,17 @@ class LoanService {
     final result = await db.update(
       'loans',
       loan.toMap()..remove('id'),
-      where: 'id = ?',
+      where: 'id = ? AND deleted_at IS NULL',
       whereArgs: [loan.id],
     );
-    await _sync.enqueue(entity: 'loans', payload: loan.toMap());
+    if (loan.id != null) {
+      await _sync.markUpsert('loans', loan.id!);
+    }
     return result;
   }
 
   Future<int> delete(int id) async {
-    final db = await _db.database;
-    final result = await db.delete('loans', where: 'id = ?', whereArgs: [id]);
-    await _sync.enqueue(
-      entity: 'loans',
-      payload: {'id': id, 'local_id': id},
-      operation: 'delete',
-    );
-    return result;
+    return _sync.markDelete('loans', id);
   }
 
   /// ثبت یک قسط (افزایش paid_installments)

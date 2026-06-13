@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
 import '../models/app_settings.dart';
@@ -9,180 +13,587 @@ import '../models/loan.dart';
 import '../models/salary_record.dart';
 import 'api_client.dart';
 
+enum SyncPhase { idle, syncing, synced, offline, error }
+
+class SyncSnapshot {
+  final SyncPhase phase;
+  final int pendingCount;
+  final DateTime? lastSyncedAt;
+  final DateTime? lastUnsentAt;
+  final String? message;
+
+  const SyncSnapshot({
+    required this.phase,
+    required this.pendingCount,
+    this.lastSyncedAt,
+    this.lastUnsentAt,
+    this.message,
+  });
+
+  factory SyncSnapshot.initial() =>
+      const SyncSnapshot(phase: SyncPhase.idle, pendingCount: 0);
+
+  SyncSnapshot copyWith({
+    SyncPhase? phase,
+    int? pendingCount,
+    DateTime? lastSyncedAt,
+    DateTime? lastUnsentAt,
+    String? message,
+    bool clearMessage = false,
+  }) {
+    return SyncSnapshot(
+      phase: phase ?? this.phase,
+      pendingCount: pendingCount ?? this.pendingCount,
+      lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
+      lastUnsentAt: lastUnsentAt ?? this.lastUnsentAt,
+      message: clearMessage ? null : message ?? this.message,
+    );
+  }
+}
+
 class SyncService {
-  static const _pendingKey = 'hvm_sync_pending_v1';
-  static const _cursorKey = 'hvm_sync_cursor_v1';
+  SyncService._();
+  static final SyncService _instance = SyncService._();
+  factory SyncService() => _instance;
+
+  static const _cursorKey = 'hvm_sync_cursor_v2';
+  static const _lastSyncedKey = 'hvm_sync_last_synced_v2';
+  static const _bootstrapImportedKey = 'hvm_bootstrap_imported_v2';
+  static const _uuid = Uuid();
+
+  static const trackedTables = <String>[
+    'employees',
+    'loans',
+    'salary_records',
+    'app_settings',
+  ];
+
+  static const _upsertOrder = <String>[
+    'employees',
+    'app_settings',
+    'loans',
+    'salary_records',
+  ];
+
+  static const _deleteOrder = <String>[
+    'salary_records',
+    'loans',
+    'employees',
+    'app_settings',
+  ];
+
+  final ValueNotifier<SyncSnapshot> status = ValueNotifier<SyncSnapshot>(
+    SyncSnapshot.initial(),
+  );
   final _api = ApiClient();
   final _db = DatabaseHelper.instance;
+  bool _syncing = false;
+  Timer? _debounce;
 
-  Future<void> enqueue({
-    required String entity,
-    required Map<String, dynamic> payload,
-    String operation = 'upsert',
-  }) async {
+  Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
-    final pending = _pending(prefs);
-    pending.add({
-      'entity': entity,
-      'operation': operation,
-      'payload': payload,
-      'queued_at': DateTime.now().toIso8601String(),
+    final last = DateTime.tryParse(prefs.getString(_lastSyncedKey) ?? '');
+    status.value = status.value.copyWith(
+      pendingCount: await pendingCount(),
+      lastSyncedAt: last,
+      clearMessage: true,
+    );
+  }
+
+  Future<bool> shouldShowBootstrapWizard() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_bootstrapImportedKey) == true) return false;
+    return hasLocalBusinessData();
+  }
+
+  Future<void> skipBootstrapImport() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_bootstrapImportedKey, true);
+  }
+
+  Future<bool> hasLocalBusinessData() async {
+    final db = await _db.database;
+    for (final table in ['employees', 'loans', 'salary_records']) {
+      final rows = await db.rawQuery(
+        'SELECT COUNT(*) AS count FROM $table WHERE deleted_at IS NULL',
+      );
+      if ((rows.first['count'] as int? ?? 0) > 0) return true;
+    }
+    return false;
+  }
+
+  Future<int> pendingCount() async {
+    final db = await _db.database;
+    var count = 0;
+    for (final table in trackedTables) {
+      final rows = await db.rawQuery(
+        "SELECT COUNT(*) AS count FROM $table WHERE sync_state IN ('pending', 'deleting')",
+      );
+      count += rows.first['count'] as int? ?? 0;
+    }
+    return count;
+  }
+
+  Future<void> markUpsert(String table, int id, {bool schedule = true}) async {
+    await _ensureTrackedTable(table);
+    final db = await _db.database;
+    final now = _nowIso();
+    await db.update(
+      table,
+      {
+        'sync_id': await _syncIdFor(db, table, id),
+        'updated_at': now,
+        'deleted_at': null,
+        'sync_state': 'pending',
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await _refreshStatus(lastUnsentAt: DateTime.now().toUtc());
+    if (schedule) scheduleSync();
+  }
+
+  Future<int> markDelete(String table, int id, {bool schedule = true}) async {
+    await _ensureTrackedTable(table);
+    final db = await _db.database;
+    final now = _nowIso();
+    final result = await db.update(
+      table,
+      {
+        'sync_id': await _syncIdFor(db, table, id),
+        'updated_at': now,
+        'deleted_at': now,
+        'sync_state': 'deleting',
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    await _refreshStatus(lastUnsentAt: DateTime.now().toUtc());
+    if (schedule) scheduleSync();
+    return result;
+  }
+
+  void scheduleSync() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 700), () {
+      unawaited(syncNow(silent: true));
     });
-    await prefs.setString(_pendingKey, jsonEncode(pending));
-    unawaitedFlush();
   }
 
-  Future<void> unawaitedFlush() async {
+  Future<void> syncNow({bool silent = false}) async {
+    if (_syncing) return;
+    if (!await _api.hasSession()) {
+      await _refreshStatus(phase: SyncPhase.idle);
+      return;
+    }
+    _syncing = true;
+    final previous = status.value;
+    if (!silent) {
+      status.value = previous.copyWith(phase: SyncPhase.syncing);
+    } else {
+      status.value = previous.copyWith(
+        phase: previous.pendingCount > 0 ? SyncPhase.syncing : previous.phase,
+      );
+    }
     try {
-      await flush();
-    } catch (_) {}
-  }
-
-  Future<void> flush() async {
-    final prefs = await SharedPreferences.getInstance();
-    final pending = _pending(prefs);
-    if (pending.isEmpty) return;
-    final response = await _api.post('/api/sync/push', {'operations': pending});
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      await prefs.setString(_pendingKey, '[]');
+      await _pushPending();
+      await _pullRemote();
+      final prefs = await SharedPreferences.getInstance();
+      final last = DateTime.now().toUtc();
+      await prefs.setString(_lastSyncedKey, last.toIso8601String());
+      await _refreshStatus(phase: SyncPhase.synced, lastSyncedAt: last);
+    } on ApiException catch (e) {
+      final phase = e.statusCode == 0 ? SyncPhase.offline : SyncPhase.error;
+      await _refreshStatus(phase: phase, message: e.message);
+    } catch (e) {
+      await _refreshStatus(phase: SyncPhase.offline, message: e.toString());
+    } finally {
+      _syncing = false;
     }
   }
 
-  Future<void> pull() async {
+  Future<void> bootstrapImport() async {
+    if (!await _api.hasSession()) throw ApiException('Session required', 401);
+    final db = await _db.database;
+    final body = <String, dynamic>{};
+    for (final table in trackedTables) {
+      final rows = await db.query(
+        table,
+        where: 'deleted_at IS NULL',
+        orderBy: table == 'employees'
+            ? 'id ASC'
+            : table == 'app_settings'
+            ? 'year ASC'
+            : 'id ASC',
+      );
+      final prepared = <Map<String, dynamic>>[];
+      for (final row in rows) {
+        final id = row['id'] as int?;
+        if (id == null) continue;
+        final syncId = await _syncIdFor(db, table, id);
+        final payload = await _payloadFor(db, table, {
+          ...row,
+          'sync_id': syncId,
+          'sync_state': 'pending',
+        });
+        prepared.add(payload);
+        await db.update(
+          table,
+          {
+            'sync_id': syncId,
+            'sync_state': 'pending',
+            'updated_at': row['updated_at'] ?? _nowIso(),
+          },
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
+      body[table] = prepared;
+    }
+
+    status.value = status.value.copyWith(phase: SyncPhase.syncing);
+    final response = await _api.post('/api/sync/bootstrap-import', body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(_errorFrom(response), response.statusCode);
+    }
+    for (final table in trackedTables) {
+      await db.update(table, {
+        'sync_state': 'synced',
+      }, where: "sync_state = 'pending'");
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_bootstrapImportedKey, true);
+    await _pullRemote();
+    final last = DateTime.now().toUtc();
+    await prefs.setString(_lastSyncedKey, last.toIso8601String());
+    await _refreshStatus(phase: SyncPhase.synced, lastSyncedAt: last);
+  }
+
+  Future<void> _pushPending() async {
+    final db = await _db.database;
+    final operations = <Map<String, dynamic>>[];
+    final localRefs = <({String table, String syncId, String operation})>[];
+
+    for (final table in _upsertOrder) {
+      final rows = await db.query(
+        table,
+        where: "sync_state = 'pending' AND deleted_at IS NULL",
+        orderBy: 'id ASC',
+      );
+      for (final row in rows) {
+        final id = row['id'] as int?;
+        if (id == null) continue;
+        final syncId = await _syncIdFor(db, table, id);
+        operations.add({
+          'entity': table,
+          'operation': 'upsert',
+          'payload': await _payloadFor(db, table, {...row, 'sync_id': syncId}),
+        });
+        localRefs.add((table: table, syncId: syncId, operation: 'upsert'));
+      }
+    }
+
+    for (final table in _deleteOrder) {
+      final rows = await db.query(
+        table,
+        where: "sync_state = 'deleting'",
+        orderBy: 'id ASC',
+      );
+      for (final row in rows) {
+        final id = row['id'] as int?;
+        if (id == null) continue;
+        final syncId = await _syncIdFor(db, table, id);
+        operations.add({
+          'entity': table,
+          'operation': 'delete',
+          'payload': {
+            'id': id,
+            'local_id': id,
+            'sync_id': syncId,
+            'deleted_at': row['deleted_at'] ?? _nowIso(),
+          },
+        });
+        localRefs.add((table: table, syncId: syncId, operation: 'delete'));
+      }
+    }
+
+    if (operations.isEmpty) return;
+    final response = await _api.post('/api/sync/push', {
+      'operations': operations,
+    });
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(_errorFrom(response), response.statusCode);
+    }
+
+    await db.transaction((tx) async {
+      for (final ref in localRefs) {
+        if (ref.operation == 'delete') {
+          await tx.delete(
+            ref.table,
+            where: 'sync_id = ?',
+            whereArgs: [ref.syncId],
+          );
+        } else {
+          await tx.update(
+            ref.table,
+            {'sync_state': 'synced'},
+            where: "sync_id = ? AND sync_state = 'pending'",
+            whereArgs: [ref.syncId],
+          );
+        }
+      }
+    });
+  }
+
+  Future<void> _pullRemote() async {
     final prefs = await SharedPreferences.getInstance();
     var cursor = prefs.getInt(_cursorKey) ?? 0;
-    final response = await _api.get('/api/sync/pull?cursor=$cursor');
-    if (response.statusCode < 200 || response.statusCode >= 300) return;
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final events = List<Map<String, dynamic>>.from(
-      body['events'] as List? ?? const [],
-    );
-    if (events.isEmpty) return;
-    final db = await _db.database;
-    for (final event in events) {
-      final payload = Map<String, dynamic>.from(
-        event['payload'] as Map? ?? const {},
-      );
-      final operation = event['operation'] as String? ?? 'upsert';
-      switch (event['entity']) {
-        case 'employees':
-          if (operation == 'delete') {
-            await db.delete(
-              'employees',
-              where: 'id = ?',
-              whereArgs: [_localId(payload)],
-            );
-          } else {
-            await _upsert(db, 'employees', _employeePayload(payload));
-          }
-          break;
-        case 'loans':
-          if (operation == 'delete') {
-            await db.delete(
-              'loans',
-              where: 'id = ?',
-              whereArgs: [_localId(payload)],
-            );
-          } else {
-            await _upsert(db, 'loans', _loanPayload(payload));
-          }
-          break;
-        case 'salary_records':
-          if (operation == 'delete') {
-            await db.delete(
-              'salary_records',
-              where: 'id = ?',
-              whereArgs: [_localId(payload)],
-            );
-          } else {
-            await _upsert(db, 'salary_records', _salaryPayload(payload));
-          }
-          break;
-        case 'app_settings':
-          await _upsert(db, 'app_settings', _settingsPayload(payload));
-          break;
+    while (true) {
+      final response = await _api.get('/api/sync/pull?cursor=$cursor');
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException(_errorFrom(response), response.statusCode);
       }
-      cursor = event['cursor'] as int? ?? cursor;
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final events = List<Map<String, dynamic>>.from(
+        body['events'] as List? ?? const [],
+      );
+      if (events.isEmpty) {
+        await prefs.setInt(
+          _cursorKey,
+          (body['next_cursor'] as num?)?.toInt() ?? cursor,
+        );
+        return;
+      }
+      for (final event in events) {
+        await _applyEvent(event);
+        cursor = (event['cursor'] as num?)?.toInt() ?? cursor;
+        await prefs.setInt(_cursorKey, cursor);
+      }
+      if (events.length < 500) return;
     }
-    await prefs.setInt(_cursorKey, cursor);
   }
 
-  List<Map<String, dynamic>> _pending(SharedPreferences prefs) {
-    final raw = prefs.getString(_pendingKey);
-    if (raw == null || raw.trim().isEmpty) return [];
-    try {
-      return List<Map<String, dynamic>>.from(jsonDecode(raw) as List);
-    } catch (_) {
-      return [];
+  Future<void> _applyEvent(Map<String, dynamic> event) async {
+    final entity = event['entity']?.toString();
+    if (entity == null || !trackedTables.contains(entity)) return;
+    final payload = Map<String, dynamic>.from(
+      event['payload'] as Map? ?? const {},
+    );
+    final syncId =
+        payload['sync_id']?.toString() ?? event['entity_id']?.toString();
+    if (syncId == null || syncId.isEmpty) return;
+
+    final db = await _db.database;
+    if (event['operation'] == 'delete' || payload['deleted_at'] != null) {
+      await db.delete(entity, where: 'sync_id = ?', whereArgs: [syncId]);
+      return;
+    }
+
+    final localPayload = await _localPayloadForRemote(db, entity, payload);
+    if (localPayload == null) return;
+    localPayload
+      ..['sync_id'] = syncId
+      ..['updated_at'] = payload['updated_at']?.toString() ?? _nowIso()
+      ..['deleted_at'] = null
+      ..['sync_state'] = 'synced';
+
+    final existing = await db.query(
+      entity,
+      where: 'sync_id = ?',
+      whereArgs: [syncId],
+      limit: 1,
+    );
+    if (existing.isEmpty && entity == 'app_settings') {
+      final year = localPayload['year'];
+      final byYear = await db.query(
+        entity,
+        where: 'year = ?',
+        whereArgs: [year],
+        limit: 1,
+      );
+      if (byYear.isNotEmpty) {
+        await db.update(
+          entity,
+          localPayload..remove('id'),
+          where: 'id = ?',
+          whereArgs: [byYear.first['id']],
+        );
+        return;
+      }
+    }
+    if (existing.isEmpty) {
+      localPayload.remove('id');
+      await db.insert(entity, localPayload);
+    } else {
+      localPayload.remove('id');
+      await db.update(
+        entity,
+        localPayload,
+        where: 'sync_id = ?',
+        whereArgs: [syncId],
+      );
     }
   }
 
-  Future<void> _upsert(
-    dynamic db,
+  Future<Map<String, dynamic>> _payloadFor(
+    Database db,
+    String table,
+    Map<String, dynamic> row,
+  ) async {
+    final payload = Map<String, dynamic>.from(row)
+      ..remove('sync_state')
+      ..remove('deleted_at');
+    final id = payload['id'];
+    if (id != null) payload['local_id'] = id;
+    if (table == 'loans' || table == 'salary_records') {
+      final employeeId = payload['employee_id'];
+      if (employeeId != null) {
+        final employeeRows = await db.query(
+          'employees',
+          columns: ['sync_id'],
+          where: 'id = ?',
+          whereArgs: [employeeId],
+          limit: 1,
+        );
+        final employeeSyncId = employeeRows.isEmpty
+            ? null
+            : employeeRows.first['sync_id']?.toString();
+        if (employeeSyncId != null && employeeSyncId.isNotEmpty) {
+          payload['employee_sync_id'] = employeeSyncId;
+        }
+      }
+    }
+    return payload;
+  }
+
+  Future<Map<String, dynamic>?> _localPayloadForRemote(
+    Database db,
     String table,
     Map<String, dynamic> payload,
   ) async {
-    final id = payload.remove('id') as int?;
-    if (id == null) {
-      await db.insert(table, payload);
-    } else {
-      final exists = await db.query(
-        table,
-        where: 'id = ?',
-        whereArgs: [id],
-        limit: 1,
-      );
-      if (exists.isEmpty) {
-        await db.insert(table, payload);
-      } else {
-        await db.update(table, payload, where: 'id = ?', whereArgs: [id]);
-      }
+    return switch (table) {
+      'employees' => Employee.fromMap(
+        _boolsToInts(payload, const {
+          'has_prior_experience',
+          'is_married',
+          'is_active',
+          'hard_and_harmful_job',
+        }),
+      ).toMap()..remove('id'),
+      'loans' => await _remoteLoanPayload(db, payload),
+      'salary_records' => await _remoteSalaryPayload(db, payload),
+      'app_settings' => AppSettings.fromMap(payload).toMap()..remove('id'),
+      _ => null,
+    };
+  }
+
+  Future<Map<String, dynamic>?> _remoteLoanPayload(
+    Database db,
+    Map<String, dynamic> payload,
+  ) async {
+    final employeeId = await _localEmployeeId(db, payload);
+    if (employeeId == null) return null;
+    return Loan.fromMap({
+      ..._boolsToInts(payload, const {'is_active'}),
+      'employee_id': employeeId,
+    }).toMap()..remove('id');
+  }
+
+  Future<Map<String, dynamic>?> _remoteSalaryPayload(
+    Database db,
+    Map<String, dynamic> payload,
+  ) async {
+    final employeeId = await _localEmployeeId(db, payload);
+    if (employeeId == null) return null;
+    return SalaryRecord.fromMap({
+      ..._boolsToInts(payload, const {'include_leave_in_payslip'}),
+      'employee_id': employeeId,
+      'created_at': payload['created_at']?.toString() ?? _nowIso(),
+    }).toMap()..remove('id');
+  }
+
+  Future<int?> _localEmployeeId(
+    Database db,
+    Map<String, dynamic> payload,
+  ) async {
+    final employeeSyncId =
+        payload['employee_sync_id']?.toString() ??
+        payload['employee_id']?.toString();
+    if (employeeSyncId == null || employeeSyncId.isEmpty) return null;
+    final rows = await db.query(
+      'employees',
+      columns: ['id'],
+      where: 'sync_id = ?',
+      whereArgs: [employeeSyncId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['id'] as int?;
+  }
+
+  Map<String, dynamic> _boolsToInts(
+    Map<String, dynamic> payload,
+    Set<String> columns,
+  ) {
+    final map = Map<String, dynamic>.from(payload);
+    for (final column in columns) {
+      final value = map[column];
+      if (value is bool) map[column] = value ? 1 : 0;
+    }
+    return map;
+  }
+
+  Future<String> _syncIdFor(Database db, String table, int id) async {
+    final rows = await db.query(
+      table,
+      columns: ['sync_id'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    final existing = rows.isEmpty ? null : rows.first['sync_id']?.toString();
+    if (existing != null && existing.trim().isNotEmpty) return existing;
+    final generated = _uuid.v4();
+    await db.update(
+      table,
+      {'sync_id': generated},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return generated;
+  }
+
+  Future<void> _refreshStatus({
+    SyncPhase? phase,
+    DateTime? lastSyncedAt,
+    DateTime? lastUnsentAt,
+    String? message,
+  }) async {
+    final pending = await pendingCount();
+    status.value = status.value.copyWith(
+      phase: phase ?? (pending == 0 ? SyncPhase.synced : status.value.phase),
+      pendingCount: pending,
+      lastSyncedAt: lastSyncedAt,
+      lastUnsentAt: lastUnsentAt,
+      message: message,
+      clearMessage: message == null,
+    );
+  }
+
+  Future<void> _ensureTrackedTable(String table) async {
+    if (!trackedTables.contains(table)) {
+      throw ArgumentError('Unknown sync table: $table');
     }
   }
 
-  int _localId(Map<String, dynamic> payload) =>
-      (payload['local_id'] as num?)?.toInt() ??
-      (payload['id'] as num?)?.toInt() ??
-      0;
+  String _errorFrom(dynamic response) {
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      return body['error']?.toString() ?? 'Sync failed';
+    } catch (_) {
+      return 'Sync failed';
+    }
+  }
 
-  Map<String, dynamic> _employeePayload(Map<String, dynamic> payload) =>
-      Employee.fromMap({
-        ...payload,
-        'id': _localId(payload),
-        'has_prior_experience': payload['has_prior_experience'] is bool
-            ? (payload['has_prior_experience'] as bool ? 1 : 0)
-            : payload['has_prior_experience'],
-        'is_married': payload['is_married'] is bool
-            ? (payload['is_married'] as bool ? 1 : 0)
-            : payload['is_married'],
-        'is_active': payload['is_active'] is bool
-            ? (payload['is_active'] as bool ? 1 : 0)
-            : payload['is_active'],
-        'hard_and_harmful_job': payload['hard_and_harmful_job'] is bool
-            ? (payload['hard_and_harmful_job'] as bool ? 1 : 0)
-            : payload['hard_and_harmful_job'],
-      }).toMap()..remove('id');
-
-  Map<String, dynamic> _loanPayload(Map<String, dynamic> payload) =>
-      Loan.fromMap({
-        ...payload,
-        'id': _localId(payload),
-        'is_active': payload['is_active'] is bool
-            ? (payload['is_active'] as bool ? 1 : 0)
-            : payload['is_active'],
-      }).toMap()..remove('id');
-
-  Map<String, dynamic> _salaryPayload(Map<String, dynamic> payload) =>
-      SalaryRecord.fromMap({
-        ...payload,
-        'id': _localId(payload),
-        'include_leave_in_payslip': payload['include_leave_in_payslip'] is bool
-            ? (payload['include_leave_in_payslip'] as bool ? 1 : 0)
-            : payload['include_leave_in_payslip'],
-      }).toMap()..remove('id');
-
-  Map<String, dynamic> _settingsPayload(Map<String, dynamic> payload) =>
-      AppSettings.fromMap(payload).toMap()..remove('id');
+  String _nowIso() => DateTime.now().toUtc().toIso8601String();
 }
-
-void unawaited(Future<void> future) {}

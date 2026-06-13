@@ -13,7 +13,7 @@ class ApiClient {
   static const userKey = 'hvm_user';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    aOptions: AndroidOptions(),
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
@@ -35,6 +35,7 @@ class ApiClient {
     String? serverUrl,
   }) async {
     final url = _normalizeUrl(serverUrl ?? await getServerUrl());
+    await setServerUrl(url);
     final response = await http
         .post(
           Uri.parse('$url/api/auth/login'),
@@ -44,7 +45,10 @@ class ApiClient {
         .timeout(const Duration(seconds: 20));
     final body = _decode(response);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(body['error']?.toString() ?? 'ورود ناموفق بود');
+      throw ApiException(
+        body['error']?.toString() ?? 'ورود ناموفق بود',
+        response.statusCode,
+      );
     }
     await _storage.write(
       key: accessTokenKey,
@@ -61,7 +65,7 @@ class ApiClient {
   Future<Map<String, dynamic>> refresh() async {
     final refreshToken = await _storage.read(key: refreshTokenKey);
     if (refreshToken == null || refreshToken.isEmpty) {
-      throw ApiException('نشست منقضی شده است');
+      throw ApiException('نشست منقضی شده است', 401);
     }
     final response = await http
         .post(
@@ -73,7 +77,10 @@ class ApiClient {
     final body = _decode(response);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       await clearSession();
-      throw ApiException(body['error']?.toString() ?? 'تمدید نشست ناموفق بود');
+      throw ApiException(
+        body['error']?.toString() ?? 'تمدید نشست ناموفق بود',
+        response.statusCode,
+      );
     }
     await _storage.write(
       key: accessTokenKey,
@@ -83,10 +90,24 @@ class ApiClient {
       key: refreshTokenKey,
       value: body['refresh_token'] as String,
     );
+    if (body['user'] is Map) {
+      await _storage.write(key: userKey, value: jsonEncode(body['user']));
+    }
     return body;
   }
 
+  Future<void> logout() async {
+    final refreshToken = await _storage.read(key: refreshTokenKey);
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      try {
+        await post('/api/auth/logout', {'refresh_token': refreshToken});
+      } catch (_) {}
+    }
+    await clearSession();
+  }
+
   Future<String?> getAccessToken() => _storage.read(key: accessTokenKey);
+
   Future<Map<String, dynamic>?> getUser() async {
     final raw = await _storage.read(key: userKey);
     if (raw == null || raw.isEmpty) return null;
@@ -104,25 +125,56 @@ class ApiClient {
     await _storage.delete(key: userKey);
   }
 
-  Future<http.Response> get(String path) async {
-    final token = await getAccessToken();
-    return http
-        .get(
-          Uri.parse('${await getServerUrl()}$path'),
-          headers: _authHeaders(token),
-        )
-        .timeout(const Duration(seconds: 30));
+  Future<http.Response> get(String path) {
+    return _sendWithRefresh(() async {
+      final token = await getAccessToken();
+      return http
+          .get(
+            Uri.parse('${await getServerUrl()}$path'),
+            headers: _authHeaders(token),
+          )
+          .timeout(const Duration(seconds: 30));
+    });
   }
 
-  Future<http.Response> post(String path, Map<String, dynamic> body) async {
-    final token = await getAccessToken();
-    return http
-        .post(
-          Uri.parse('${await getServerUrl()}$path'),
-          headers: _authHeaders(token),
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 30));
+  Future<http.Response> post(String path, Map<String, dynamic> body) {
+    return _sendWithRefresh(() async {
+      final token = await getAccessToken();
+      return http
+          .post(
+            Uri.parse('${await getServerUrl()}$path'),
+            headers: _authHeaders(token),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+    });
+  }
+
+  Future<http.Response> patch(String path, Map<String, dynamic> body) {
+    return _sendWithRefresh(() async {
+      final token = await getAccessToken();
+      return http
+          .patch(
+            Uri.parse('${await getServerUrl()}$path'),
+            headers: _authHeaders(token),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 30));
+    });
+  }
+
+  Future<http.Response> _sendWithRefresh(
+    Future<http.Response> Function() send,
+  ) async {
+    var response = await send();
+    if (response.statusCode != 401) return response;
+    try {
+      await refresh();
+      response = await send();
+    } catch (_) {
+      await clearSession();
+    }
+    return response;
   }
 
   Map<String, String> _authHeaders(String? token) => {
@@ -154,7 +206,10 @@ class ApiClient {
 
 class ApiException implements Exception {
   final String message;
-  ApiException(this.message);
+  final int statusCode;
+
+  ApiException(this.message, [this.statusCode = 0]);
+
   @override
   String toString() => message;
 }

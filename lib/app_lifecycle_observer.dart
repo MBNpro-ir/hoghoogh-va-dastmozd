@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/local_security_service.dart';
+import '../services/sync_service.dart';
 
 class AppLifecycleObserver extends StatefulWidget {
   final Widget child;
@@ -13,6 +14,7 @@ class AppLifecycleObserver extends StatefulWidget {
 class _AppLifecycleObserverState extends State<AppLifecycleObserver>
     with WidgetsBindingObserver {
   final _security = LocalSecurityService();
+  final _sync = SyncService();
 
   @override
   void initState() {
@@ -28,7 +30,12 @@ class _AppLifecycleObserverState extends State<AppLifecycleObserver>
 
   @override
   Future<void> didChangeAppLifecycleState(AppLifecycleState state) async {
-    if (state == AppLifecycleState.paused ||
+    if (state == AppLifecycleState.resumed) {
+      await _sync.syncNow(silent: true);
+      return;
+    }
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       await _security.setRequiresUnlock(true);
     }

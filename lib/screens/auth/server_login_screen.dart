@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import '../../services/api_client.dart';
 import '../../services/local_security_service.dart';
+import '../../services/sync_service.dart';
 import '../../utils/animations.dart';
 import '../home_screen.dart';
+import 'bootstrap_import_screen.dart';
 import 'local_unlock_setup_screen.dart';
 
 class ServerLoginScreen extends StatefulWidget {
@@ -16,6 +21,7 @@ class ServerLoginScreen extends StatefulWidget {
 class _ServerLoginScreenState extends State<ServerLoginScreen>
     with SingleTickerProviderStateMixin {
   final _api = ApiClient();
+  final _sync = SyncService();
   final _serverUrlController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -23,9 +29,9 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
   final _usernameFocus = FocusNode();
   final _passwordFocus = FocusNode();
   final _formKey = GlobalKey<FormState>();
-  late AnimationController _controller;
-  late Animation<Offset> _slide;
-  late Animation<double> _fade;
+  late final AnimationController _controller;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
   bool _loading = false;
   String _error = '';
 
@@ -90,7 +96,7 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            _Logo(),
+                            const _Logo(),
                             const SizedBox(height: 20),
                             Text(
                               'ورود به HvM',
@@ -98,7 +104,7 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'نام کاربری و رمز عبور سرور با Google Autofill ذخیره می‌شود',
+                              'نام کاربری و رمز عبور سرور می‌تواند توسط Google Password Manager ذخیره شود.',
                               textAlign: TextAlign.center,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: scheme.onSurfaceVariant),
@@ -156,22 +162,6 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
                                 label: const Text('ورود به حساب'),
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            TextButton.icon(
-                              onPressed: () async {
-                                HapticFeedback.lightImpact();
-                                await _api.clearSession();
-                                if (!context.mounted) return;
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const HomeScreen(),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.bug_report_rounded),
-                              label: const Text('ورود آزمایشی بدون قفل'),
-                            ),
                           ],
                         ),
                       ),
@@ -194,18 +184,25 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
       _error = '';
     });
     try {
-      await _api.setServerUrl(_serverUrlController.text);
       await _api.login(
         username: _usernameController.text.trim(),
         password: _passwordController.text,
         serverUrl: _serverUrlController.text,
       );
-      final hasLocal = await LocalSecurityService().hasCredential();
+      TextInput.finishAutofillContext(shouldSave: true);
+      final shouldBootstrap = await _sync.shouldShowBootstrapWizard();
+      final hasLocalLock = await LocalSecurityService().hasCredential();
+      if (!shouldBootstrap) {
+        unawaited(_sync.syncNow(silent: true));
+      }
       if (!mounted) return;
       navigator.pushReplacement(
         MaterialPageRoute(
-          builder: (_) =>
-              hasLocal ? const HomeScreen() : const LocalUnlockSetupScreen(),
+          builder: (_) => shouldBootstrap
+              ? const BootstrapImportScreen()
+              : hasLocalLock
+              ? const HomeScreen()
+              : const LocalUnlockSetupScreen(),
         ),
       );
     } catch (e) {
@@ -225,6 +222,7 @@ class _TapField extends StatelessWidget {
   final Iterable<String>? autofillHints;
   final bool obscureText;
   final String? Function(String?)? validator;
+
   const _TapField({
     required this.focusNode,
     required this.controller,
@@ -240,9 +238,9 @@ class _TapField extends StatelessWidget {
     return TextFormField(
       focusNode: focusNode,
       controller: controller,
+      autofocus: false,
       obscureText: obscureText,
       autofillHints: autofillHints,
-      enableInteractiveSelection: false,
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
@@ -254,6 +252,8 @@ class _TapField extends StatelessWidget {
 }
 
 class _Logo extends StatelessWidget {
+  const _Logo();
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;

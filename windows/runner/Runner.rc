@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "ir.farayand" "\0"
-            VALUE "FileDescription", "payroll_app" "\0"
+            VALUE "FileDescription", "HvM" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "payroll_app" "\0"
+            VALUE "InternalName", "HvM" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 ir.farayand. All rights reserved." "\0"
-            VALUE "OriginalFilename", "payroll_app.exe" "\0"
-            VALUE "ProductName", "payroll_app" "\0"
+            VALUE "OriginalFilename", "HvM.exe" "\0"
+            VALUE "ProductName", "HvM" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

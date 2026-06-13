@@ -15,7 +15,7 @@ class LocalSecurityService {
   static const _requiresUnlockKey = 'hvm_requires_unlock_v1';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    aOptions: AndroidOptions(),
     iOptions: IOSOptions(
       accessibility: KeychainAccessibility.first_unlock_this_device,
     ),
@@ -77,10 +77,8 @@ class LocalSecurityService {
       return await _localAuth.authenticate(
         localizedReason:
             'برای باز کردن HvM اثر انگشت یا تشخیص چهره را تأیید کنید',
-        options: const AuthenticationOptions(
-          stickyAuth: true,
-          biometricOnly: true,
-        ),
+        biometricOnly: true,
+        persistAcrossBackgrounding: true,
       );
     } catch (_) {
       return false;

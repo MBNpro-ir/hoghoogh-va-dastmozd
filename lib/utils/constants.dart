@@ -17,7 +17,7 @@ class AppConstants {
       if (match != null) {
         final raw = match.group(1)!.trim();
         // تبدیل "0.0.4-alpha+4" به "0.0.4 alpha"
-        return raw.replaceAll('-', ' ').split('+').first.trim();
+        return raw.split('+').first.trim().replaceAll('-', '.');
       }
     } catch (_) {}
     return 'dev';
