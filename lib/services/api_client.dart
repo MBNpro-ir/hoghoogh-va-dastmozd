@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiClient {
   static const serverUrlPrefsKey = 'hvm_server_url';
-  static const defaultServerUrl = 'https://hvm.local';
+  static const defaultServerUrl = 'https://payroll.mbnpro.ir';
   static const accessTokenKey = 'hvm_access_token';
   static const refreshTokenKey = 'hvm_refresh_token';
   static const userKey = 'hvm_user';
@@ -19,14 +19,11 @@ class ApiClient {
     ),
   );
 
-  Future<String> getServerUrl() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(serverUrlPrefsKey)?.trim() ?? defaultServerUrl;
-  }
+  Future<String> getServerUrl() async => defaultServerUrl;
 
   Future<void> setServerUrl(String url) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(serverUrlPrefsKey, _normalizeUrl(url));
+    await prefs.setString(serverUrlPrefsKey, _normalizeUrl(defaultServerUrl));
   }
 
   Future<Map<String, dynamic>> login({
@@ -34,7 +31,7 @@ class ApiClient {
     required String password,
     String? serverUrl,
   }) async {
-    final url = _normalizeUrl(serverUrl ?? await getServerUrl());
+    final url = _normalizeUrl(serverUrl ?? defaultServerUrl);
     await setServerUrl(url);
     final response = await http
         .post(

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +13,7 @@ import '../../services/backup_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/api_client.dart';
 import '../../services/local_security_service.dart';
+import '../../services/sync_service.dart';
 import '../auth/local_unlock_setup_screen.dart';
 import '../auth/server_login_screen.dart';
 import '../../theme/app_theme.dart';
@@ -351,6 +354,116 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _serverBackup() async {
+    try {
+      final response = await _apiClient.get('/api/sync/backup');
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException(_apiErrorFrom(response), response.statusCode);
+      }
+      final path = await _backupService.saveServerBackup(response.body);
+      if (!mounted || path == null) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('بکاپ سرور ذخیره شد: $path')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطا در بکاپ سرور: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _serverRestore() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('ریستور بکاپ سرور'),
+        content: const Text(
+          'با ریستور سروری، داده‌های شرکت روی سرور با فایل بکاپ جایگزین می‌شود و سپس برنامه همگام‌سازی می‌شود.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('انتخاب بکاپ'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      final password = await _askServerBackupPassword();
+      if (password == null || password.isEmpty) return;
+      final raw = await _backupService.pickServerBackupFile();
+      if (raw == null || raw.trim().isEmpty) return;
+      final response = await _apiClient.post('/api/sync/restore', {
+        'backup_file': raw,
+        'password': password,
+      });
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException(_apiErrorFrom(response), response.statusCode);
+      }
+      await SyncService().syncNow();
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('بکاپ سرور با موفقیت ریستور شد')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('خطا در ریستور سرور: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<String?> _askServerBackupPassword() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('رمز فایل بکاپ سرور'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          obscureText: true,
+          textDirection: TextDirection.ltr,
+          textAlign: TextAlign.left,
+          decoration: const InputDecoration(
+            labelText: 'رمز بکاپ شرکت',
+            prefixIcon: Icon(Icons.key_rounded),
+          ),
+          onSubmitted: (_) => Navigator.pop(ctx, controller.text.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('ادامه'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
   }
 
   void _openHelp() {
@@ -877,6 +990,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: _BackupSection(
                         onBackup: _backup,
                         onRestore: _restore,
+                        onServerBackup: _serverBackup,
+                        onServerRestore: _serverRestore,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -2164,8 +2279,15 @@ class _ColorPickerRow extends StatelessWidget {
 class _BackupSection extends StatelessWidget {
   final VoidCallback onBackup;
   final VoidCallback onRestore;
+  final VoidCallback onServerBackup;
+  final VoidCallback onServerRestore;
 
-  const _BackupSection({required this.onBackup, required this.onRestore});
+  const _BackupSection({
+    required this.onBackup,
+    required this.onRestore,
+    required this.onServerBackup,
+    required this.onServerRestore,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2226,6 +2348,16 @@ class _BackupSection extends StatelessWidget {
                   icon: const Icon(Icons.restore_page_rounded),
                   label: const Text('ریستور بکاپ'),
                 );
+                final serverBackupButton = FilledButton.icon(
+                  onPressed: onServerBackup,
+                  icon: const Icon(Icons.cloud_download_rounded),
+                  label: const Text('بکاپ سرور'),
+                );
+                final serverRestoreButton = FilledButton.tonalIcon(
+                  onPressed: onServerRestore,
+                  icon: const Icon(Icons.cloud_upload_rounded),
+                  label: const Text('ریستور سرور'),
+                );
                 if (narrow) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2233,14 +2365,30 @@ class _BackupSection extends StatelessWidget {
                       backupButton,
                       const SizedBox(height: 12),
                       restoreButton,
+                      const SizedBox(height: 12),
+                      serverBackupButton,
+                      const SizedBox(height: 12),
+                      serverRestoreButton,
                     ],
                   );
                 }
-                return Row(
+                return Column(
                   children: [
-                    Expanded(child: backupButton),
-                    const SizedBox(width: 12),
-                    Expanded(child: restoreButton),
+                    Row(
+                      children: [
+                        Expanded(child: backupButton),
+                        const SizedBox(width: 12),
+                        Expanded(child: restoreButton),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(child: serverBackupButton),
+                        const SizedBox(width: 12),
+                        Expanded(child: serverRestoreButton),
+                      ],
+                    ),
                   ],
                 );
               },
@@ -2359,5 +2507,16 @@ class _AboutRow extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+String _apiErrorFrom(dynamic response) {
+  try {
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    return body['error']?.toString() ?? 'خطا در ارتباط با سرور';
+  } catch (_) {
+    return response.body.toString().isEmpty
+        ? 'خطا در ارتباط با سرور'
+        : response.body.toString();
   }
 }

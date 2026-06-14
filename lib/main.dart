@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -6,8 +8,6 @@ import 'package:provider/provider.dart';
 import 'app_lifecycle_observer.dart';
 import 'database/database_helper.dart';
 import 'providers/theme_controller.dart';
-import 'screens/auth/local_unlock_screen.dart';
-import 'screens/auth/local_unlock_setup_screen.dart';
 import 'screens/auth/server_login_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/api_client.dart';
@@ -18,6 +18,7 @@ import 'utils/responsive.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  HttpOverrides.global = _TrustedServerHttpOverrides();
   await DatabaseHelper.init();
   await DatabaseHelper.instance.database;
   await SyncService().initialize();
@@ -52,14 +53,11 @@ class _BootScreenState extends State<BootScreen> {
 
   Future<void> _boot() async {
     final security = context.read<LocalSecurityService>();
+    await security.setRequiresUnlock(false);
     final api = ApiClient();
     Widget next;
-    if (await security.requiresUnlock() && await security.hasCredential()) {
-      next = const LocalUnlockScreen();
-    } else if (await api.hasSession()) {
-      next = await security.hasCredential()
-          ? const HomeScreen()
-          : const LocalUnlockSetupScreen();
+    if (await api.hasSession()) {
+      next = const HomeScreen();
     } else {
       next = const ServerLoginScreen();
     }
@@ -125,5 +123,18 @@ class PayrollApp extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _TrustedServerHttpOverrides extends HttpOverrides {
+  static const _trustedHosts = {'payroll.mbnpro.ir', '81.30.108.248'};
+
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    client.badCertificateCallback = (cert, host, port) {
+      return port == 443 && _trustedHosts.contains(host);
+    };
+    return client;
   }
 }

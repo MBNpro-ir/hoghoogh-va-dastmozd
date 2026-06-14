@@ -34,7 +34,6 @@ dependencies:
 
   # File operations
   file_picker: 8.3.7
-  open_file: ^3.5.7
 
   # Preferences for theme/accessibility persistence
   shared_preferences: ^2.5.3

@@ -4,12 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../services/api_client.dart';
-import '../../services/local_security_service.dart';
 import '../../services/sync_service.dart';
 import '../../utils/animations.dart';
 import '../home_screen.dart';
 import 'bootstrap_import_screen.dart';
-import 'local_unlock_setup_screen.dart';
 
 class ServerLoginScreen extends StatefulWidget {
   const ServerLoginScreen({super.key});
@@ -22,10 +20,8 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
     with SingleTickerProviderStateMixin {
   final _api = ApiClient();
   final _sync = SyncService();
-  final _serverUrlController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _serverFocus = FocusNode();
   final _usernameFocus = FocusNode();
   final _passwordFocus = FocusNode();
   final _formKey = GlobalKey<FormState>();
@@ -51,25 +47,16 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
       end: 1,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
     _controller.forward();
-    _loadSavedUrl();
   }
 
   @override
   void dispose() {
-    _serverUrlController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
-    _serverFocus.dispose();
     _usernameFocus.dispose();
     _passwordFocus.dispose();
     _controller.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadSavedUrl() async {
-    final url = await _api.getServerUrl();
-    if (!mounted) return;
-    _serverUrlController.text = url;
   }
 
   @override
@@ -111,17 +98,6 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
                             ),
                             const SizedBox(height: 22),
                             if (_error.isNotEmpty) _ErrorBanner(_error),
-                            _TapField(
-                              focusNode: _serverFocus,
-                              controller: _serverUrlController,
-                              label: 'آدرس سرور',
-                              prefixIcon: Icons.dns_rounded,
-                              autofillHints: const [AutofillHints.url],
-                              validator: (v) => v == null || v.trim().isEmpty
-                                  ? 'آدرس سرور الزامی است'
-                                  : null,
-                            ),
-                            const SizedBox(height: 14),
                             _TapField(
                               focusNode: _usernameFocus,
                               controller: _usernameController,
@@ -187,11 +163,9 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
       await _api.login(
         username: _usernameController.text.trim(),
         password: _passwordController.text,
-        serverUrl: _serverUrlController.text,
       );
       TextInput.finishAutofillContext(shouldSave: true);
       final shouldBootstrap = await _sync.shouldShowBootstrapWizard();
-      final hasLocalLock = await LocalSecurityService().hasCredential();
       if (!shouldBootstrap) {
         unawaited(_sync.syncNow(silent: true));
       }
@@ -200,9 +174,7 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
         MaterialPageRoute(
           builder: (_) => shouldBootstrap
               ? const BootstrapImportScreen()
-              : hasLocalLock
-              ? const HomeScreen()
-              : const LocalUnlockSetupScreen(),
+              : const HomeScreen(),
         ),
       );
     } catch (e) {
@@ -214,7 +186,7 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
   }
 }
 
-class _TapField extends StatelessWidget {
+class _TapField extends StatefulWidget {
   final FocusNode focusNode;
   final TextEditingController controller;
   final String label;
@@ -234,21 +206,76 @@ class _TapField extends StatelessWidget {
   });
 
   @override
+  State<_TapField> createState() => _TapFieldState();
+}
+
+class _TapFieldState extends State<_TapField> {
+  late TextDirection _direction;
+
+  @override
+  void initState() {
+    super.initState();
+    _direction = _directionFor(widget.controller.text);
+    widget.controller.addListener(_syncDirection);
+  }
+
+  @override
+  void didUpdateWidget(covariant _TapField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller.removeListener(_syncDirection);
+    _direction = _directionFor(widget.controller.text);
+    widget.controller.addListener(_syncDirection);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_syncDirection);
+    super.dispose();
+  }
+
+  void _syncDirection() {
+    final next = _directionFor(widget.controller.text);
+    if (next == _direction) return;
+    setState(() => _direction = next);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TextFormField(
-      focusNode: focusNode,
-      controller: controller,
+      focusNode: widget.focusNode,
+      controller: widget.controller,
       autofocus: false,
-      obscureText: obscureText,
-      autofillHints: autofillHints,
-      validator: validator,
+      obscureText: widget.obscureText,
+      autofillHints: widget.autofillHints,
+      validator: widget.validator,
+      textDirection: _direction,
+      textAlign: _direction == TextDirection.rtl
+          ? TextAlign.right
+          : TextAlign.left,
       decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(prefixIcon),
+        labelText: widget.label,
+        prefixIcon: Icon(widget.prefixIcon),
         border: const OutlineInputBorder(),
       ),
     );
   }
+}
+
+TextDirection _directionFor(String value) {
+  for (final rune in value.runes) {
+    if ((rune >= 0x0600 && rune <= 0x06FF) ||
+        (rune >= 0x0750 && rune <= 0x077F) ||
+        (rune >= 0x08A0 && rune <= 0x08FF)) {
+      return TextDirection.rtl;
+    }
+    if ((rune >= 0x0041 && rune <= 0x005A) ||
+        (rune >= 0x0061 && rune <= 0x007A) ||
+        (rune >= 0x0030 && rune <= 0x0039)) {
+      return TextDirection.ltr;
+    }
+  }
+  return TextDirection.rtl;
 }
 
 class _Logo extends StatelessWidget {

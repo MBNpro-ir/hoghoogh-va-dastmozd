@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -53,6 +54,36 @@ class BackupService {
     await File(pickedPath).copy(targetPath);
     await _db.database;
     return pickedPath;
+  }
+
+  Future<String?> saveServerBackup(String backupFile) async {
+    final now = DateTime.now();
+    final fileName =
+        'payroll-server-backup-${now.year}${_two(now.month)}${_two(now.day)}-${_two(now.hour)}${_two(now.minute)}.hvm.sql';
+    return FilePicker.platform.saveFile(
+      dialogTitle: 'ذخیره بکاپ سرور',
+      fileName: fileName,
+      type: FileType.custom,
+      allowedExtensions: ['sql'],
+      bytes: utf8.encode(backupFile),
+    );
+  }
+
+  Future<String?> pickServerBackupFile() async {
+    final picked = await FilePicker.platform.pickFiles(
+      dialogTitle: 'انتخاب فایل بکاپ سرور',
+      type: FileType.custom,
+      allowedExtensions: ['sql'],
+      allowMultiple: false,
+      withData: true,
+    );
+    final file = picked?.files.single;
+    if (file == null) return null;
+    final bytes = file.bytes;
+    if (bytes != null) return utf8.decode(bytes);
+    final path = file.path;
+    if (path == null) return null;
+    return File(path).readAsString();
   }
 
   static String _two(int value) => value.toString().padLeft(2, '0');

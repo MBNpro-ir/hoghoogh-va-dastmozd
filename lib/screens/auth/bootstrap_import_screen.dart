@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../services/local_security_service.dart';
 import '../../services/sync_service.dart';
 import '../home_screen.dart';
-import 'local_unlock_setup_screen.dart';
 
 class BootstrapImportScreen extends StatefulWidget {
   const BootstrapImportScreen({super.key});
@@ -15,7 +13,6 @@ class BootstrapImportScreen extends StatefulWidget {
 class _BootstrapImportScreenState extends State<BootstrapImportScreen>
     with SingleTickerProviderStateMixin {
   final _sync = SyncService();
-  final _security = LocalSecurityService();
   late final AnimationController _controller;
   late final Animation<double> _fade;
   bool _loading = false;
@@ -134,14 +131,10 @@ class _BootstrapImportScreenState extends State<BootstrapImportScreen>
   }
 
   Future<void> _continue() async {
-    final hasLocalLock = await _security.hasCredential();
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (_) =>
-            hasLocalLock ? const HomeScreen() : const LocalUnlockSetupScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
   }
 }
