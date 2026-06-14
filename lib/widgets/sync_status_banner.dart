@@ -61,7 +61,7 @@ class SyncStatusBanner extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                   onPressed: snapshot.phase == SyncPhase.syncing
                       ? null
-                      : () => sync.syncNow(),
+                      : () => sync.syncNow(forcePush: true),
                   icon: Icon(Icons.sync_rounded, color: data.foreground),
                 ),
               ],

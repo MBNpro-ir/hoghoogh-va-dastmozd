@@ -92,6 +92,8 @@ class SyncService {
   bool _syncing = false;
   Timer? _debounce;
   Timer? _pollTimer;
+  DateTime? _pushBlockedUntil;
+  String? _syncConflictMessage;
 
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
@@ -154,6 +156,7 @@ class SyncService {
 
   Future<void> markUpsert(String table, int id, {bool schedule = true}) async {
     await _ensureTrackedTable(table);
+    _clearSyncConflict();
     final db = await _db.database;
     final now = _nowIso();
     await db.update(
@@ -173,6 +176,7 @@ class SyncService {
 
   Future<int> markDelete(String table, int id, {bool schedule = true}) async {
     await _ensureTrackedTable(table);
+    _clearSyncConflict();
     final db = await _db.database;
     final now = _nowIso();
     final result = await db.update(
@@ -198,13 +202,14 @@ class SyncService {
     });
   }
 
-  Future<void> syncNow({bool silent = false}) async {
+  Future<void> syncNow({bool silent = false, bool forcePush = false}) async {
     if (_syncing) return;
     if (!await _api.hasSession()) {
       stopAutoSync();
       await _refreshStatus(phase: SyncPhase.idle);
       return;
     }
+    if (forcePush) _clearSyncConflict();
     _syncing = true;
     final previous = status.value;
     if (!silent) {
@@ -221,9 +226,20 @@ class SyncService {
       final prefs = await SharedPreferences.getInstance();
       final last = DateTime.now().toUtc();
       await prefs.setString(_lastSyncedKey, last.toIso8601String());
-      await _refreshStatus(phase: SyncPhase.synced, lastSyncedAt: last);
+      final stillBlocked = _isPushBlocked && await pendingCount() > 0;
+      await _refreshStatus(
+        phase: stillBlocked ? SyncPhase.error : SyncPhase.synced,
+        lastSyncedAt: last,
+        message: stillBlocked ? _syncConflictMessage : null,
+      );
     } on ApiException catch (e) {
       final phase = e.statusCode == 0 ? SyncPhase.offline : SyncPhase.error;
+      if (e.statusCode == 409) {
+        _syncConflictMessage = e.message;
+        _pushBlockedUntil = DateTime.now().toUtc().add(
+          const Duration(minutes: 2),
+        );
+      }
       await _refreshStatus(phase: phase, message: e.message);
     } catch (e) {
       await _refreshStatus(phase: SyncPhase.offline, message: e.toString());
@@ -324,6 +340,7 @@ class SyncService {
   }
 
   Future<void> _pushPending() async {
+    if (_isPushBlocked) return;
     final db = await _db.database;
     final operations = <Map<String, dynamic>>[];
     final localRefs = <({String table, String syncId, String operation})>[];
@@ -668,6 +685,16 @@ class SyncService {
 
   void _bumpDataVersion() {
     dataVersion.value++;
+  }
+
+  bool get _isPushBlocked {
+    final until = _pushBlockedUntil;
+    return until != null && until.isAfter(DateTime.now().toUtc());
+  }
+
+  void _clearSyncConflict() {
+    _pushBlockedUntil = null;
+    _syncConflictMessage = null;
   }
 
   String _friendlyServerError(Map<String, dynamic> body) {
