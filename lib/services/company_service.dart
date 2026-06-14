@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/company_profile.dart';
+import 'api_client.dart';
 
 class CompanyService {
   static const companiesPrefsKey = 'payroll_companies';
@@ -44,6 +45,19 @@ class CompanyService {
       (company) => company.dbName == currentDb,
       orElse: () => companies.first,
     );
+  }
+
+  Future<String?> currentServerCompanyName() async {
+    final user = await ApiClient().getUser();
+    final name = user?['company_name']?.toString().trim();
+    return name == null || name.isEmpty || name == 'null' ? null : name;
+  }
+
+  Future<CompanyProfile> syncCurrentCompanyFromSession() async {
+    final serverName = await currentServerCompanyName();
+    if (serverName == null) return getCurrentCompany();
+    await syncCurrentCompanyName(serverName);
+    return getCurrentCompany();
   }
 
   Future<String> getCurrentDbName() async {

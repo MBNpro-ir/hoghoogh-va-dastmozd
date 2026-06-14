@@ -41,7 +41,7 @@ class AppSettings {
     this.twoSevenBaseRate = AppConstants.twoSevenBaseRate,
     this.monthlyLeaveAllowance = AppConstants.defaultMonthlyLeaveAllowance,
     this.annualLeaveAllowance = AppConstants.defaultAnnualLeaveAllowance,
-    this.companyName = 'شرکت فرایند کود و سم بافق',
+    this.companyName = 'شرکت اصلی',
   });
 
   Map<String, dynamic> toMap() => {
@@ -110,7 +110,7 @@ class AppSettings {
     annualLeaveAllowance:
         (map['annual_leave_allowance'] as num?)?.toDouble() ??
         AppConstants.defaultAnnualLeaveAllowance,
-    companyName: map['company_name'] as String? ?? 'شرکت فرایند کود و سم بافق',
+    companyName: map['company_name'] as String? ?? 'شرکت اصلی',
   );
 
   AppSettings copyWith({

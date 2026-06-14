@@ -50,7 +50,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _hasChanges = false;
 
   // مقادیر اولیه برای مقایسه
-  String _initCompanyName = '';
   double _initDailyWage = 0;
   double _initMonthlyFood = 0;
   double _initMonthlyHousing = 0;
@@ -114,7 +113,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _monthlyLeaveAllowance = _settings!.monthlyLeaveAllowance;
     _annualLeaveAllowance = _settings!.annualLeaveAllowance;
 
-    _initCompanyName = _settings!.companyName;
     _initDailyWage = _settings!.dailyWage;
     _initMonthlyFood = _settings!.monthlyFood;
     _initMonthlyHousing = _settings!.monthlyHousing;
@@ -140,7 +138,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _checkChanges() {
     if (!mounted) return;
     final changed =
-        _companyNameCtrl.text.trim() != _initCompanyName ||
         _dailyWage != _initDailyWage ||
         _monthlyFood != _initMonthlyFood ||
         _monthlyHousing != _initMonthlyHousing ||
@@ -217,7 +214,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _saving = true);
     try {
       final updated = _settings!.copyWith(
-        companyName: _companyNameCtrl.text.trim(),
+        companyName: _settings!.companyName,
         dailyWage: _dailyWage,
         monthlyFood: _monthlyFood,
         monthlyHousing: _monthlyHousing,
@@ -235,7 +232,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         annualLeaveAllowance: _annualLeaveAllowance,
       );
       await _service.update(updated);
-      _initCompanyName = updated.companyName;
       _initDailyWage = updated.dailyWage;
       _initMonthlyFood = updated.monthlyFood;
       _initMonthlyHousing = updated.monthlyHousing;
@@ -641,6 +637,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         children: [
                           TextFormField(
                             controller: _companyNameCtrl,
+                            enabled: false,
                             decoration: const InputDecoration(
                               labelText: 'نام شرکت',
                               prefixIcon: Icon(Icons.apartment_rounded),

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../services/api_client.dart';
+import '../../services/company_service.dart';
 import '../../services/sync_service.dart';
 import '../../utils/animations.dart';
 import '../home_screen.dart';
@@ -19,6 +20,7 @@ class ServerLoginScreen extends StatefulWidget {
 class _ServerLoginScreenState extends State<ServerLoginScreen>
     with SingleTickerProviderStateMixin {
   final _api = ApiClient();
+  final _companyService = CompanyService();
   final _sync = SyncService();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -164,6 +166,7 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
         username: _usernameController.text.trim(),
         password: _passwordController.text,
       );
+      await _companyService.syncCurrentCompanyFromSession();
       TextInput.finishAutofillContext(shouldSave: true);
       final shouldBootstrap = await _sync.shouldShowBootstrapWizard();
       await _sync.startAutoSync();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/employee.dart';
 import '../../services/employee_service.dart';
+import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
@@ -17,6 +18,7 @@ class EmployeesListScreen extends StatefulWidget {
 
 class _EmployeesListScreenState extends State<EmployeesListScreen> {
   final _service = EmployeeService();
+  final _sync = SyncService();
   List<Employee> _employees = [];
   String _filter = '';
   bool _loading = true;
@@ -31,6 +33,7 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
+    await _sync.pullLatest(silent: true);
     final list = await _service.getAll();
     if (!mounted) return;
     setState(() {

@@ -232,6 +232,38 @@ class SyncService {
     }
   }
 
+  Future<void> pullLatest({bool silent = true}) async {
+    if (_syncing) return;
+    if (!await _api.hasSession()) {
+      stopAutoSync();
+      await _refreshStatus(phase: SyncPhase.idle);
+      return;
+    }
+    _syncing = true;
+    final previous = status.value;
+    if (!silent) {
+      status.value = previous.copyWith(phase: SyncPhase.syncing);
+    }
+    try {
+      final applied = await _pullRemote();
+      if (applied > 0) _bumpDataVersion();
+      final prefs = await SharedPreferences.getInstance();
+      final last = DateTime.now().toUtc();
+      await prefs.setString(_lastSyncedKey, last.toIso8601String());
+      await _refreshStatus(phase: SyncPhase.synced, lastSyncedAt: last);
+    } on ApiException catch (e) {
+      final phase = e.statusCode == 0 ? SyncPhase.offline : SyncPhase.error;
+      await _refreshStatus(phase: phase, message: e.message);
+    } catch (e) {
+      await _refreshStatus(
+        phase: SyncPhase.error,
+        message: _friendlyLocalError(e),
+      );
+    } finally {
+      _syncing = false;
+    }
+  }
+
   Future<void> bootstrapImport() async {
     if (!await _api.hasSession()) throw ApiException('Session required', 401);
     final db = await _db.database;
@@ -416,6 +448,7 @@ class SyncService {
     if (localPayload == null) return false;
     localPayload
       ..['sync_id'] = syncId
+      ..['server_updated_at'] = payload['updated_at']?.toString()
       ..['updated_at'] = payload['updated_at']?.toString() ?? _nowIso()
       ..['deleted_at'] = null
       ..['sync_state'] = 'synced';
@@ -444,17 +477,24 @@ class SyncService {
         return true;
       }
     }
-    if (existing.isEmpty) {
-      localPayload.remove('id');
-      await db.insert(entity, localPayload);
-    } else {
-      localPayload.remove('id');
-      await db.update(
-        entity,
-        localPayload,
-        where: 'sync_id = ?',
-        whereArgs: [syncId],
-      );
+    try {
+      if (existing.isEmpty) {
+        localPayload.remove('id');
+        await db.insert(entity, localPayload);
+      } else {
+        localPayload.remove('id');
+        await db.update(
+          entity,
+          localPayload,
+          where: 'sync_id = ?',
+          whereArgs: [syncId],
+        );
+      }
+    } on DatabaseException catch (e) {
+      if (_isUniqueConstraintError(e)) {
+        throw ApiException(_localConflictMessage(entity), 409);
+      }
+      rethrow;
     }
     return true;
   }
@@ -466,9 +506,14 @@ class SyncService {
   ) async {
     final payload = Map<String, dynamic>.from(row)
       ..remove('sync_state')
+      ..remove('server_updated_at')
       ..remove('deleted_at');
     final id = payload['id'];
     if (id != null) payload['local_id'] = id;
+    final baseUpdatedAt = row['server_updated_at']?.toString();
+    if (baseUpdatedAt != null && baseUpdatedAt.trim().isNotEmpty) {
+      payload['base_updated_at'] = baseUpdatedAt;
+    }
     if (table == 'loans' || table == 'salary_records') {
       final employeeId = payload['employee_id'];
       if (employeeId != null) {
@@ -613,9 +658,9 @@ class SyncService {
   String _errorFrom(dynamic response) {
     try {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
-      return body['error']?.toString() ?? 'Sync failed';
+      return _friendlyServerError(body);
     } catch (_) {
-      return 'Sync failed';
+      return 'خطا در همگام‌سازی با سرور';
     }
   }
 
@@ -623,5 +668,48 @@ class SyncService {
 
   void _bumpDataVersion() {
     dataVersion.value++;
+  }
+
+  String _friendlyServerError(Map<String, dynamic> body) {
+    final code = body['code']?.toString();
+    return switch (code) {
+      'duplicate_personnel_code' =>
+        'کد پرسنلی تکراری است. اطلاعات سرور را تازه کنید و برای کارمند کد جدید انتخاب کنید.',
+      'duplicate_salary_record' =>
+        'برای این کارمند و این ماه قبلا فیش حقوقی ثبت شده است. اطلاعات را تازه کنید و دوباره بررسی کنید.',
+      'stale_update' =>
+        'این بخش همزمان توسط کاربر دیگری تغییر کرده است. اگر می‌خواهید تغییرات خودتان را اعمال کنید، از کاربر دیگر بخواهید برنامه را ببندد، اطلاعات را تازه کنید و دوباره ذخیره کنید.',
+      'sync_conflict' || 'duplicate_settings_year' =>
+        'تغییر شما با اطلاعات ذخیره‌شده روی سرور تداخل دارد. اطلاعات را تازه کنید و دوباره ذخیره کنید.',
+      _ =>
+        body['error']?.toString().trim().isNotEmpty == true
+            ? body['error'].toString()
+            : 'خطا در همگام‌سازی با سرور',
+    };
+  }
+
+  String _friendlyLocalError(Object error) {
+    if (error is DatabaseException && _isUniqueConstraintError(error)) {
+      return 'اطلاعات دریافت‌شده از سرور با یک رکورد ذخیره‌نشده روی این دستگاه تداخل دارد. رکورد محلی را ویرایش کنید یا اطلاعات را تازه کنید.';
+    }
+    return error.toString();
+  }
+
+  bool _isUniqueConstraintError(DatabaseException error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('unique constraint') ||
+        text.contains('unique failed') ||
+        text.contains('sqlite_constraint_unique');
+  }
+
+  String _localConflictMessage(String entity) {
+    return switch (entity) {
+      'employees' =>
+        'کد پرسنلی روی این دستگاه با اطلاعات سرور تداخل دارد. کد کارمند را تغییر دهید و دوباره sync کنید.',
+      'salary_records' =>
+        'فیش حقوقی این ماه با اطلاعات سرور تداخل دارد. اطلاعات را تازه کنید و دوباره ذخیره کنید.',
+      _ =>
+        'اطلاعات محلی با داده‌های سرور تداخل دارد. اطلاعات را تازه کنید و دوباره تلاش کنید.',
+    };
   }
 }

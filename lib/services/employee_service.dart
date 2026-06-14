@@ -47,7 +47,8 @@ class EmployeeService {
   Future<int> insert(Employee employee) async {
     final db = await _db.database;
     final id = await db.insert('employees', employee.toMap()..remove('id'));
-    await _sync.markUpsert('employees', id);
+    await _sync.markUpsert('employees', id, schedule: false);
+    await _sync.syncNow(silent: true);
     return id;
   }
 
@@ -60,7 +61,8 @@ class EmployeeService {
       whereArgs: [employee.id],
     );
     if (employee.id != null) {
-      await _sync.markUpsert('employees', employee.id!);
+      await _sync.markUpsert('employees', employee.id!, schedule: false);
+      await _sync.syncNow(silent: true);
     }
     return result;
   }
@@ -92,7 +94,7 @@ class EmployeeService {
       }
     }
     final result = await _sync.markDelete('employees', id, schedule: false);
-    _sync.scheduleSync();
+    await _sync.syncNow(silent: true);
     return result;
   }
 

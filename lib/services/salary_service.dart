@@ -71,12 +71,14 @@ class SalaryService {
         where: 'id = ?',
         whereArgs: [existing.id],
       );
-      await _sync.markUpsert('salary_records', existing.id!);
+      await _sync.markUpsert('salary_records', existing.id!, schedule: false);
+      await _sync.syncNow(silent: true);
       return existing.id!;
     } else {
       final map = record.toMap()..remove('id');
       final id = await db.insert('salary_records', map);
-      await _sync.markUpsert('salary_records', id);
+      await _sync.markUpsert('salary_records', id, schedule: false);
+      await _sync.syncNow(silent: true);
       return id;
     }
   }
@@ -93,12 +95,19 @@ class SalaryService {
       where: 'id = ? AND deleted_at IS NULL',
       whereArgs: [record.id!],
     );
-    await _sync.markUpsert('salary_records', record.id!);
+    await _sync.markUpsert('salary_records', record.id!, schedule: false);
+    await _sync.syncNow(silent: true);
     return result;
   }
 
   Future<int> delete(int id) async {
-    return _sync.markDelete('salary_records', id);
+    final result = await _sync.markDelete(
+      'salary_records',
+      id,
+      schedule: false,
+    );
+    await _sync.syncNow(silent: true);
+    return result;
   }
 
   Future<int> deleteByEmployeeYearMonth(
@@ -117,8 +126,15 @@ class SalaryService {
     var changed = 0;
     for (final row in rows) {
       final id = row['id'] as int?;
-      if (id != null) changed += await _sync.markDelete('salary_records', id);
+      if (id != null) {
+        changed += await _sync.markDelete(
+          'salary_records',
+          id,
+          schedule: false,
+        );
+      }
     }
+    if (changed > 0) await _sync.syncNow(silent: true);
     return changed;
   }
 

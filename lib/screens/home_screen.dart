@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../models/company_profile.dart';
 import '../providers/theme_controller.dart';
 import '../services/company_service.dart';
-import '../services/settings_service.dart';
 import '../services/sync_service.dart';
 import '../utils/constants.dart';
 import '../utils/responsive.dart';
@@ -32,7 +31,6 @@ class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
   final PageController _pageController = PageController();
   final _companyService = CompanyService();
-  final _settingsService = SettingsService();
   final _sync = SyncService();
   CompanyProfile? _currentCompany;
 
@@ -292,13 +290,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // -------- سوئیچ صفحه با انیمیشن --------
   Future<void> _loadCompanies() async {
-    var current = await _companyService.getCurrentCompany();
-    final settings = await _settingsService.getCurrentSettings();
-    if (settings.companyName.trim().isNotEmpty &&
-        current.name != settings.companyName) {
-      await _companyService.syncCurrentCompanyName(settings.companyName);
-      current = await _companyService.getCurrentCompany();
-    }
+    final current = await _companyService.syncCurrentCompanyFromSession();
     if (!mounted) return;
     setState(() {
       _currentCompany = current;

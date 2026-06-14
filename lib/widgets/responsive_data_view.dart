@@ -72,62 +72,124 @@ class ResponsiveDataView<T> extends StatelessWidget {
         final headerColor = accentColor ?? scheme.primary;
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: Card(
-            clipBehavior: Clip.antiAlias,
-            child: Scrollbar(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SingleChildScrollView(
-                  child: DataTable(
-                    sortColumnIndex: sortColumnIndex,
-                    sortAscending: sortAscending,
-                    headingRowColor: WidgetStateProperty.all(
-                      headerColor.withValues(alpha: 0.14),
-                    ),
-                    headingTextStyle: TextStyle(
-                      color: scheme.onSurface,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                    ),
-                    dataTextStyle: const TextStyle(fontSize: 13),
-                    dividerThickness: 0.6,
-                    columnSpacing: 22,
-                    horizontalMargin: 18,
-                    columns: [
-                      for (var i = 0; i < columns.length; i++)
-                        DataColumn(
-                          label: Text(columns[i].label),
-                          numeric: columns[i].numeric,
-                          onSort: columns[i].sortValue == null
-                              ? null
-                              : (columnIndex, ascending) {
-                                  onSortColumnChanged(columnIndex);
-                                  onSortDirectionChanged(ascending);
-                                },
-                        ),
-                    ],
-                    rows: [
-                      for (final item in items)
-                        DataRow(
-                          color: WidgetStateProperty.resolveWith((states) {
-                            if (states.contains(WidgetState.hovered)) {
-                              return headerColor.withValues(alpha: 0.06);
-                            }
-                            return null;
-                          }),
-                          cells: [
-                            for (final column in columns)
-                              DataCell(column.cellBuilder(item)),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          child: _DesktopDataTable<T>(
+            items: items,
+            columns: columns,
+            sortColumnIndex: sortColumnIndex,
+            sortAscending: sortAscending,
+            onSortColumnChanged: onSortColumnChanged,
+            onSortDirectionChanged: onSortDirectionChanged,
+            headerColor: headerColor,
           ),
         );
       },
+    );
+  }
+}
+
+class _DesktopDataTable<T> extends StatefulWidget {
+  final List<T> items;
+  final List<ResponsiveTableColumn<T>> columns;
+  final int? sortColumnIndex;
+  final bool sortAscending;
+  final ValueChanged<int> onSortColumnChanged;
+  final ValueChanged<bool> onSortDirectionChanged;
+  final Color headerColor;
+
+  const _DesktopDataTable({
+    required this.items,
+    required this.columns,
+    required this.sortColumnIndex,
+    required this.sortAscending,
+    required this.onSortColumnChanged,
+    required this.onSortDirectionChanged,
+    required this.headerColor,
+  });
+
+  @override
+  State<_DesktopDataTable<T>> createState() => _DesktopDataTableState<T>();
+}
+
+class _DesktopDataTableState<T> extends State<_DesktopDataTable<T>> {
+  final _horizontalController = ScrollController();
+  final _verticalController = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontalController.dispose();
+    _verticalController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Scrollbar(
+        controller: _horizontalController,
+        thumbVisibility: true,
+        interactive: true,
+        scrollbarOrientation: ScrollbarOrientation.bottom,
+        child: SingleChildScrollView(
+          controller: _horizontalController,
+          scrollDirection: Axis.horizontal,
+          primary: false,
+          child: Scrollbar(
+            controller: _verticalController,
+            thumbVisibility: true,
+            interactive: true,
+            child: SingleChildScrollView(
+              controller: _verticalController,
+              primary: false,
+              child: DataTable(
+                sortColumnIndex: widget.sortColumnIndex,
+                sortAscending: widget.sortAscending,
+                headingRowColor: WidgetStateProperty.all(
+                  widget.headerColor.withValues(alpha: 0.14),
+                ),
+                headingTextStyle: TextStyle(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+                dataTextStyle: const TextStyle(fontSize: 13),
+                dividerThickness: 0.6,
+                columnSpacing: 22,
+                horizontalMargin: 18,
+                columns: [
+                  for (var i = 0; i < widget.columns.length; i++)
+                    DataColumn(
+                      label: Text(widget.columns[i].label),
+                      numeric: widget.columns[i].numeric,
+                      onSort: widget.columns[i].sortValue == null
+                          ? null
+                          : (columnIndex, ascending) {
+                              widget.onSortColumnChanged(columnIndex);
+                              widget.onSortDirectionChanged(ascending);
+                            },
+                    ),
+                ],
+                rows: [
+                  for (final item in widget.items)
+                    DataRow(
+                      color: WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.hovered)) {
+                          return widget.headerColor.withValues(alpha: 0.06);
+                        }
+                        return null;
+                      }),
+                      cells: [
+                        for (final column in widget.columns)
+                          DataCell(column.cellBuilder(item)),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

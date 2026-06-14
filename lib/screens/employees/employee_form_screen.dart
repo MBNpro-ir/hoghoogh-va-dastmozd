@@ -7,6 +7,7 @@ import '../../models/employee.dart';
 import '../../services/employee_service.dart';
 import '../../services/salary_calculator.dart';
 import '../../services/settings_service.dart';
+import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/persian_date_helper.dart';
@@ -28,6 +29,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _service = EmployeeService();
   final _settingsService = SettingsService();
+  final _sync = SyncService();
 
   bool _loading = true;
   bool _saving = false;
@@ -156,6 +158,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   }
 
   Future<void> _init() async {
+    if (widget.employee == null) {
+      await _sync.pullLatest(silent: true);
+    }
     _settings = await _settingsService.getCurrentSettings();
     if (_workplaceCtrl.text.trim().isEmpty) {
       _workplaceCtrl.text = _settings!.companyName;

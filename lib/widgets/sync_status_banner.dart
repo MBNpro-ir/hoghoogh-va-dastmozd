@@ -47,7 +47,7 @@ class SyncStatusBanner extends StatelessWidget {
                 Expanded(
                   child: Text(
                     _label(snapshot),
-                    maxLines: 1,
+                    maxLines: snapshot.phase == SyncPhase.error ? 3 : 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: data.foreground,

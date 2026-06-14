@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 6;
+  static const int _dbVersion = 7;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -105,6 +105,7 @@ class DatabaseHelper {
         payslip_footer_note TEXT DEFAULT '',
         notes TEXT,
         sync_id TEXT UNIQUE,
+        server_updated_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         deleted_at TEXT,
         sync_state TEXT NOT NULL DEFAULT 'synced'
@@ -126,6 +127,7 @@ class DatabaseHelper {
         notes TEXT,
         is_active INTEGER NOT NULL DEFAULT 1,
         sync_id TEXT UNIQUE,
+        server_updated_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         deleted_at TEXT,
         sync_state TEXT NOT NULL DEFAULT 'synced',
@@ -179,6 +181,7 @@ class DatabaseHelper {
         notes TEXT,
         created_at TEXT NOT NULL,
         sync_id TEXT UNIQUE,
+        server_updated_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         deleted_at TEXT,
         sync_state TEXT NOT NULL DEFAULT 'synced',
@@ -209,6 +212,7 @@ class DatabaseHelper {
         annual_leave_allowance REAL NOT NULL DEFAULT 30,
         company_name TEXT NOT NULL,
         sync_id TEXT UNIQUE,
+        server_updated_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         deleted_at TEXT,
         sync_state TEXT NOT NULL DEFAULT 'synced',
@@ -388,10 +392,21 @@ class DatabaseHelper {
       await _addSyncColumns(db, 'app_settings');
       await _createSyncIndexes(db);
     }
+    if (oldVersion < 7) {
+      for (final table in [
+        'employees',
+        'loans',
+        'salary_records',
+        'app_settings',
+      ]) {
+        await _safeAddColumn(db, table, 'server_updated_at TEXT');
+      }
+    }
   }
 
   Future<void> _addSyncColumns(Database db, String table) async {
     await _safeAddColumn(db, table, 'sync_id TEXT');
+    await _safeAddColumn(db, table, 'server_updated_at TEXT');
     await _safeAddColumn(
       db,
       table,

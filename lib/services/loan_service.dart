@@ -53,7 +53,8 @@ class LoanService {
   Future<int> insert(Loan loan) async {
     final db = await _db.database;
     final id = await db.insert('loans', loan.toMap()..remove('id'));
-    await _sync.markUpsert('loans', id);
+    await _sync.markUpsert('loans', id, schedule: false);
+    await _sync.syncNow(silent: true);
     return id;
   }
 
@@ -66,13 +67,16 @@ class LoanService {
       whereArgs: [loan.id],
     );
     if (loan.id != null) {
-      await _sync.markUpsert('loans', loan.id!);
+      await _sync.markUpsert('loans', loan.id!, schedule: false);
+      await _sync.syncNow(silent: true);
     }
     return result;
   }
 
   Future<int> delete(int id) async {
-    return _sync.markDelete('loans', id);
+    final result = await _sync.markDelete('loans', id, schedule: false);
+    await _sync.syncNow(silent: true);
+    return result;
   }
 
   /// ثبت یک قسط (افزایش paid_installments)
