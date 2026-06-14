@@ -72,8 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _sync.dataVersion.addListener(_onSyncedDataChanged);
     _loadCompanies();
-    unawaited(_sync.startAutoSync());
-    unawaited(_sync.syncNow(silent: true));
+    unawaited(_startSync());
   }
 
   @override
@@ -230,6 +229,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onSyncedDataChanged() {
     unawaited(_loadCompanies());
     if (mounted) setState(() {});
+  }
+
+  Future<void> _startSync() async {
+    try {
+      await _sync.ensureServerHydrated();
+    } catch (_) {}
+    await _sync.startAutoSync();
+    await _sync.syncNow(silent: true);
   }
 
   /// تغییر index با همگام‌سازی PageController (در موبایل)

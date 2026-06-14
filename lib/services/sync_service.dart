@@ -59,6 +59,8 @@ class SyncService {
   static const _cursorKey = 'hvm_sync_cursor_v2';
   static const _lastSyncedKey = 'hvm_sync_last_synced_v2';
   static const _bootstrapImportedKey = 'hvm_bootstrap_imported_v2';
+  static const _serverHydratedSessionKey = 'hvm_sync_server_hydrated_v2';
+  static const _activeSessionKey = 'hvm_sync_active_session_v2';
   static const _autoSyncInterval = Duration(seconds: 5);
   static const _uuid = Uuid();
 
@@ -118,6 +120,41 @@ class SyncService {
   void stopAutoSync() {
     _pollTimer?.cancel();
     _pollTimer = null;
+  }
+
+  Future<void> registerLoginSession(Map<String, dynamic>? user) async {
+    final prefs = await SharedPreferences.getInstance();
+    final previous = prefs.getString(_activeSessionKey);
+    final next = _sessionFingerprint(user);
+    final changed =
+        previous != null && next != null && previous.trim() != next.trim();
+    await prefs.remove(_cursorKey);
+    await prefs.remove(_lastSyncedKey);
+    await prefs.remove(_serverHydratedSessionKey);
+    if (changed) {
+      await prefs.remove(_bootstrapImportedKey);
+    }
+    if (next != null) {
+      await prefs.setString(_activeSessionKey, next);
+    }
+    _clearSyncConflict();
+    await _refreshStatus(phase: SyncPhase.idle);
+  }
+
+  Future<void> ensureServerHydrated({
+    bool markBootstrapComplete = false,
+  }) async {
+    if (!await _api.hasSession()) return;
+    final prefs = await SharedPreferences.getInstance();
+    final fingerprint = await _currentSessionFingerprint();
+    if (fingerprint != null &&
+        prefs.getString(_serverHydratedSessionKey) == fingerprint) {
+      return;
+    }
+    await bootstrapFromServer(
+      silent: true,
+      markBootstrapComplete: markBootstrapComplete,
+    );
   }
 
   Future<bool> shouldShowBootstrapWizard() async {
@@ -335,8 +372,88 @@ class SyncService {
     if (applied > 0) _bumpDataVersion();
     final last = DateTime.now().toUtc();
     await prefs.setString(_lastSyncedKey, last.toIso8601String());
+    final fingerprint = await _currentSessionFingerprint();
+    if (fingerprint != null) {
+      await prefs.setString(_serverHydratedSessionKey, fingerprint);
+      await prefs.setString(_activeSessionKey, fingerprint);
+    }
     await _refreshStatus(phase: SyncPhase.synced, lastSyncedAt: last);
     await startAutoSync();
+  }
+
+  Future<void> bootstrapFromServer({
+    bool silent = false,
+    bool markBootstrapComplete = false,
+  }) async {
+    if (!await _api.hasSession()) throw ApiException('Session required', 401);
+    final ready = await _waitForIdle();
+    if (!ready) return;
+    _syncing = true;
+    final previous = status.value;
+    if (!silent) {
+      status.value = previous.copyWith(phase: SyncPhase.syncing);
+    }
+    try {
+      final response = await _api.get('/api/sync/bootstrap-export');
+      if (response.statusCode == 404) {
+        final applied = await _pullRemote();
+        if (applied > 0) _bumpDataVersion();
+        return;
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw ApiException(_errorFrom(response), response.statusCode);
+      }
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final events = List<Map<String, dynamic>>.from(
+        body['events'] as List? ?? const [],
+      );
+      final keepIds = <String, Set<String>>{
+        for (final table in trackedTables) table: <String>{},
+      };
+      var applied = 0;
+      for (final event in events) {
+        final entity = event['entity']?.toString();
+        final payload = Map<String, dynamic>.from(
+          event['payload'] as Map? ?? const {},
+        );
+        final syncId =
+            payload['sync_id']?.toString() ?? event['entity_id']?.toString();
+        if (entity != null &&
+            trackedTables.contains(entity) &&
+            syncId != null &&
+            syncId.isNotEmpty) {
+          keepIds[entity]!.add(syncId);
+        }
+        if (await _applyEvent(event)) applied++;
+      }
+      applied += await _pruneMissingSnapshotRows(keepIds);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_cursorKey, _intFromJson(body['next_cursor']));
+      if (markBootstrapComplete) {
+        await prefs.setBool(_bootstrapImportedKey, true);
+      }
+      final fingerprint = await _currentSessionFingerprint();
+      if (fingerprint != null) {
+        await prefs.setString(_serverHydratedSessionKey, fingerprint);
+        await prefs.setString(_activeSessionKey, fingerprint);
+      }
+      final last = DateTime.now().toUtc();
+      await prefs.setString(_lastSyncedKey, last.toIso8601String());
+      if (applied > 0) _bumpDataVersion();
+      await _refreshStatus(phase: SyncPhase.synced, lastSyncedAt: last);
+    } on ApiException catch (e) {
+      final phase = e.statusCode == 0 ? SyncPhase.offline : SyncPhase.error;
+      await _refreshStatus(phase: phase, message: e.message);
+      rethrow;
+    } catch (e) {
+      await _refreshStatus(
+        phase: SyncPhase.error,
+        message: _friendlyLocalError(e),
+      );
+      rethrow;
+    } finally {
+      _syncing = false;
+    }
   }
 
   Future<void> _pushPending() async {
@@ -432,13 +549,13 @@ class SyncService {
       if (events.isEmpty) {
         await prefs.setInt(
           _cursorKey,
-          (body['next_cursor'] as num?)?.toInt() ?? cursor,
+          _intFromJson(body['next_cursor'], fallback: cursor),
         );
         return applied;
       }
       for (final event in events) {
         if (await _applyEvent(event)) applied++;
-        cursor = (event['cursor'] as num?)?.toInt() ?? cursor;
+        cursor = _intFromJson(event['cursor'], fallback: cursor);
         await prefs.setInt(_cursorKey, cursor);
       }
       if (events.length < 500) return applied;
@@ -476,20 +593,14 @@ class SyncService {
       whereArgs: [syncId],
       limit: 1,
     );
-    if (existing.isEmpty && entity == 'app_settings') {
-      final year = localPayload['year'];
-      final byYear = await db.query(
-        entity,
-        where: 'year = ?',
-        whereArgs: [year],
-        limit: 1,
-      );
-      if (byYear.isNotEmpty) {
+    if (existing.isEmpty) {
+      final naturalKeyId = await _naturalKeyLocalId(db, entity, localPayload);
+      if (naturalKeyId != null) {
         await db.update(
           entity,
           localPayload..remove('id'),
           where: 'id = ?',
-          whereArgs: [byYear.first['id']],
+          whereArgs: [naturalKeyId],
         );
         return true;
       }
@@ -617,6 +728,47 @@ class SyncService {
     return rows.first['id'] as int?;
   }
 
+  Future<int?> _naturalKeyLocalId(
+    Database db,
+    String table,
+    Map<String, dynamic> payload,
+  ) async {
+    final List<Map<String, Object?>> rows;
+    if (table == 'employees') {
+      rows = await db.query(
+        table,
+        columns: ['id', 'sync_state'],
+        where: 'personnel_code = ?',
+        whereArgs: [payload['personnel_code']],
+        limit: 1,
+      );
+    } else if (table == 'salary_records') {
+      rows = await db.query(
+        table,
+        columns: ['id', 'sync_state'],
+        where: 'employee_id = ? AND year = ? AND month = ?',
+        whereArgs: [payload['employee_id'], payload['year'], payload['month']],
+        limit: 1,
+      );
+    } else if (table == 'app_settings') {
+      rows = await db.query(
+        table,
+        columns: ['id', 'sync_state'],
+        where: 'year = ?',
+        whereArgs: [payload['year']],
+        limit: 1,
+      );
+    } else {
+      return null;
+    }
+    if (rows.isEmpty) return null;
+    final state = rows.first['sync_state']?.toString();
+    if (state == 'pending' || state == 'deleting') {
+      throw ApiException(_localConflictMessage(table), 409);
+    }
+    return rows.first['id'] as int?;
+  }
+
   Map<String, dynamic> _boolsToInts(
     Map<String, dynamic> payload,
     Set<String> columns,
@@ -647,6 +799,54 @@ class SyncService {
       whereArgs: [id],
     );
     return generated;
+  }
+
+  Future<int> _pruneMissingSnapshotRows(
+    Map<String, Set<String>> keepIds,
+  ) async {
+    final db = await _db.database;
+    var deleted = 0;
+    for (final table in _deleteOrder) {
+      final keep = keepIds[table] ?? const <String>{};
+      final rows = await db.query(
+        table,
+        columns: ['id', 'sync_id'],
+        where: "sync_state = 'synced' AND sync_id IS NOT NULL",
+      );
+      for (final row in rows) {
+        final syncId = row['sync_id']?.toString();
+        final id = row['id'] as int?;
+        if (id == null || syncId == null || keep.contains(syncId)) continue;
+        deleted += await db.delete(table, where: 'id = ?', whereArgs: [id]);
+      }
+    }
+    return deleted;
+  }
+
+  Future<bool> _waitForIdle() async {
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    while (_syncing && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    return !_syncing;
+  }
+
+  Future<String?> _currentSessionFingerprint() async {
+    return _sessionFingerprint(await _api.getUser());
+  }
+
+  String? _sessionFingerprint(Map<String, dynamic>? user) {
+    final companyId = user?['company_id']?.toString().trim();
+    final userId =
+        user?['id']?.toString().trim() ?? user?['username']?.toString().trim();
+    if (companyId == null ||
+        companyId.isEmpty ||
+        companyId == 'null' ||
+        userId == null ||
+        userId.isEmpty) {
+      return null;
+    }
+    return '$companyId:$userId';
   }
 
   Future<void> _refreshStatus({
@@ -682,6 +882,11 @@ class SyncService {
   }
 
   String _nowIso() => DateTime.now().toUtc().toIso8601String();
+
+  int _intFromJson(Object? value, {int fallback = 0}) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
+  }
 
   void _bumpDataVersion() {
     dataVersion.value++;

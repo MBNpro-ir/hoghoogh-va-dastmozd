@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -162,17 +160,22 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
       _error = '';
     });
     try {
-      await _api.login(
+      _sync.stopAutoSync();
+      final body = await _api.login(
         username: _usernameController.text.trim(),
         password: _passwordController.text,
       );
+      final user = body['user'] is Map
+          ? Map<String, dynamic>.from(body['user'] as Map)
+          : null;
+      await _sync.registerLoginSession(user);
       await _companyService.syncCurrentCompanyFromSession();
       TextInput.finishAutofillContext(shouldSave: true);
       final shouldBootstrap = await _sync.shouldShowBootstrapWizard();
-      await _sync.startAutoSync();
       if (!shouldBootstrap) {
-        unawaited(_sync.syncNow(silent: true));
+        await _sync.bootstrapFromServer(markBootstrapComplete: true);
       }
+      await _sync.startAutoSync();
       if (!mounted) return;
       navigator.pushReplacement(
         MaterialPageRoute(
