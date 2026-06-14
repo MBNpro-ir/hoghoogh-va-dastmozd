@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'app_lifecycle_observer.dart';
 import 'database/database_helper.dart';
 import 'providers/theme_controller.dart';
+import 'screens/auth/local_unlock_screen.dart';
 import 'screens/auth/server_login_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/api_client.dart';
@@ -53,11 +54,12 @@ class _BootScreenState extends State<BootScreen> {
 
   Future<void> _boot() async {
     final security = context.read<LocalSecurityService>();
-    await security.setRequiresUnlock(false);
     final api = ApiClient();
     Widget next;
     if (await api.hasSession()) {
-      next = const HomeScreen();
+      final shouldUnlock =
+          await security.hasCredential() && await security.requiresUnlock();
+      next = shouldUnlock ? const LocalUnlockScreen() : const HomeScreen();
     } else {
       next = const ServerLoginScreen();
     }

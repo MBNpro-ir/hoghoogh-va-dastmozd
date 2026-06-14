@@ -5,7 +5,9 @@ import '../../services/local_security_service.dart';
 import '../home_screen.dart';
 
 class LocalUnlockSetupScreen extends StatefulWidget {
-  const LocalUnlockSetupScreen({super.key});
+  final bool returnToPrevious;
+
+  const LocalUnlockSetupScreen({super.key, this.returnToPrevious = false});
 
   @override
   State<LocalUnlockSetupScreen> createState() => _LocalUnlockSetupScreenState();
@@ -188,16 +190,29 @@ class _LocalUnlockSetupScreenState extends State<LocalUnlockSetupScreen>
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     HapticFeedback.mediumImpact();
-    await _security.createCredential(
-      value: _pinController.text,
-      method: _method,
-      enableBiometrics: _enableBiometrics,
-    );
-    await _security.setRequiresUnlock(false);
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
+    try {
+      await _security.createCredential(
+        value: _pinController.text,
+        method: _method,
+        enableBiometrics: _enableBiometrics,
+      );
+      await _security.setRequiresUnlock(false);
+      if (!mounted) return;
+      if (widget.returnToPrevious) {
+        Navigator.pop(context, true);
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('خطا در فعال‌سازی قفل: $e')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 }

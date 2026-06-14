@@ -59,6 +59,7 @@ class SyncService {
   static const _cursorKey = 'hvm_sync_cursor_v2';
   static const _lastSyncedKey = 'hvm_sync_last_synced_v2';
   static const _bootstrapImportedKey = 'hvm_bootstrap_imported_v2';
+  static const _autoSyncInterval = Duration(seconds: 5);
   static const _uuid = Uuid();
 
   static const trackedTables = <String>[
@@ -85,10 +86,12 @@ class SyncService {
   final ValueNotifier<SyncSnapshot> status = ValueNotifier<SyncSnapshot>(
     SyncSnapshot.initial(),
   );
+  final ValueNotifier<int> dataVersion = ValueNotifier<int>(0);
   final _api = ApiClient();
   final _db = DatabaseHelper.instance;
   bool _syncing = false;
   Timer? _debounce;
+  Timer? _pollTimer;
 
   Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
@@ -98,6 +101,21 @@ class SyncService {
       lastSyncedAt: last,
       clearMessage: true,
     );
+    await startAutoSync();
+  }
+
+  Future<void> startAutoSync() async {
+    if (_pollTimer != null) return;
+    if (!await _api.hasSession()) return;
+    _pollTimer = Timer.periodic(_autoSyncInterval, (_) {
+      unawaited(syncNow(silent: true));
+    });
+    unawaited(syncNow(silent: true));
+  }
+
+  void stopAutoSync() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
   }
 
   Future<bool> shouldShowBootstrapWizard() async {
@@ -183,6 +201,7 @@ class SyncService {
   Future<void> syncNow({bool silent = false}) async {
     if (_syncing) return;
     if (!await _api.hasSession()) {
+      stopAutoSync();
       await _refreshStatus(phase: SyncPhase.idle);
       return;
     }
@@ -197,7 +216,8 @@ class SyncService {
     }
     try {
       await _pushPending();
-      await _pullRemote();
+      final applied = await _pullRemote();
+      if (applied > 0) _bumpDataVersion();
       final prefs = await SharedPreferences.getInstance();
       final last = DateTime.now().toUtc();
       await prefs.setString(_lastSyncedKey, last.toIso8601String());
@@ -263,10 +283,12 @@ class SyncService {
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_bootstrapImportedKey, true);
-    await _pullRemote();
+    final applied = await _pullRemote();
+    if (applied > 0) _bumpDataVersion();
     final last = DateTime.now().toUtc();
     await prefs.setString(_lastSyncedKey, last.toIso8601String());
     await _refreshStatus(phase: SyncPhase.synced, lastSyncedAt: last);
+    await startAutoSync();
   }
 
   Future<void> _pushPending() async {
@@ -345,9 +367,10 @@ class SyncService {
     });
   }
 
-  Future<void> _pullRemote() async {
+  Future<int> _pullRemote() async {
     final prefs = await SharedPreferences.getInstance();
     var cursor = prefs.getInt(_cursorKey) ?? 0;
+    var applied = 0;
     while (true) {
       final response = await _api.get('/api/sync/pull?cursor=$cursor');
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -362,35 +385,35 @@ class SyncService {
           _cursorKey,
           (body['next_cursor'] as num?)?.toInt() ?? cursor,
         );
-        return;
+        return applied;
       }
       for (final event in events) {
-        await _applyEvent(event);
+        if (await _applyEvent(event)) applied++;
         cursor = (event['cursor'] as num?)?.toInt() ?? cursor;
         await prefs.setInt(_cursorKey, cursor);
       }
-      if (events.length < 500) return;
+      if (events.length < 500) return applied;
     }
   }
 
-  Future<void> _applyEvent(Map<String, dynamic> event) async {
+  Future<bool> _applyEvent(Map<String, dynamic> event) async {
     final entity = event['entity']?.toString();
-    if (entity == null || !trackedTables.contains(entity)) return;
+    if (entity == null || !trackedTables.contains(entity)) return false;
     final payload = Map<String, dynamic>.from(
       event['payload'] as Map? ?? const {},
     );
     final syncId =
         payload['sync_id']?.toString() ?? event['entity_id']?.toString();
-    if (syncId == null || syncId.isEmpty) return;
+    if (syncId == null || syncId.isEmpty) return false;
 
     final db = await _db.database;
     if (event['operation'] == 'delete' || payload['deleted_at'] != null) {
       await db.delete(entity, where: 'sync_id = ?', whereArgs: [syncId]);
-      return;
+      return true;
     }
 
     final localPayload = await _localPayloadForRemote(db, entity, payload);
-    if (localPayload == null) return;
+    if (localPayload == null) return false;
     localPayload
       ..['sync_id'] = syncId
       ..['updated_at'] = payload['updated_at']?.toString() ?? _nowIso()
@@ -418,7 +441,7 @@ class SyncService {
           where: 'id = ?',
           whereArgs: [byYear.first['id']],
         );
-        return;
+        return true;
       }
     }
     if (existing.isEmpty) {
@@ -433,6 +456,7 @@ class SyncService {
         whereArgs: [syncId],
       );
     }
+    return true;
   }
 
   Future<Map<String, dynamic>> _payloadFor(
@@ -596,4 +620,8 @@ class SyncService {
   }
 
   String _nowIso() => DateTime.now().toUtc().toIso8601String();
+
+  void _bumpDataVersion() {
+    dataVersion.value++;
+  }
 }

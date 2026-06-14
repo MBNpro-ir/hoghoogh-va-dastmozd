@@ -165,7 +165,17 @@ class _LocalUnlockScreenState extends State<LocalUnlockScreen>
     final navigator = Navigator.of(context);
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
-    final ok = await _security.verifyCredential(_controller.text);
+    bool ok;
+    try {
+      ok = await _security.verifyCredential(_controller.text);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'خطا در بررسی رمز: $e';
+        _loading = false;
+      });
+      return;
+    }
     if (!mounted) return;
     if (ok) {
       HapticFeedback.lightImpact();
@@ -183,7 +193,17 @@ class _LocalUnlockScreenState extends State<LocalUnlockScreen>
   Future<void> _biometricUnlock() async {
     final navigator = Navigator.of(context);
     setState(() => _loading = true);
-    final ok = await _security.authenticateWithBiometrics();
+    bool ok;
+    try {
+      ok = await _security.authenticateWithBiometrics();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'خطا در بیومتریک: $e';
+        _loading = false;
+      });
+      return;
+    }
     if (!mounted) return;
     if (ok) {
       await _security.setRequiresUnlock(false);

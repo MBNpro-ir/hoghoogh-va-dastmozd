@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,9 +10,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 class LocalSecurityService {
   static const _hashKey = 'hvm_local_hash_v1';
   static const _saltKey = 'hvm_local_salt_v1';
+  static const _iterationsKey = 'hvm_local_iterations_v1';
   static const _methodKey = 'hvm_local_method_v1';
   static const _biometricKey = 'hvm_biometric_enabled_v1';
   static const _requiresUnlockKey = 'hvm_requires_unlock_v1';
+  static const _hashIterations = 120000;
+  static const _legacyHashIterations = 250000;
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(),
@@ -52,11 +55,16 @@ class LocalSecurityService {
     bool enableBiometrics = false,
   }) async {
     final salt = _randomBytes(16);
-    final hash = _hash(value, salt);
+    final saltRaw = base64Encode(salt);
+    final hash = await compute(
+      _hashCredential,
+      _LocalHashJob(value, saltRaw, _hashIterations),
+    );
     await _storage.write(key: _saltKey, value: base64Encode(salt));
     await _storage.write(key: _hashKey, value: hash);
     await _storage.write(key: _methodKey, value: method.name);
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_iterationsKey, _hashIterations);
     await prefs.setBool(
       _biometricKey,
       enableBiometrics && await canUseBiometrics(),
@@ -67,8 +75,19 @@ class LocalSecurityService {
     final saltRaw = await _storage.read(key: _saltKey);
     final expected = await _storage.read(key: _hashKey);
     if (saltRaw == null || expected == null) return false;
-    final actual = _hash(value, base64Decode(saltRaw));
-    return _safeEquals(actual, expected);
+    final prefs = await SharedPreferences.getInstance();
+    final iterations = prefs.getInt(_iterationsKey) ?? _legacyHashIterations;
+    final actual = await compute(
+      _hashCredential,
+      _LocalHashJob(value, saltRaw, iterations),
+    );
+    if (_safeEquals(actual, expected)) return true;
+    if (iterations == _legacyHashIterations) return false;
+    final legacyActual = await compute(
+      _hashCredential,
+      _LocalHashJob(value, saltRaw, _legacyHashIterations),
+    );
+    return _safeEquals(legacyActual, expected);
   }
 
   Future<bool> authenticateWithBiometrics() async {
@@ -90,6 +109,7 @@ class LocalSecurityService {
     await _storage.delete(key: _saltKey);
     await _storage.delete(key: _methodKey);
     final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_iterationsKey);
     await prefs.setBool(_biometricKey, false);
   }
 
@@ -98,51 +118,6 @@ class LocalSecurityService {
     return LocalCredentialMethod.values
         .cast<LocalCredentialMethod?>()
         .firstWhere((method) => method?.name == raw, orElse: () => null);
-  }
-
-  String _hash(String value, Uint8List salt) {
-    final digest = _pbkdf2Sha256(utf8.encode(value), salt, 250000, 32);
-    return base64Encode(digest);
-  }
-
-  Uint8List _pbkdf2Sha256(
-    Uint8List password,
-    Uint8List salt,
-    int iterations,
-    int dkLen,
-  ) {
-    final blockLen = sha256.blockSize;
-    final blocks = (dkLen / blockLen).ceil();
-    final output = Uint8List(blocks * blockLen);
-    var blockIndex = 1;
-
-    for (var block = 0; block < blocks; block++) {
-      final saltBlock = Uint8List(salt.length + 4);
-      saltBlock.setRange(0, salt.length, salt);
-      saltBlock[salt.length] = blockIndex >> 24;
-      saltBlock[salt.length + 1] = blockIndex >> 16;
-      saltBlock[salt.length + 2] = blockIndex >> 8;
-      saltBlock[salt.length + 3] = blockIndex;
-
-      final first = Uint8List.fromList(
-        Hmac(sha256, password).convert(saltBlock).bytes,
-      );
-      final blockHash = Uint8List.fromList(first);
-
-      for (var i = 1; i < iterations; i++) {
-        final next = Uint8List.fromList(
-          Hmac(sha256, password).convert(blockHash).bytes,
-        );
-        for (var j = 0; j < blockLen; j++) {
-          blockHash[j] ^= next[j];
-        }
-      }
-
-      output.setRange(block * blockLen, (block + 1) * blockLen, blockHash);
-      blockIndex++;
-    }
-
-    return output.sublist(0, dkLen);
   }
 
   Uint8List _randomBytes(int length) {
@@ -165,3 +140,61 @@ class LocalSecurityService {
 }
 
 enum LocalCredentialMethod { pin, password }
+
+class _LocalHashJob {
+  final String value;
+  final String saltBase64;
+  final int iterations;
+
+  const _LocalHashJob(this.value, this.saltBase64, this.iterations);
+}
+
+String _hashCredential(_LocalHashJob job) {
+  final digest = _pbkdf2Sha256(
+    Uint8List.fromList(utf8.encode(job.value)),
+    base64Decode(job.saltBase64),
+    job.iterations,
+    32,
+  );
+  return base64Encode(digest);
+}
+
+Uint8List _pbkdf2Sha256(
+  Uint8List password,
+  Uint8List salt,
+  int iterations,
+  int dkLen,
+) {
+  final hmacLen = sha256.convert(const <int>[]).bytes.length;
+  final blocks = (dkLen / hmacLen).ceil();
+  final output = Uint8List(blocks * hmacLen);
+  var blockIndex = 1;
+
+  for (var block = 0; block < blocks; block++) {
+    final saltBlock = Uint8List(salt.length + 4);
+    saltBlock.setRange(0, salt.length, salt);
+    saltBlock[salt.length] = blockIndex >> 24;
+    saltBlock[salt.length + 1] = blockIndex >> 16;
+    saltBlock[salt.length + 2] = blockIndex >> 8;
+    saltBlock[salt.length + 3] = blockIndex;
+
+    final first = Uint8List.fromList(
+      Hmac(sha256, password).convert(saltBlock).bytes,
+    );
+    final blockHash = Uint8List.fromList(first);
+
+    for (var i = 1; i < iterations; i++) {
+      final next = Uint8List.fromList(
+        Hmac(sha256, password).convert(blockHash).bytes,
+      );
+      for (var j = 0; j < hmacLen; j++) {
+        blockHash[j] ^= next[j];
+      }
+    }
+
+    output.setRange(block * hmacLen, (block + 1) * hmacLen, blockHash);
+    blockIndex++;
+  }
+
+  return output.sublist(0, dkLen);
+}

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -88,12 +89,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _companyNameCtrl = TextEditingController();
+    SyncService().dataVersion.addListener(_onSyncedDataChanged);
     _load();
   }
 
   Future<void> _load() async {
     _settings = await _service.getCurrentSettings();
-    _companyNameCtrl = TextEditingController(text: _settings!.companyName);
+    _companyNameCtrl.removeListener(_checkChanges);
+    _companyNameCtrl.text = _settings!.companyName;
     _companyNameCtrl.addListener(_checkChanges);
     _dailyWage = _settings!.dailyWage;
     _monthlyFood = _settings!.monthlyFood;
@@ -199,8 +202,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
+    SyncService().dataVersion.removeListener(_onSyncedDataChanged);
     _companyNameCtrl.dispose();
     super.dispose();
+  }
+
+  void _onSyncedDataChanged() {
+    if (_saving || _hasChanges) return;
+    unawaited(_load());
   }
 
   Future<void> _save() async {
@@ -475,10 +484,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _changeLocalCredential() async {
     if (!mounted) return;
-    Navigator.push(
+    final changed = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const LocalUnlockSetupScreen()),
+      MaterialPageRoute(
+        builder: (_) => const LocalUnlockSetupScreen(returnToPrevious: true),
+      ),
     );
+    if (changed == true && mounted) await _load();
   }
 
   Future<void> _toggleBiometrics() async {

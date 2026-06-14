@@ -166,6 +166,7 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
       );
       TextInput.finishAutofillContext(shouldSave: true);
       final shouldBootstrap = await _sync.shouldShowBootstrapWizard();
+      await _sync.startAutoSync();
       if (!shouldBootstrap) {
         unawaited(_sync.syncNow(silent: true));
       }

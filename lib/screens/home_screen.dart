@@ -72,12 +72,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _sync.dataVersion.addListener(_onSyncedDataChanged);
     _loadCompanies();
+    unawaited(_sync.startAutoSync());
     unawaited(_sync.syncNow(silent: true));
   }
 
   @override
   void dispose() {
+    _sync.dataVersion.removeListener(_onSyncedDataChanged);
     _pageController.dispose();
     super.dispose();
   }
@@ -113,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SyncStatusBanner(),
                   Expanded(
                     child: _AnimatedPageSwitcher(
-                      pageKey: ValueKey(_index),
+                      pageKey: ValueKey('$_index-${_sync.dataVersion.value}'),
                       child: _buildCurrentPage(),
                     ),
                   ),
@@ -173,7 +176,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 physics: const BouncingScrollPhysics(),
                 reverse: false, // RTL: swipe چپ به راست = صفحه بعد
                 onPageChanged: (i) => setState(() => _index = i),
-                children: _pages,
+                children: [
+                  for (var i = 0; i < _pages.length; i++)
+                    KeyedSubtree(
+                      key: ValueKey(
+                        'mobile-page-$i-${_sync.dataVersion.value}',
+                      ),
+                      child: _pages[i],
+                    ),
+                ],
               ),
             ),
           ],
@@ -213,7 +224,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// صفحه فعلی
-  Widget _buildCurrentPage() => _pages[_index];
+  Widget _buildCurrentPage() => KeyedSubtree(
+    key: ValueKey('desktop-page-$_index-${_sync.dataVersion.value}'),
+    child: _pages[_index],
+  );
+
+  void _onSyncedDataChanged() {
+    unawaited(_loadCompanies());
+    if (mounted) setState(() {});
+  }
 
   /// تغییر index با همگام‌سازی PageController (در موبایل)
   void _goToIndex(int index) {
