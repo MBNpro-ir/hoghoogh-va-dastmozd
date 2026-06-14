@@ -7,6 +7,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
+import '../models/advance_payment.dart';
 import '../models/app_settings.dart';
 import '../models/employee.dart';
 import '../models/loan.dart';
@@ -67,6 +68,7 @@ class SyncService {
   static const trackedTables = <String>[
     'employees',
     'loans',
+    'advances',
     'salary_records',
     'app_settings',
   ];
@@ -75,11 +77,13 @@ class SyncService {
     'employees',
     'app_settings',
     'loans',
+    'advances',
     'salary_records',
   ];
 
   static const _deleteOrder = <String>[
     'salary_records',
+    'advances',
     'loans',
     'employees',
     'app_settings',
@@ -170,7 +174,7 @@ class SyncService {
 
   Future<bool> hasLocalBusinessData() async {
     final db = await _db.database;
-    for (final table in ['employees', 'loans', 'salary_records']) {
+    for (final table in ['employees', 'loans', 'advances', 'salary_records']) {
       final rows = await db.rawQuery(
         'SELECT COUNT(*) AS count FROM $table WHERE deleted_at IS NULL',
       );
@@ -642,7 +646,7 @@ class SyncService {
     if (baseUpdatedAt != null && baseUpdatedAt.trim().isNotEmpty) {
       payload['base_updated_at'] = baseUpdatedAt;
     }
-    if (table == 'loans' || table == 'salary_records') {
+    if (table == 'loans' || table == 'advances' || table == 'salary_records') {
       final employeeId = payload['employee_id'];
       if (employeeId != null) {
         final employeeRows = await db.query(
@@ -678,6 +682,7 @@ class SyncService {
         }),
       ).toMap()..remove('id'),
       'loans' => await _remoteLoanPayload(db, payload),
+      'advances' => await _remoteAdvancePayload(db, payload),
       'salary_records' => await _remoteSalaryPayload(db, payload),
       'app_settings' => AppSettings.fromMap(payload).toMap()..remove('id'),
       _ => null,
@@ -692,6 +697,18 @@ class SyncService {
     if (employeeId == null) return null;
     return Loan.fromMap({
       ..._boolsToInts(payload, const {'is_active'}),
+      'employee_id': employeeId,
+    }).toMap()..remove('id');
+  }
+
+  Future<Map<String, dynamic>?> _remoteAdvancePayload(
+    Database db,
+    Map<String, dynamic> payload,
+  ) async {
+    final employeeId = await _localEmployeeId(db, payload);
+    if (employeeId == null) return null;
+    return AdvancePayment.fromMap({
+      ...payload,
       'employee_id': employeeId,
     }).toMap()..remove('id');
   }

@@ -4,6 +4,7 @@ import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'app_lifecycle_observer.dart';
 import 'database/database_helper.dart';
@@ -14,11 +15,15 @@ import 'screens/home_screen.dart';
 import 'services/api_client.dart';
 import 'services/local_security_service.dart';
 import 'services/sync_service.dart';
+import 'services/window_close_service.dart';
 import 'utils/constants.dart';
 import 'utils/responsive.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isWindows) {
+    await windowManager.ensureInitialized();
+  }
   HttpOverrides.global = _TrustedServerHttpOverrides();
   await DatabaseHelper.init();
   await DatabaseHelper.instance.database;
@@ -28,7 +33,9 @@ Future<void> main() async {
       create: (_) => LocalSecurityService(),
       child: ChangeNotifierProvider(
         create: (_) => ThemeController()..initialize(),
-        child: const AppLifecycleObserver(child: PayrollApp()),
+        child: const AppLifecycleObserver(
+          child: DesktopWindowCloseHost(child: PayrollApp()),
+        ),
       ),
     ),
   );

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../models/app_settings.dart';
+import '../../models/advance_payment.dart';
 import '../../models/employee.dart';
 import '../../models/loan.dart';
 import '../../models/salary_record.dart';
+import '../../services/advance_service.dart';
 import '../../services/employee_service.dart';
 import '../../services/loan_service.dart';
 import '../../services/salary_calculator.dart';
@@ -39,6 +41,7 @@ class SalaryCalculationScreen extends StatefulWidget {
 class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   final _employeeService = EmployeeService();
   final _loanService = LoanService();
+  final _advanceService = AdvanceService();
   final _salaryService = SalaryService();
   final _settingsService = SettingsService();
 
@@ -46,6 +49,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   Employee? _selectedEmployee;
   AppSettings? _settings;
   List<Loan> _employeeLoans = [];
+  List<AdvancePayment> _employeeAdvances = [];
 
   bool _loading = true;
   bool _saving = false;
@@ -66,6 +70,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
 
   bool _useAutoLoanInstallment = true;
   bool _skipLoanInstallmentThisMonth = false;
+  bool _useAutoAdvances = true;
   bool _useAutoOtherBenefits = true;
   bool _useAutoShiftWork = false;
   bool _useAutoHourlyBenefits = true;
@@ -97,17 +102,13 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         }
       }
       if (_selectedEmployee != null && _selectedEmployee!.id != null) {
-        _employeeLoans = await _loanService.getActiveLoansForEmployee(
-          _selectedEmployee!.id!,
-        );
+        await _loadEmployeeDeductions(_selectedEmployee!.id!);
       }
       _applyRecordToInputs(_editRecord!, notify: false);
     } else if (widget.initialEmployee != null) {
       _selectedEmployee = widget.initialEmployee;
       if (_selectedEmployee!.id != null) {
-        _employeeLoans = await _loanService.getActiveLoansForEmployee(
-          _selectedEmployee!.id!,
-        );
+        await _loadEmployeeDeductions(_selectedEmployee!.id!);
       }
       _resetInputs(notify: false);
     }
@@ -118,15 +119,27 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   Future<void> _onEmployeeChanged(Employee? emp) async {
     setState(() => _selectedEmployee = emp);
     if (emp != null && emp.id != null) {
-      _employeeLoans = await _loanService.getActiveLoansForEmployee(emp.id!);
+      await _loadEmployeeDeductions(emp.id!);
       if (_skipLoanInstallmentThisMonth) {
         _loanInstallment = 0;
       } else if (_useAutoLoanInstallment) {
         _loanInstallment = _activeLoanInstallmentTotal;
       }
+      if (_useAutoAdvances) {
+        _advance = _activeAdvanceTotal;
+      }
       await _checkExistingRecord();
     }
     _calculate();
+  }
+
+  Future<void> _loadEmployeeDeductions(int employeeId) async {
+    _employeeLoans = await _loanService.getActiveLoansForEmployee(employeeId);
+    _employeeAdvances = await _advanceService.getByEmployeeYearMonth(
+      employeeId,
+      _year,
+      _month,
+    );
   }
 
   Future<void> _checkExistingRecord() async {
@@ -168,6 +181,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _insuranceExempt = record.insuranceBase == 0 && record.totalEarnings > 0;
       _taxExempt = record.tax == 0 && record.totalEarnings > 400000000;
       _advance = record.advance;
+      _useAutoAdvances =
+          _employeeAdvances.isNotEmpty && record.advance == _activeAdvanceTotal;
       _otherDeductions = record.otherDeductions;
     }
 
@@ -194,9 +209,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _useAutoLoanInstallment = true;
       _skipLoanInstallmentThisMonth = false;
       _loanInstallment = _activeLoanInstallmentTotal;
+      _useAutoAdvances = _employeeAdvances.isNotEmpty;
       _insuranceExempt = false;
       _taxExempt = false;
-      _advance = 0;
+      _advance = _useAutoAdvances ? _activeAdvanceTotal : 0;
       _otherDeductions = 0;
     }
 
@@ -241,6 +257,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
 
   double get _activeLoanInstallmentTotal =>
       _employeeLoans.fold(0, (s, l) => s + l.installmentAmount);
+
+  double get _activeAdvanceTotal =>
+      _employeeAdvances.fold(0, (sum, advance) => sum + advance.amount);
 
   Future<void> _saveAndShowPayslip({bool deductLoanInstallments = true}) async {
     if (_result == null || _selectedEmployee == null) return;
@@ -336,9 +355,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         ),
       );
       if (!mounted) return;
-      _employeeLoans = await _loanService.getActiveLoansForEmployee(
-        _selectedEmployee!.id!,
-      );
+      await _loadEmployeeDeductions(_selectedEmployee!.id!);
       if (mounted) setState(() {});
     } catch (e) {
       if (!mounted) return;
@@ -544,6 +561,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                           _month = v;
                           _totalDays = PersianDateHelper.daysInMonth(_year, v);
                         });
+                        if (_selectedEmployee?.id != null) {
+                          await _loadEmployeeDeductions(_selectedEmployee!.id!);
+                        }
                         await _checkExistingRecord();
                         _calculate();
                       }
@@ -571,6 +591,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                           _year = v;
                           _totalDays = PersianDateHelper.daysInMonth(v, _month);
                         });
+                        if (_selectedEmployee?.id != null) {
+                          await _loadEmployeeDeductions(_selectedEmployee!.id!);
+                        }
                         await _checkExistingRecord();
                         _calculate();
                       }
@@ -805,6 +828,25 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                   !_skipLoanInstallmentThisMonth)
                 _employeeLoansList(),
               const SizedBox(height: 12),
+              if (_employeeAdvances.isNotEmpty) ...[
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('کسر مساعده‌های ثبت‌شده در این ماه'),
+                  subtitle: Text(
+                    'تعداد مساعده: ${PersianNumberFormatter.toPersian(_employeeAdvances.length.toString())} | جمع: ${PersianNumberFormatter.formatRial(_activeAdvanceTotal, showUnit: true)}',
+                  ),
+                  value: _useAutoAdvances,
+                  onChanged: (value) {
+                    setState(() {
+                      _useAutoAdvances = value;
+                      if (value) _advance = _activeAdvanceTotal;
+                    });
+                    _calculate();
+                  },
+                ),
+                if (_useAutoAdvances) _employeeAdvancesList(),
+                const SizedBox(height: 12),
+              ],
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('عدم شمول بیمه برای این فیش'),
@@ -834,16 +876,19 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               _responsiveRow(
                 isMobile: _isMobile,
                 children: [
-                  PersianNumberField(
-                    label: 'مساعده (ریال)',
-                    isCurrency: true,
-                    prefixIcon: Icons.attach_money_rounded,
-                    initialValue: _advance,
-                    onChanged: (v) {
-                      _advance = v?.toDouble() ?? 0;
-                      _calculate();
-                    },
-                  ),
+                  if (!_useAutoAdvances || _employeeAdvances.isEmpty)
+                    PersianNumberField(
+                      label: 'مساعده (ریال)',
+                      isCurrency: true,
+                      prefixIcon: Icons.attach_money_rounded,
+                      initialValue: _advance,
+                      onChanged: (v) {
+                        _advance = v?.toDouble() ?? 0;
+                        _calculate();
+                      },
+                    )
+                  else
+                    _autoAdvanceSummary(),
                   PersianNumberField(
                     label: 'سایر کسورات / مابه تفاوت',
                     isCurrency: true,
@@ -988,6 +1033,72 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               ),
               const Text(' ریال', style: TextStyle(fontSize: 12)),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _employeeAdvancesList() {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(top: 12),
+      decoration: BoxDecoration(
+        color: scheme.tertiary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: Border.all(color: scheme.tertiary.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'مساعده‌های همین دوره:',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          ..._employeeAdvances.map(
+            (advance) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      PersianNumberFormatter.toPersian(advance.paymentDate),
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
+                  CurrencyText(
+                    advance.amount,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  const Text(' ریال', style: TextStyle(fontSize: 11)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _autoAdvanceSummary() {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      decoration: BoxDecoration(
+        color: scheme.tertiaryContainer.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        border: Border.all(color: scheme.tertiary.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.payments_rounded, color: scheme.tertiary, size: 20),
+          const SizedBox(width: 8),
+          const Expanded(child: Text('مساعده خودکار این ماه')),
+          CurrencyText(
+            _advance,
+            style: const TextStyle(fontWeight: FontWeight.w800),
           ),
         ],
       ),

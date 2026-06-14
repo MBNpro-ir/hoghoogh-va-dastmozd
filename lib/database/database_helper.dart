@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 7;
+  static const int _dbVersion = 8;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -136,6 +136,8 @@ class DatabaseHelper {
     ''');
 
     // جدول فیش‌های حقوق
+    await _createAdvancesTable(db);
+
     await db.execute('''
       CREATE TABLE salary_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -390,6 +392,7 @@ class DatabaseHelper {
       await _addSyncColumns(db, 'loans');
       await _addSyncColumns(db, 'salary_records');
       await _addSyncColumns(db, 'app_settings');
+      await _createAdvancesTable(db);
       await _createSyncIndexes(db);
     }
     if (oldVersion < 7) {
@@ -402,16 +405,40 @@ class DatabaseHelper {
         await _safeAddColumn(db, table, 'server_updated_at TEXT');
       }
     }
+    if (oldVersion < 8) {
+      await _createAdvancesTable(db);
+      await _createSyncIndexes(db);
+    }
+  }
+
+  Future<void> _createAdvancesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS advances (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        payment_date TEXT NOT NULL,
+        notes TEXT,
+        sync_id TEXT UNIQUE,
+        server_updated_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT,
+        sync_state TEXT NOT NULL DEFAULT 'synced',
+        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+      );
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_advances_employee ON advances(employee_id);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_advances_payment_date ON advances(payment_date);',
+    );
   }
 
   Future<void> _addSyncColumns(Database db, String table) async {
     await _safeAddColumn(db, table, 'sync_id TEXT');
     await _safeAddColumn(db, table, 'server_updated_at TEXT');
-    await _safeAddColumn(
-      db,
-      table,
-      'updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP',
-    );
+    await _safeAddColumnWithCurrentTimestampDefault(db, table, 'updated_at');
     await _safeAddColumn(db, table, 'deleted_at TEXT');
     await _safeAddColumn(
       db,
@@ -424,6 +451,7 @@ class DatabaseHelper {
     for (final table in [
       'employees',
       'loans',
+      'advances',
       'salary_records',
       'app_settings',
     ]) {
@@ -451,6 +479,15 @@ class DatabaseHelper {
         rethrow;
       }
     }
+  }
+
+  Future<void> _safeAddColumnWithCurrentTimestampDefault(
+    Database db,
+    String table,
+    String column,
+  ) async {
+    final now = DateTime.now().toIso8601String().replaceAll("'", "''");
+    await _safeAddColumn(db, table, "$column TEXT NOT NULL DEFAULT '$now'");
   }
 
   Future<void> close() async {

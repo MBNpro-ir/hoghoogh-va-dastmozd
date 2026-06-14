@@ -180,6 +180,33 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     return values.contains(value) ? value : '';
   }
 
+  String _formatSalaryRate(double value) {
+    final formatted = value
+        .toStringAsFixed(2)
+        .replaceFirst(RegExp(r'\.?0+$'), '');
+    return PersianNumberFormatter.toPersian(formatted);
+  }
+
+  List<DropdownMenuItem<double>> _salaryRateItems() {
+    final settings = _settings;
+    if (settings == null) return const [];
+
+    final entries = <double, List<String>>{};
+    entries.putIfAbsent(settings.salaryRateA, () => []).add('کارگری');
+    entries.putIfAbsent(settings.salaryRateB, () => []).add('سایر');
+
+    return entries.entries
+        .map(
+          (entry) => DropdownMenuItem<double>(
+            value: entry.key,
+            child: Text(
+              '${_formatSalaryRate(entry.key)} (${entry.value.join(' / ')})',
+            ),
+          ),
+        )
+        .toList();
+  }
+
   String get _startDateEnglish =>
       PersianNumberFormatter.toEnglish(_startDateCtrl.text.trim());
 
@@ -903,15 +930,16 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 0 : 12),
-      child: Row(
-        mainAxisAlignment: isMobile
-            ? MainAxisAlignment.start
-            : MainAxisAlignment.center,
+      child: Wrap(
+        alignment: isMobile ? WrapAlignment.start : WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: isMobile ? 2 : 6,
+        runSpacing: 4,
         children: [
           Icon(Icons.child_care_rounded, color: scheme.tertiary, size: 20),
-          const SizedBox(width: 6),
           const Text('فرزند:', style: TextStyle(fontSize: 14)),
           IconButton(
+            visualDensity: VisualDensity.compact,
             onPressed: _childrenCount > 0
                 ? () {
                     _childrenCount--;
@@ -921,7 +949,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             icon: const Icon(Icons.remove_circle_outline_rounded),
           ),
           SizedBox(
-            width: 32,
+            width: 28,
             child: Text(
               PersianNumberFormatter.toPersian(_childrenCount.toString()),
               textAlign: TextAlign.center,
@@ -929,6 +957,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             ),
           ),
           IconButton(
+            visualDensity: VisualDensity.compact,
             onPressed: () {
               _childrenCount++;
               _autoCalculate1405();
@@ -941,6 +970,12 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   }
 
   Widget _buildSalarySection(BuildContext context, bool isMobile) {
+    final salaryRateItems = _salaryRateItems();
+    final selectedRate =
+        salaryRateItems.any((item) => item.value == _selectedRate)
+        ? _selectedRate
+        : salaryRateItems.firstOrNull?.value;
+
     return _buildSection(
       context: context,
       title: 'محاسبه دستمزد ۱۴۰۵',
@@ -985,21 +1020,8 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<double>(
                   isExpanded: true,
-                  value: _selectedRate,
-                  items: [
-                    DropdownMenuItem(
-                      value: _settings!.salaryRateA,
-                      child: Text(
-                        '${PersianNumberFormatter.toPersian(_settings!.salaryRateA.toString())} (کارگری)',
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: _settings!.salaryRateB,
-                      child: Text(
-                        '${PersianNumberFormatter.toPersian(_settings!.salaryRateB.toString())} (سایر)',
-                      ),
-                    ),
-                  ],
+                  value: selectedRate,
+                  items: salaryRateItems,
                   onChanged: (value) {
                     if (value == null) return;
                     _selectedRate = value;

@@ -103,6 +103,9 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
                               controller: _usernameController,
                               label: 'نام کاربری',
                               prefixIcon: Icons.person_outline_rounded,
+                              textInputAction: TextInputAction.next,
+                              onFieldSubmitted: (_) =>
+                                  _passwordFocus.requestFocus(),
                               autofillHints: const [AutofillHints.username],
                               validator: (v) => v == null || v.trim().isEmpty
                                   ? 'نام کاربری الزامی است'
@@ -115,6 +118,10 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
                               label: 'رمز عبور سرور',
                               prefixIcon: Icons.lock_outline_rounded,
                               obscureText: true,
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) {
+                                if (!_loading) _login();
+                              },
                               autofillHints: const [AutofillHints.password],
                               validator: (v) => v == null || v.isEmpty
                                   ? 'رمز عبور الزامی است'
@@ -201,6 +208,8 @@ class _TapField extends StatefulWidget {
   final Iterable<String>? autofillHints;
   final bool obscureText;
   final String? Function(String?)? validator;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onFieldSubmitted;
 
   const _TapField({
     required this.focusNode,
@@ -210,6 +219,8 @@ class _TapField extends StatefulWidget {
     this.autofillHints,
     this.obscureText = false,
     this.validator,
+    this.textInputAction,
+    this.onFieldSubmitted,
   });
 
   @override
@@ -256,6 +267,8 @@ class _TapFieldState extends State<_TapField> {
       obscureText: widget.obscureText,
       autofillHints: widget.autofillHints,
       validator: widget.validator,
+      textInputAction: widget.textInputAction,
+      onFieldSubmitted: widget.onFieldSubmitted,
       textDirection: _direction,
       textAlign: _direction == TextDirection.rtl
           ? TextAlign.right
@@ -292,15 +305,13 @@ class _Logo extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      width: 78,
-      height: 78,
+      width: 118,
+      height: 86,
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [scheme.primary, scheme.tertiary],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        borderRadius: BorderRadius.circular(24),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.outlineVariant),
         boxShadow: [
           BoxShadow(
             color: scheme.primary.withValues(alpha: 0.28),
@@ -309,10 +320,13 @@ class _Logo extends StatelessWidget {
           ),
         ],
       ),
-      child: const Icon(
-        Icons.shield_moon_rounded,
-        size: 42,
-        color: Colors.white,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.asset(
+          'assets/logo.png',
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
       ),
     );
   }

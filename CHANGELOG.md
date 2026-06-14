@@ -4,6 +4,26 @@
 
 ---
 
+## [0.3.0-alpha] — 1405/03/24 (2026-06-14)
+
+### Features
+- Added employee advance payments with create/edit/list support and server sync.
+- Added automatic same-period advance deduction in salary calculation with a manual override.
+- Added batch payroll operations for selecting year, month, employees, and exporting/printing grouped outputs.
+- Limited Android/mobile bottom navigation to Dashboard, Employees, Calculation, and Payslips.
+- Added Windows close behavior options, tray support, and settings for remembering close behavior.
+
+### Fixes
+- Login now submits with Enter on Windows.
+- Fixed the salary-rate dropdown value formatting issue.
+- Fixed a small RenderFlex overflow in the employee form.
+
+### Branding
+- Updated application version display to `0.3.0 alpha`.
+- Replaced app/login/tray/launcher branding with the new HvM logo.
+
+---
+
 ## 🏷 [0.2.0-alpha] — ۱۴۰۵/۰۳/۲۳ (۲۰۲۶-۰۶-۱۲)
 
 ### ✨ ویژگی‌های جدید

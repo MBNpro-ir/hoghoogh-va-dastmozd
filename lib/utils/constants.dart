@@ -8,6 +8,7 @@ class AppConstants {
   /// ورژن برنامه - فقط از pubspec.yaml خوانده می‌شود.
   /// برای تغییر ورژن، فقط فایل pubspec.yaml را ویرایش کنید.
   static String get appVersion {
+    const fallback = '0.3.0 alpha';
     try {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       final match = RegExp(
@@ -16,11 +17,10 @@ class AppConstants {
       ).firstMatch(pubspec);
       if (match != null) {
         final raw = match.group(1)!.trim();
-        // تبدیل "0.0.4-alpha+4" به "0.0.4 alpha"
-        return raw.split('+').first.trim().replaceAll('-', '.');
+        return raw.split('+').first.trim().replaceAll('-', ' ');
       }
     } catch (_) {}
-    return 'dev';
+    return fallback;
   }
 
   // سال محاسبات

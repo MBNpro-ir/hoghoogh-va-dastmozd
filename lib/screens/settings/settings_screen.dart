@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -15,6 +16,7 @@ import '../../services/settings_service.dart';
 import '../../services/api_client.dart';
 import '../../services/local_security_service.dart';
 import '../../services/sync_service.dart';
+import '../../services/window_close_service.dart';
 import '../auth/local_unlock_setup_screen.dart';
 import '../auth/server_login_screen.dart';
 import '../../theme/app_theme.dart';
@@ -43,6 +45,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   LocalCredentialMethod? _localMethod;
   bool _hasLocalCredential = false;
   bool _biometricEnabled = false;
+  WindowCloseBehavior _closeBehavior = WindowCloseBehavior.ask;
 
   AppSettings? _settings;
   bool _loading = true;
@@ -132,6 +135,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _hasLocalCredential = await _security.hasCredential();
     _localMethod = await _security.getMethod();
     _biometricEnabled = await _security.biometricsEnabled();
+    if (Platform.isWindows) {
+      _closeBehavior = await WindowClosePreferences.getBehavior();
+    }
     if (mounted) setState(() => _loading = false);
   }
 
@@ -532,6 +538,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _localMethod = null;
       _biometricEnabled = false;
     });
+  }
+
+  Future<void> _setCloseBehavior(WindowCloseBehavior behavior) async {
+    await WindowClosePreferences.setBehavior(behavior);
+    if (!mounted) return;
+    setState(() => _closeBehavior = behavior);
   }
 
   Future<void> _changeServerAccount() async {
@@ -984,6 +996,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    if (Platform.isWindows) ...[
+                      FadeInUp(
+                        delay: const Duration(milliseconds: 630),
+                        child: _WindowCloseSection(
+                          selected: _closeBehavior,
+                          onChanged: _setCloseBehavior,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     FadeInUp(
                       delay: const Duration(milliseconds: 660),
                       child: const _ColorSection(),
@@ -1787,6 +1809,77 @@ class _SecurityTile extends StatelessWidget {
 }
 
 // -------- بخش رنگ --------
+class _WindowCloseSection extends StatelessWidget {
+  final WindowCloseBehavior selected;
+  final ValueChanged<WindowCloseBehavior> onChanged;
+
+  const _WindowCloseSection({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.system_security_update_good_rounded,
+                    color: scheme.primary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'رفتار بستن پنجره ویندوز',
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            RadioGroup<WindowCloseBehavior>(
+              groupValue: selected,
+              onChanged: (value) {
+                if (value != null) onChanged(value);
+              },
+              child: Column(
+                children: [
+                  for (final behavior in WindowCloseBehavior.values)
+                    RadioListTile<WindowCloseBehavior>(
+                      value: behavior,
+                      title: Text(behavior.label),
+                      subtitle: Text(behavior.description),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ColorSection extends StatelessWidget {
   const _ColorSection();
 
