@@ -176,11 +176,7 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
       sortValue: (advance) => _employeesMap[advance.employeeId]?.fullName ?? '',
       cellBuilder: (advance) {
         final employee = _employeesMap[advance.employeeId];
-        return Text(
-          employee == null
-              ? '—'
-              : '${employee.fullName} (${PersianNumberFormatter.toPersian(employee.personnelCode.toString())})',
-        );
+        return Text(employee?.fullName ?? '—');
       },
     ),
     ResponsiveTableColumn(

@@ -18,11 +18,21 @@ import 'services/sync_service.dart';
 import 'services/window_close_service.dart';
 import 'utils/constants.dart';
 import 'utils/responsive.dart';
+import 'widgets/windows_window_frame.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
+    await windowManager.waitUntilReadyToShow(
+      const WindowOptions(
+        title: AppConstants.appName,
+        minimumSize: Size(960, 640),
+        skipTaskbar: false,
+        titleBarStyle: TitleBarStyle.hidden,
+        windowButtonVisibility: false,
+      ),
+    );
   }
   HttpOverrides.global = _TrustedServerHttpOverrides();
   await DatabaseHelper.init();
@@ -33,12 +43,24 @@ Future<void> main() async {
       create: (_) => LocalSecurityService(),
       child: ChangeNotifierProvider(
         create: (_) => ThemeController()..initialize(),
-        child: const AppLifecycleObserver(
-          child: DesktopWindowCloseHost(child: PayrollApp()),
-        ),
+        child: const AppLifecycleObserver(child: _RootAppHost()),
       ),
     ),
   );
+}
+
+class _RootAppHost extends StatelessWidget {
+  const _RootAppHost();
+
+  static final navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  Widget build(BuildContext context) {
+    return DesktopWindowCloseHost(
+      navigatorKey: navigatorKey,
+      child: PayrollApp(navigatorKey: navigatorKey),
+    );
+  }
 }
 
 class BootScreen extends StatefulWidget {
@@ -79,7 +101,9 @@ class _BootScreenState extends State<BootScreen> {
 }
 
 class PayrollApp extends StatelessWidget {
-  const PayrollApp({super.key});
+  final GlobalKey<NavigatorState> navigatorKey;
+
+  const PayrollApp({super.key, required this.navigatorKey});
 
   @override
   Widget build(BuildContext context) {
@@ -92,6 +116,7 @@ class PayrollApp extends StatelessWidget {
             });
 
             return MaterialApp(
+              navigatorKey: navigatorKey,
               title: AppConstants.appName,
               debugShowCheckedModeBanner: false,
               themeMode: themeController.themeMode,
@@ -113,6 +138,10 @@ class PayrollApp extends StatelessWidget {
                     (isAndroid && mq.size.width < Responsive.compact)
                     ? baseScale * 0.92
                     : baseScale;
+                final directedChild = Directionality(
+                  textDirection: TextDirection.rtl,
+                  child: child!,
+                );
                 return MediaQuery(
                   data: mq.copyWith(
                     textScaler: TextScaler.linear(
@@ -120,10 +149,9 @@ class PayrollApp extends StatelessWidget {
                     ),
                     disableAnimations: themeController.reduceMotion,
                   ),
-                  child: Directionality(
-                    textDirection: TextDirection.rtl,
-                    child: child!,
-                  ),
+                  child: Platform.isWindows
+                      ? WindowsWindowFrame(child: directedChild)
+                      : directedChild,
                 );
               },
               home: const BootScreen(),

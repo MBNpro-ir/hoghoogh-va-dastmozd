@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -44,8 +45,13 @@ extension WindowCloseBehaviorLabel on WindowCloseBehavior {
 
 class DesktopWindowCloseHost extends StatefulWidget {
   final Widget child;
+  final GlobalKey<NavigatorState> navigatorKey;
 
-  const DesktopWindowCloseHost({super.key, required this.child});
+  const DesktopWindowCloseHost({
+    super.key,
+    required this.child,
+    required this.navigatorKey,
+  });
 
   @override
   State<DesktopWindowCloseHost> createState() => _DesktopWindowCloseHostState();
@@ -54,6 +60,7 @@ class DesktopWindowCloseHost extends StatefulWidget {
 class _DesktopWindowCloseHostState extends State<DesktopWindowCloseHost>
     with WindowListener, TrayListener {
   bool _forceExit = false;
+  bool _handlingClose = false;
 
   @override
   void initState() {
@@ -61,7 +68,7 @@ class _DesktopWindowCloseHostState extends State<DesktopWindowCloseHost>
     if (Platform.isWindows) {
       windowManager.addListener(this);
       trayManager.addListener(this);
-      _initDesktopWindow();
+      unawaited(_initDesktopWindow());
     }
   }
 
@@ -86,9 +93,9 @@ class _DesktopWindowCloseHostState extends State<DesktopWindowCloseHost>
     await trayManager.setContextMenu(
       Menu(
         items: [
-          MenuItem(key: 'open', label: 'Open'),
+          MenuItem(key: 'open', label: 'باز کردن'),
           MenuItem.separator(),
-          MenuItem(key: 'close', label: 'Close'),
+          MenuItem(key: 'close', label: 'بستن کامل'),
         ],
       ),
     );
@@ -107,29 +114,43 @@ class _DesktopWindowCloseHostState extends State<DesktopWindowCloseHost>
   }
 
   @override
-  Future<void> onWindowClose() async {
-    if (_forceExit) return;
-    final behavior = await WindowClosePreferences.getBehavior();
-    switch (behavior) {
-      case WindowCloseBehavior.exit:
-        await _exitApp();
-        return;
-      case WindowCloseBehavior.minimizeToTray:
-        await _hideToTray();
-        return;
-      case WindowCloseBehavior.ask:
-        if (!mounted) return;
-        final decision = await _askCloseBehavior(context);
-        if (decision == null) return;
-        if (decision.remember) {
-          await WindowClosePreferences.setBehavior(decision.behavior);
-        }
-        if (decision.behavior == WindowCloseBehavior.exit) {
+  void onWindowClose() {
+    unawaited(_handleWindowClose());
+  }
+
+  Future<void> _handleWindowClose() async {
+    if (_forceExit || _handlingClose) return;
+    _handlingClose = true;
+    try {
+      final behavior = await WindowClosePreferences.getBehavior();
+      switch (behavior) {
+        case WindowCloseBehavior.exit:
           await _exitApp();
-        } else {
+          return;
+        case WindowCloseBehavior.minimizeToTray:
           await _hideToTray();
-        }
-        return;
+          return;
+        case WindowCloseBehavior.ask:
+          final dialogContext =
+              widget.navigatorKey.currentState?.overlay?.context ??
+              widget.navigatorKey.currentContext;
+          if (dialogContext == null || !dialogContext.mounted || !mounted) {
+            return;
+          }
+          final decision = await _askCloseBehavior(dialogContext);
+          if (decision == null) return;
+          if (decision.remember) {
+            await WindowClosePreferences.setBehavior(decision.behavior);
+          }
+          if (decision.behavior == WindowCloseBehavior.exit) {
+            await _exitApp();
+          } else {
+            await _hideToTray();
+          }
+          return;
+      }
+    } finally {
+      _handlingClose = false;
     }
   }
 
@@ -144,29 +165,39 @@ class _DesktopWindowCloseHostState extends State<DesktopWindowCloseHost>
   }
 
   Future<void> _exitApp() async {
+    if (_forceExit) return;
     _forceExit = true;
-    await trayManager.destroy();
-    await windowManager.destroy();
+    try {
+      await windowManager.setPreventClose(false);
+    } catch (_) {}
+    try {
+      await trayManager.destroy();
+    } catch (_) {}
+    try {
+      await windowManager.close();
+    } catch (_) {
+      await windowManager.destroy();
+    }
   }
 
   @override
   void onTrayIconMouseDown() {
-    _showWindow();
+    unawaited(_showWindow());
   }
 
   @override
   void onTrayIconRightMouseDown() {
-    trayManager.popUpContextMenu();
+    unawaited(trayManager.popUpContextMenu());
   }
 
   @override
   void onTrayMenuItemClick(MenuItem menuItem) {
     switch (menuItem.key) {
       case 'open':
-        _showWindow();
+        unawaited(_showWindow());
         return;
       case 'close':
-        _exitApp();
+        unawaited(_exitApp());
         return;
     }
   }
