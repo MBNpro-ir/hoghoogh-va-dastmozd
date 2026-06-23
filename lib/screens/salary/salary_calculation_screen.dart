@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 import '../../models/app_settings.dart';
 import '../../models/advance_payment.dart';
 import '../../models/employee.dart';
+import '../../models/employee_leave.dart';
 import '../../models/loan.dart';
 import '../../models/salary_draft.dart';
 import '../../models/salary_record.dart';
 import '../../services/advance_service.dart';
 import '../../services/employee_service.dart';
+import '../../services/employee_leave_service.dart';
 import '../../services/loan_service.dart';
 import '../../services/salary_calculator.dart';
 import '../../services/salary_draft_service.dart';
@@ -18,6 +20,7 @@ import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
+import '../../utils/app_error_message.dart';
 import '../../utils/responsive.dart';
 import '../../utils/gradient_helpers.dart';
 import '../../widgets/currency_text.dart';
@@ -46,6 +49,7 @@ class SalaryCalculationScreen extends StatefulWidget {
 
 class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   final _employeeService = EmployeeService();
+  final _leaveService = EmployeeLeaveService();
   final _loanService = LoanService();
   final _advanceService = AdvanceService();
   final _salaryService = SalaryService();
@@ -55,6 +59,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   List<Employee> _employees = [];
   Employee? _selectedEmployee;
   AppSettings? _settings;
+  List<EmployeeLeave> _employeeLeaves = [];
   List<Loan> _employeeLoans = [];
   List<AdvancePayment> _employeeAdvances = [];
 
@@ -87,6 +92,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   bool _includeLeaveInPayslip = true;
   bool _insuranceExempt = false;
   bool _taxExempt = false;
+  bool _housingExempt = false;
+  bool _foodExempt = false;
+  bool _seniorityExempt = false;
   bool _restoringInputs = false;
   int _restoreGeneration = 0;
   Timer? _draftSaveTimer;
@@ -122,14 +130,17 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       }
       _applyRecordToInputs(_editRecord!, notify: false);
     } else if (widget.initialEmployee != null) {
-      _selectedEmployee = widget.initialEmployee;
+      _selectedEmployee = _employees.cast<Employee?>().firstWhere(
+        (employee) => employee?.id == widget.initialEmployee!.id,
+        orElse: () => null,
+      );
       if (_selectedEmployee!.id != null) {
         await _loadEmployeeDeductions(_selectedEmployee!.id!);
       }
       await _checkExistingRecord(notify: false);
     }
     if (mounted) setState(() => _loading = false);
-    _calculate();
+    _calculate(saveDraft: false);
   }
 
   Future<void> _onEmployeeChanged(Employee? emp) async {
@@ -146,7 +157,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       }
       await _checkExistingRecord();
     }
-    _calculate();
+    _calculate(saveDraft: false);
   }
 
   Future<void> _onMonthChanged(int month) async {
@@ -158,7 +169,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       await _loadEmployeeDeductions(_selectedEmployee!.id!);
     }
     await _checkExistingRecord();
-    _calculate();
+    _calculate(saveDraft: false);
   }
 
   Future<void> _onYearChanged(int year) async {
@@ -171,12 +182,17 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       await _loadEmployeeDeductions(_selectedEmployee!.id!);
     }
     await _checkExistingRecord();
-    _calculate();
+    _calculate(saveDraft: false);
   }
 
   Future<void> _loadEmployeeDeductions(int employeeId) async {
     _employeeLoans = await _loanService.getActiveLoansForEmployee(employeeId);
     _employeeAdvances = await _advanceService.getByEmployeeYearMonth(
+      employeeId,
+      _year,
+      _month,
+    );
+    _employeeLeaves = await _leaveService.getApprovedByEmployeeYearMonth(
       employeeId,
       _year,
       _month,
@@ -244,10 +260,12 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           : previousRecord.year * 100 + previousRecord.month;
       if (previousDraft != null && draftPeriod >= recordPeriod) {
         _applyDraftToInputs(previousDraft, notify: notify);
+        _applyMonthlyLeaveRecordsToInputs(notify: notify);
         return;
       }
       if (previousRecord != null) {
         _applyRecordToInputs(previousRecord, notify: notify);
+        _applyMonthlyLeaveRecordsToInputs(notify: notify);
         return;
       }
       _resetInputs(notify: notify);
@@ -284,6 +302,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _includeLeaveInPayslip = record.includeLeaveInPayslip;
       _insuranceExempt = record.insuranceBase == 0 && record.totalEarnings > 0;
       _taxExempt = record.tax == 0 && record.totalEarnings > 400000000;
+      _housingExempt = record.housingExempt;
+      _foodExempt = record.foodExempt;
+      _seniorityExempt = record.seniorityExempt;
       _advance = record.advance;
       _useAutoAdvances =
           _employeeAdvances.isNotEmpty && record.advance == _activeAdvanceTotal;
@@ -321,6 +342,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _includeLeaveInPayslip = draft.includeLeaveInPayslip;
       _insuranceExempt = draft.insuranceExempt;
       _taxExempt = draft.taxExempt;
+      _housingExempt = draft.housingExempt;
+      _foodExempt = draft.foodExempt;
+      _seniorityExempt = draft.seniorityExempt;
     }
 
     if (notify && mounted) {
@@ -333,8 +357,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   void _resetInputs({bool notify = true}) {
     void apply() {
       _totalDays = PersianDateHelper.daysInMonth(_year, _month);
-      _leaveDays = 0;
-      _sickLeaveDays = 0;
+      _leaveDays = _activeAnnualLeaveDays;
+      _sickLeaveDays = _activeSickLeaveDays;
       _overtimeHours = 0;
       _useCustomOvertimeBase =
           _selectedEmployee?.useCustomOvertimeBase ?? false;
@@ -353,6 +377,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _useAutoAdvances = _employeeAdvances.isNotEmpty;
       _insuranceExempt = false;
       _taxExempt = false;
+      _housingExempt = false;
+      _foodExempt = false;
+      _seniorityExempt = false;
       _advance = _useAutoAdvances ? _activeAdvanceTotal : 0;
       _otherDeductions = 0;
     }
@@ -364,7 +391,20 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     }
   }
 
-  void _calculate() {
+  void _applyMonthlyLeaveRecordsToInputs({bool notify = true}) {
+    void apply() {
+      _leaveDays = _activeAnnualLeaveDays;
+      _sickLeaveDays = _activeSickLeaveDays;
+    }
+
+    if (notify && mounted) {
+      setState(apply);
+    } else {
+      apply();
+    }
+  }
+
+  void _calculate({bool saveDraft = true}) {
     if (_selectedEmployee == null || _settings == null) {
       setState(() => _result = null);
       return;
@@ -384,6 +424,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       includeLeaveInPayslip: _includeLeaveInPayslip,
       insuranceExempt: _insuranceExempt,
       taxExempt: _taxExempt,
+      housingExempt: _housingExempt,
+      foodExempt: _foodExempt,
+      seniorityExempt: _seniorityExempt,
       otherBenefitsOverride: _useAutoOtherBenefits
           ? -1
           : _otherBenefitsOverride,
@@ -397,7 +440,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       input: input,
     );
     setState(() => _result = result);
-    _scheduleDraftSave();
+    if (saveDraft) _scheduleDraftSave();
   }
 
   void _scheduleDraftSave() {
@@ -436,9 +479,12 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       includeLeaveInPayslip: _includeLeaveInPayslip,
       insuranceExempt: _insuranceExempt,
       taxExempt: _taxExempt,
+      housingExempt: _housingExempt,
+      foodExempt: _foodExempt,
+      seniorityExempt: _seniorityExempt,
     );
     try {
-      await _salaryDraftService.upsert(draft);
+      await _salaryDraftService.upsert(draft, scheduleSync: false);
     } catch (_) {
       // Draft saving is best-effort and must not interrupt salary entry.
     }
@@ -455,6 +501,16 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
 
   double get _activeAdvanceTotal =>
       _employeeAdvances.fold(0, (sum, advance) => sum + advance.amount);
+
+  double get _activeAnnualLeaveDays => _employeeLeaves.fold(
+    0,
+    (sum, leave) => leave.isSick ? sum : sum + leave.days,
+  );
+
+  double get _activeSickLeaveDays => _employeeLeaves.fold(
+    0,
+    (sum, leave) => leave.isSick ? sum + leave.days : sum,
+  );
 
   double get _workDays => (_totalDays - _leaveDays - _sickLeaveDays).clamp(
     0.0,
@@ -487,6 +543,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   }
 
   Future<void> _saveAndShowPayslip({bool deductLoanInstallments = true}) async {
+    if (_saving) return;
     if (_result == null || _selectedEmployee == null) return;
     if (!_validateAttendance()) return;
     if (_useCustomOvertimeBase && _overtimeBaseDaily <= 0) {
@@ -526,6 +583,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       overtimeHours: _overtimeHours,
       hourlyBenefitHours: _useAutoHourlyBenefits ? _hourlyBenefitHours : 0,
       includeLeaveInPayslip: _includeLeaveInPayslip,
+      housingExempt: _housingExempt,
+      foodExempt: _foodExempt,
+      seniorityExempt: _seniorityExempt,
     );
 
     try {
@@ -596,7 +656,16 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       if (!mounted) return;
       final scheme = Theme.of(context).colorScheme;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطا: $e'), backgroundColor: scheme.error),
+        SnackBar(
+          content: Text(
+            AppErrorMessage.from(
+              e,
+              fallback:
+                  'ذخیره فیش انجام نشد. اطلاعات را بررسی و دوباره تلاش کنید.',
+            ),
+          ),
+          backgroundColor: scheme.error,
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -748,6 +817,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                             ? _hourlyBenefitHours
                             : 0,
                         includeLeaveInPayslip: _includeLeaveInPayslip,
+                        housingExempt: _housingExempt,
+                        foodExempt: _foodExempt,
+                        seniorityExempt: _seniorityExempt,
                       );
                       Navigator.push(
                         context,
@@ -965,111 +1037,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                   ),
                 ),
               const SizedBox(height: 12),
-              _responsiveRow(
-                isMobile: _isMobile,
-                children: [
-                  PersianNumberField(
-                    label: 'ساعت اضافه‌کاری',
-                    prefixIcon: Icons.timer_rounded,
-                    initialValue: _overtimeHours,
-                    onChanged: (v) {
-                      _overtimeHours = v?.toDouble() ?? 0;
-                      _calculate();
-                    },
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('نوبت‌کاری خودکار'),
-                    subtitle: const Text('۱۵٪ حقوق ثابت'),
-                    value: _useAutoShiftWork,
-                    onChanged: _onAutoShiftWorkChanged,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('مبنای دستی اضافه‌کاری'),
-                subtitle: const Text(
-                  'فرمول: مبنای روزانه ÷ ۷.۳۳ × ۱.۴ × ساعت اضافه‌کاری',
-                ),
-                value: _useCustomOvertimeBase,
-                onChanged: (value) {
-                  setState(() {
-                    _useCustomOvertimeBase = value;
-                    if (value && _overtimeBaseDaily <= 0) {
-                      _overtimeBaseDaily =
-                          _selectedEmployee?.dailyWage1405 ?? 0;
-                    }
-                  });
-                  _calculate();
-                },
-              ),
-              if (_useCustomOvertimeBase) ...[
-                PersianNumberField(
-                  label: 'مبنای روزانه اضافه‌کاری (ریال)',
-                  isCurrency: true,
-                  prefixIcon: Icons.calculate_rounded,
-                  initialValue: _overtimeBaseDaily,
-                  onChanged: (value) {
-                    _overtimeBaseDaily = value?.toDouble() ?? 0;
-                    _calculate();
-                  },
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (!_useAutoShiftWork)
-                PersianNumberField(
-                  label: 'مبلغ نوبت‌کاری (ریال)',
-                  isCurrency: true,
-                  prefixIcon: Icons.nightlight_round,
-                  initialValue: _shiftWork,
-                  onChanged: (v) {
-                    _shiftWork = v?.toDouble() ?? 0;
-                    _calculate();
-                  },
-                ),
-              if (!_useAutoShiftWork) const SizedBox(height: 12),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('محاسبه خودکار مزایای ساعتی'),
-                subtitle: Text(
-                  _selectedEmployee == null
-                      ? 'بعد از انتخاب کارمند، ساعت قرارداد خوانده می‌شود'
-                      : 'فرمول: دستمزد روزانه / ۷.۳۳ × ۱.۴ × ساعت',
-                ),
-                value: _useAutoHourlyBenefits,
-                onChanged: (v) {
-                  if (v && _hourlyBenefitHours == 0) {
-                    _hourlyBenefitHours =
-                        _selectedEmployee?.hourlyBenefits ?? 0;
-                  }
-                  setState(() => _useAutoHourlyBenefits = v);
-                  _calculate();
-                },
-              ),
-              if (_useAutoHourlyBenefits)
-                PersianNumberField(
-                  label: 'ساعت مزایای ساعتی',
-                  prefixIcon: Icons.access_time_filled_rounded,
-                  suffix: 'ساعت',
-                  initialValue: _hourlyBenefitHours,
-                  onChanged: (v) {
-                    _hourlyBenefitHours = v?.toDouble() ?? 0;
-                    _calculate();
-                  },
-                )
-              else
-                PersianNumberField(
-                  label: 'مزایای ساعتی (مبلغ دستی)',
-                  isCurrency: true,
-                  prefixIcon: Icons.access_time_filled_rounded,
-                  initialValue: _hourlyBenefitsAmount,
-                  onChanged: (v) {
-                    _hourlyBenefitsAmount = v?.toDouble() ?? 0;
-                    _calculate();
-                  },
-                ),
+              _buildTimeEarningsControls(),
             ],
           ),
           _buildSection(
@@ -1101,6 +1069,51 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                     _calculate();
                   },
                 ),
+            ],
+          ),
+          _buildSection(
+            context: context,
+            title: 'معافیت مزایای ثابت',
+            icon: Icons.block_rounded,
+            accent: Theme.of(context).colorScheme.primary,
+            children: [
+              Text(
+                'این گزینه‌ها فقط مبلغ همان ردیف را برای این فیش صفر می‌کنند و نتیجه در جمع حقوق، بیمه، مالیات و فیش ذخیره‌شده لحاظ می‌شود.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('معاف از حق مسکن'),
+                subtitle: const Text('حق مسکن این فیش صفر محاسبه شود'),
+                value: _housingExempt,
+                onChanged: (v) {
+                  setState(() => _housingExempt = v);
+                  _calculate();
+                },
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('معاف از حق خواروبار (بن)'),
+                subtitle: const Text('حق خواروبار این فیش صفر محاسبه شود'),
+                value: _foodExempt,
+                onChanged: (v) {
+                  setState(() => _foodExempt = v);
+                  _calculate();
+                },
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('معاف از پایه سنوات'),
+                subtitle: const Text('پایه سنوات این فیش صفر محاسبه شود'),
+                value: _seniorityExempt,
+                onChanged: (v) {
+                  setState(() => _seniorityExempt = v);
+                  _calculate();
+                },
+              ),
             ],
           ),
           _buildSection(
@@ -1310,6 +1323,169 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
             style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTimeEarningsControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _timeEarningsPanel(
+          title: 'اضافه‌کاری',
+          icon: Icons.timer_rounded,
+          children: [
+            PersianNumberField(
+              label: 'ساعت اضافه‌کاری',
+              prefixIcon: Icons.timer_rounded,
+              initialValue: _overtimeHours,
+              onChanged: (v) {
+                _overtimeHours = v?.toDouble() ?? 0;
+                _calculate();
+              },
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('مبنای دستی اضافه‌کاری'),
+              subtitle: const Text(
+                'فرمول: مبنای روزانه ÷ ۷.۳۳ × ۱.۴ × ساعت اضافه‌کاری',
+              ),
+              value: _useCustomOvertimeBase,
+              onChanged: (value) {
+                setState(() {
+                  _useCustomOvertimeBase = value;
+                  if (value && _overtimeBaseDaily <= 0) {
+                    _overtimeBaseDaily = _selectedEmployee?.dailyWage1405 ?? 0;
+                  }
+                });
+                _calculate();
+              },
+            ),
+            if (_useCustomOvertimeBase)
+              PersianNumberField(
+                label: 'مبنای روزانه اضافه‌کاری (ریال)',
+                isCurrency: true,
+                prefixIcon: Icons.calculate_rounded,
+                initialValue: _overtimeBaseDaily,
+                onChanged: (value) {
+                  _overtimeBaseDaily = value?.toDouble() ?? 0;
+                  _calculate();
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _timeEarningsPanel(
+          title: 'نوبت‌کاری',
+          icon: Icons.nightlight_round,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('نوبت‌کاری خودکار'),
+              subtitle: const Text('۱۵٪ حقوق ثابت'),
+              value: _useAutoShiftWork,
+              onChanged: _onAutoShiftWorkChanged,
+            ),
+            if (!_useAutoShiftWork)
+              PersianNumberField(
+                label: 'مبلغ نوبت‌کاری (ریال)',
+                isCurrency: true,
+                prefixIcon: Icons.nightlight_round,
+                initialValue: _shiftWork,
+                onChanged: (v) {
+                  _shiftWork = v?.toDouble() ?? 0;
+                  _calculate();
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _timeEarningsPanel(
+          title: 'مزایای ساعتی',
+          icon: Icons.access_time_filled_rounded,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('محاسبه خودکار مزایای ساعتی'),
+              subtitle: Text(
+                _selectedEmployee == null
+                    ? 'بعد از انتخاب کارمند، ساعت قرارداد خوانده می‌شود'
+                    : 'فرمول: دستمزد روزانه / ۷.۳۳ × ۱.۴ × ساعت',
+              ),
+              value: _useAutoHourlyBenefits,
+              onChanged: (v) {
+                if (v && _hourlyBenefitHours == 0) {
+                  _hourlyBenefitHours = _selectedEmployee?.hourlyBenefits ?? 0;
+                }
+                setState(() => _useAutoHourlyBenefits = v);
+                _calculate();
+              },
+            ),
+            if (_useAutoHourlyBenefits)
+              PersianNumberField(
+                label: 'ساعت مزایای ساعتی',
+                prefixIcon: Icons.access_time_filled_rounded,
+                suffix: 'ساعت',
+                initialValue: _hourlyBenefitHours,
+                onChanged: (v) {
+                  _hourlyBenefitHours = v?.toDouble() ?? 0;
+                  _calculate();
+                },
+              )
+            else
+              PersianNumberField(
+                label: 'مزایای ساعتی (مبلغ دستی)',
+                isCurrency: true,
+                prefixIcon: Icons.access_time_filled_rounded,
+                initialValue: _hourlyBenefitsAmount,
+                onChanged: (v) {
+                  _hourlyBenefitsAmount = v?.toDouble() ?? 0;
+                  _calculate();
+                },
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _timeEarningsPanel({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerLowest,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: scheme.primary, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            for (var i = 0; i < children.length; i++) ...[
+              if (i > 0) const SizedBox(height: 10),
+              children[i],
+            ],
+          ],
+        ),
       ),
     );
   }

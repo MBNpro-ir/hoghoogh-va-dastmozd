@@ -400,6 +400,7 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
       ('حق خواروبار', record.food),
       ('حق تاهل', record.marriage),
       ('حق فرزند', record.childAllowance),
+      ('پایه سنوات', record.seniority),
       ('اضافه کار', record.overtimeAmount),
       ('سایر مزایا', record.otherBenefits),
       ('بیمه', -record.insurance),

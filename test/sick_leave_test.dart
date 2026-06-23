@@ -69,6 +69,9 @@ void main() {
       overtimeHours: 0,
       hourlyBenefitHours: 0,
       includeLeaveInPayslip: true,
+      housingExempt: false,
+      foodExempt: false,
+      seniorityExempt: false,
     );
 
     expect(SalaryRecord.fromMap(record.toMap()).sickLeaveDays, 1.5);

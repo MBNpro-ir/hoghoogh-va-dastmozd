@@ -20,6 +20,7 @@ import '../../services/window_close_service.dart';
 import '../auth/local_unlock_setup_screen.dart';
 import '../auth/server_login_screen.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_error_message.dart';
 import '../../utils/animations.dart';
 import '../../utils/constants.dart';
 import '../../utils/persian_number_formatter.dart';
@@ -215,6 +216,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
@@ -263,7 +265,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('خطا: $e'),
+          content: Text(
+            AppErrorMessage.from(
+              e,
+              fallback: 'ذخیره تنظیمات انجام نشد. مقادیر را بررسی کنید.',
+            ),
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -296,12 +303,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
     if (confirm == true) {
-      await _service.resetToDefaults();
-      await _load();
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('تنظیمات بازنشانی شد')));
+      try {
+        await _service.resetToDefaults();
+        await _load();
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('تنظیمات بازنشانی شد')));
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                error,
+                fallback: 'بازنشانی تنظیمات انجام نشد.',
+              ),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 
@@ -316,7 +338,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('خطا در بکاپ: $e'),
+          content: Text(
+            AppErrorMessage.from(e, fallback: 'ساخت فایل بکاپ انجام نشد.'),
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -359,7 +383,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('خطا در بازیابی: $e'),
+          content: Text(
+            AppErrorMessage.from(e, fallback: 'بازیابی فایل بکاپ انجام نشد.'),
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -381,7 +407,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('خطا در بکاپ سرور: $e'),
+          content: Text(
+            AppErrorMessage.from(e, fallback: 'دریافت بکاپ سرور انجام نشد.'),
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -435,7 +463,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('خطا در ریستور سرور: $e'),
+          content: Text(
+            AppErrorMessage.from(e, fallback: 'بازیابی بکاپ سرور انجام نشد.'),
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );

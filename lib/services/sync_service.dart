@@ -10,9 +10,11 @@ import '../database/database_helper.dart';
 import '../models/advance_payment.dart';
 import '../models/app_settings.dart';
 import '../models/employee.dart';
+import '../models/employee_leave.dart';
 import '../models/loan.dart';
 import '../models/salary_draft.dart';
 import '../models/salary_record.dart';
+import '../utils/business_validation.dart';
 import 'api_client.dart';
 
 enum SyncPhase { idle, syncing, synced, offline, error }
@@ -70,6 +72,7 @@ class SyncService {
     'employees',
     'loans',
     'advances',
+    'leaves',
     'salary_records',
     'salary_drafts',
     'app_settings',
@@ -80,6 +83,7 @@ class SyncService {
     'app_settings',
     'loans',
     'advances',
+    'leaves',
     'salary_drafts',
     'salary_records',
   ];
@@ -87,6 +91,7 @@ class SyncService {
   static const _deleteOrder = <String>[
     'salary_records',
     'salary_drafts',
+    'leaves',
     'advances',
     'loans',
     'employees',
@@ -204,7 +209,7 @@ class SyncService {
     _clearSyncConflict();
     final db = await _db.database;
     final now = _nowIso();
-    await db.update(
+    final changed = await db.update(
       table,
       {
         'sync_id': await _syncIdFor(db, table, id),
@@ -215,6 +220,11 @@ class SyncService {
       where: 'id = ?',
       whereArgs: [id],
     );
+    if (changed == 0) {
+      throw const BusinessValidationException(
+        'این رکورد دیگر وجود ندارد. صفحه را تازه کنید.',
+      );
+    }
     await _refreshStatus(lastUnsentAt: DateTime.now().toUtc());
     if (schedule) scheduleSync();
   }
@@ -235,6 +245,11 @@ class SyncService {
       where: 'id = ?',
       whereArgs: [id],
     );
+    if (result == 0) {
+      throw const BusinessValidationException(
+        'این رکورد قبلاً حذف شده است. صفحه را تازه کنید.',
+      );
+    }
     await _refreshStatus(lastUnsentAt: DateTime.now().toUtc());
     if (schedule) scheduleSync();
     return result;
@@ -247,7 +262,11 @@ class SyncService {
     });
   }
 
-  Future<void> syncNow({bool silent = false, bool forcePush = false}) async {
+  Future<void> syncNow({
+    bool silent = false,
+    bool forcePush = false,
+    bool throwOnServerError = false,
+  }) async {
     if (_syncing) return;
     if (!await _api.hasSession()) {
       stopAutoSync();
@@ -286,6 +305,14 @@ class SyncService {
         );
       }
       await _refreshStatus(phase: phase, message: e.message);
+      final rejectedChange =
+          e.statusCode >= 400 && e.statusCode < 500 || e.statusCode == 502;
+      if (throwOnServerError && rejectedChange) {
+        throw ApiException(
+          'اطلاعات روی این دستگاه ذخیره شد، اما سرور نپذیرفت: ${e.message}',
+          e.statusCode,
+        );
+      }
     } catch (e) {
       await _refreshStatus(phase: SyncPhase.offline, message: e.toString());
     } finally {
@@ -467,28 +494,8 @@ class SyncService {
   Future<void> _pushPending() async {
     if (_isPushBlocked) return;
     final db = await _db.database;
-    final operations = <Map<String, dynamic>>[];
-    final localRefs = <({String table, String syncId, String operation})>[];
-
-    for (final table in _upsertOrder) {
-      final rows = await db.query(
-        table,
-        where: "sync_state = 'pending' AND deleted_at IS NULL",
-        orderBy: 'id ASC',
-      );
-      for (final row in rows) {
-        final id = row['id'] as int?;
-        if (id == null) continue;
-        final syncId = await _syncIdFor(db, table, id);
-        operations.add({
-          'entity': table,
-          'operation': 'upsert',
-          'payload': await _payloadFor(db, table, {...row, 'sync_id': syncId}),
-        });
-        localRefs.add((table: table, syncId: syncId, operation: 'upsert'));
-      }
-    }
-
+    final deleteOperations = <Map<String, dynamic>>[];
+    final deleteRefs = <({String table, String syncId, String operation})>[];
     for (final table in _deleteOrder) {
       final rows = await db.query(
         table,
@@ -499,7 +506,7 @@ class SyncService {
         final id = row['id'] as int?;
         if (id == null) continue;
         final syncId = await _syncIdFor(db, table, id);
-        operations.add({
+        deleteOperations.add({
           'entity': table,
           'operation': 'delete',
           'payload': {
@@ -509,16 +516,65 @@ class SyncService {
             'deleted_at': row['deleted_at'] ?? _nowIso(),
           },
         });
-        localRefs.add((table: table, syncId: syncId, operation: 'delete'));
+        deleteRefs.add((table: table, syncId: syncId, operation: 'delete'));
       }
     }
+    await _pushBatch(db, deleteOperations, deleteRefs);
 
+    final upsertOperations = <Map<String, dynamic>>[];
+    final upsertRefs = <({String table, String syncId, String operation})>[];
+    for (final table in _upsertOrder) {
+      final rows = await db.query(
+        table,
+        where: "sync_state = 'pending' AND deleted_at IS NULL",
+        orderBy: 'id ASC',
+      );
+      for (final row in rows) {
+        final id = row['id'] as int?;
+        if (id == null) continue;
+        final syncId = await _syncIdFor(db, table, id);
+        upsertOperations.add({
+          'entity': table,
+          'operation': 'upsert',
+          'payload': await _payloadFor(db, table, {...row, 'sync_id': syncId}),
+        });
+        upsertRefs.add((table: table, syncId: syncId, operation: 'upsert'));
+      }
+    }
+    await _pushBatch(db, upsertOperations, upsertRefs);
+  }
+
+  Future<void> _pushBatch(
+    Database db,
+    List<Map<String, dynamic>> operations,
+    List<({String table, String syncId, String operation})> localRefs,
+  ) async {
     if (operations.isEmpty) return;
     final response = await _api.post('/api/sync/push', {
       'operations': operations,
     });
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(_errorFrom(response), response.statusCode);
+    }
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final accepted = List<Map<String, dynamic>>.from(
+      body['operations'] as List? ?? const [],
+    );
+    final acceptedKeys = accepted
+        .map(
+          (item) =>
+              '${item['entity']}|${item['entity_id']}|${item['operation']}',
+        )
+        .toSet();
+    final allAccepted = localRefs.every(
+      (ref) =>
+          acceptedKeys.contains('${ref.table}|${ref.syncId}|${ref.operation}'),
+    );
+    if (!allAccepted || accepted.length != localRefs.length) {
+      throw ApiException(
+        'سرور همه تغییرات را نپذیرفت. هیچ داده محلی حذف نشد؛ اطلاعات را تازه کنید و دوباره تلاش کنید.',
+        502,
+      );
     }
 
     await db.transaction((tx) async {
@@ -652,6 +708,7 @@ class SyncService {
     }
     if (table == 'loans' ||
         table == 'advances' ||
+        table == 'leaves' ||
         table == 'salary_records' ||
         table == 'salary_drafts') {
       final employeeId = payload['employee_id'];
@@ -692,6 +749,7 @@ class SyncService {
       ).toMap()..remove('id'),
       'loans' => await _remoteLoanPayload(db, payload),
       'advances' => await _remoteAdvancePayload(db, payload),
+      'leaves' => await _remoteLeavePayload(db, payload),
       'salary_records' => await _remoteSalaryPayload(db, payload),
       'salary_drafts' => await _remoteSalaryDraftPayload(db, payload),
       'app_settings' => AppSettings.fromMap(payload).toMap()..remove('id'),
@@ -723,6 +781,18 @@ class SyncService {
     }).toMap()..remove('id');
   }
 
+  Future<Map<String, dynamic>?> _remoteLeavePayload(
+    Database db,
+    Map<String, dynamic> payload,
+  ) async {
+    final employeeId = await _localEmployeeId(db, payload);
+    if (employeeId == null) return null;
+    return EmployeeLeave.fromMap({
+      ...payload,
+      'employee_id': employeeId,
+    }).toMap()..remove('id');
+  }
+
   Future<Map<String, dynamic>?> _remoteSalaryPayload(
     Database db,
     Map<String, dynamic> payload,
@@ -733,6 +803,9 @@ class SyncService {
       ..._boolsToInts(payload, const {
         'include_leave_in_payslip',
         'use_custom_overtime_base',
+        'housing_exempt',
+        'food_exempt',
+        'seniority_exempt',
       }),
       'employee_id': employeeId,
       'created_at': payload['created_at']?.toString() ?? _nowIso(),
@@ -757,6 +830,9 @@ class SyncService {
         'include_leave_in_payslip',
         'insurance_exempt',
         'tax_exempt',
+        'housing_exempt',
+        'food_exempt',
+        'seniority_exempt',
       }),
       'employee_id': employeeId,
     }).toMap()..remove('id');
@@ -851,6 +927,11 @@ class SyncService {
       limit: 1,
     );
     final existing = rows.isEmpty ? null : rows.first['sync_id']?.toString();
+    if (rows.isEmpty) {
+      throw const BusinessValidationException(
+        'رکورد موردنظر برای همگام‌سازی پیدا نشد. صفحه را تازه کنید.',
+      );
+    }
     if (existing != null && existing.trim().isNotEmpty) return existing;
     final generated = _uuid.v4();
     await db.update(
@@ -968,6 +1049,8 @@ class SyncService {
     return switch (code) {
       'duplicate_personnel_code' =>
         'کد پرسنلی تکراری است. اطلاعات سرور را تازه کنید و برای کارمند کد جدید انتخاب کنید.',
+      'duplicate_national_id' =>
+        'این کد ملی قبلاً برای کارمند دیگری ثبت شده است. اطلاعات را تازه کنید.',
       'duplicate_salary_record' =>
         'برای این کارمند و این ماه قبلا فیش حقوقی ثبت شده است. اطلاعات را تازه کنید و دوباره بررسی کنید.',
       'duplicate_salary_draft' =>
@@ -978,6 +1061,28 @@ class SyncService {
         'برای فعال کردن «دارای سابقه»، تاریخ شروع به کار باید تا پایان سال مالی حداقل یک سال سابقه داشته باشد.',
       'invalid_attendance_days' =>
         'جمع روزهای مرخصی و استعلاجی نمی‌تواند از کل روزهای کارکرد بیشتر باشد.',
+      'invalid_leave' =>
+        'اطلاعات مرخصی معتبر نیست. مدت مرخصی، نوع و وضعیت را بررسی کنید.',
+      'invalid_employee' ||
+      'invalid_employee_date' ||
+      'invalid_employee_amount' =>
+        'اطلاعات کارمند معتبر نیست. مشخصات، تاریخ‌ها و مبالغ را بررسی کنید.',
+      'invalid_loan' =>
+        'اطلاعات وام معتبر نیست. مبلغ، اقساط و تاریخ شروع را بررسی کنید.',
+      'invalid_advance' =>
+        'اطلاعات مساعده معتبر نیست. مبلغ و تاریخ پرداخت را بررسی کنید.',
+      'invalid_payroll_period' =>
+        'دوره حقوق معتبر نیست. سال، ماه و تعداد روزها را بررسی کنید.',
+      'invalid_salary_amount' =>
+        'یکی از مقادیر حقوق یا ساعات نامعتبر است و امکان ذخیره وجود ندارد.',
+      'invalid_settings' =>
+        'مقادیر تنظیمات معتبر نیست. مبالغ و درصدها را بررسی کنید.',
+      'invalid_employee_reference' =>
+        'کارمند مرتبط حذف شده یا در دسترس نیست. اطلاعات را تازه کنید.',
+      'invalid_sync_batch' || 'invalid_sync_operation' =>
+        'نسخه اطلاعات با سرور سازگار نیست. برنامه را به‌روزرسانی و دوباره همگام کنید.',
+      'invalid_payload' =>
+        'یک یا چند مقدار خارج از محدوده مجاز است. اطلاعات را بررسی کنید.',
       'invalid_overtime_base' =>
         'وقتی مبنای دستی اضافه‌کاری فعال است، مبلغ مبنای روزانه باید بیشتر از صفر باشد.',
       'sync_conflict' || 'duplicate_settings_year' =>

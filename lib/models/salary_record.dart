@@ -41,6 +41,9 @@ class SalaryRecord {
   final double advance; // مساعده
   final double otherDeductions; // سایر کسورات (مابه‌تفاوت)
   final bool includeLeaveInPayslip; // محاسبه محدودیت مرخصی در فیش
+  final bool housingExempt; // معافیت حق مسکن برای این فیش
+  final bool foodExempt; // معافیت حق خواروبار برای این فیش
+  final bool seniorityExempt; // معافیت پایه سنوات برای این فیش
   final double leaveAllowanceDays; // سقف مرخصی مجاز ماهانه
   final double excessLeaveDays; // مرخصی مازاد
   final double leaveDeduction; // کسر مرخصی مازاد
@@ -94,6 +97,9 @@ class SalaryRecord {
     this.advance = 0,
     this.otherDeductions = 0,
     this.includeLeaveInPayslip = true,
+    this.housingExempt = false,
+    this.foodExempt = false,
+    this.seniorityExempt = false,
     this.leaveAllowanceDays = 2.5,
     this.excessLeaveDays = 0,
     this.leaveDeduction = 0,
@@ -142,6 +148,9 @@ class SalaryRecord {
     'advance': advance,
     'other_deductions': otherDeductions,
     'include_leave_in_payslip': includeLeaveInPayslip ? 1 : 0,
+    'housing_exempt': housingExempt ? 1 : 0,
+    'food_exempt': foodExempt ? 1 : 0,
+    'seniority_exempt': seniorityExempt ? 1 : 0,
     'leave_allowance_days': leaveAllowanceDays,
     'excess_leave_days': excessLeaveDays,
     'leave_deduction': leaveDeduction,
@@ -193,6 +202,9 @@ class SalaryRecord {
     advance: (map['advance'] as num?)?.toDouble() ?? 0,
     otherDeductions: (map['other_deductions'] as num?)?.toDouble() ?? 0,
     includeLeaveInPayslip: (map['include_leave_in_payslip'] as int? ?? 1) == 1,
+    housingExempt: (map['housing_exempt'] as int? ?? 0) == 1,
+    foodExempt: (map['food_exempt'] as int? ?? 0) == 1,
+    seniorityExempt: (map['seniority_exempt'] as int? ?? 0) == 1,
     leaveAllowanceDays:
         (map['leave_allowance_days'] as num?)?.toDouble() ?? 2.5,
     excessLeaveDays: (map['excess_leave_days'] as num?)?.toDouble() ?? 0,
@@ -243,6 +255,9 @@ class SalaryRecord {
     advance: advance,
     otherDeductions: otherDeductions,
     includeLeaveInPayslip: includeLeaveInPayslip,
+    housingExempt: housingExempt,
+    foodExempt: foodExempt,
+    seniorityExempt: seniorityExempt,
     leaveAllowanceDays: leaveAllowanceDays,
     excessLeaveDays: excessLeaveDays,
     leaveDeduction: leaveDeduction,
@@ -271,6 +286,9 @@ class SalaryRecord {
     bool? useCustomOvertimeBase,
     double? overtimeBaseDaily,
     bool? includeLeaveInPayslip,
+    bool? housingExempt,
+    bool? foodExempt,
+    bool? seniorityExempt,
     double? leaveAllowanceDays,
     double? excessLeaveDays,
     double? leaveDeduction,
@@ -317,6 +335,9 @@ class SalaryRecord {
     advance: advance,
     otherDeductions: otherDeductions,
     includeLeaveInPayslip: includeLeaveInPayslip ?? this.includeLeaveInPayslip,
+    housingExempt: housingExempt ?? this.housingExempt,
+    foodExempt: foodExempt ?? this.foodExempt,
+    seniorityExempt: seniorityExempt ?? this.seniorityExempt,
     leaveAllowanceDays: leaveAllowanceDays ?? this.leaveAllowanceDays,
     excessLeaveDays: excessLeaveDays ?? this.excessLeaveDays,
     leaveDeduction: leaveDeduction ?? this.leaveDeduction,

@@ -41,6 +41,7 @@ class PersianNumberField extends StatefulWidget {
 class _PersianNumberFieldState extends State<PersianNumberField> {
   late TextEditingController _controller;
   late FocusNode _focusNode;
+  late UndoHistoryController _undoController;
   bool _ownsController = false;
 
   @override
@@ -57,6 +58,7 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
       _ownsController = true;
     }
     _focusNode = FocusNode();
+    _undoController = UndoHistoryController();
   }
 
   @override
@@ -83,6 +85,7 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
     if (_ownsController) {
       _controller.dispose();
     }
+    _undoController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -91,6 +94,7 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
   Widget build(BuildContext context) {
     return TextFormField(
       controller: _controller,
+      undoController: _undoController,
       focusNode: _focusNode,
       enabled: widget.enabled,
       autofocus: widget.autofocus,

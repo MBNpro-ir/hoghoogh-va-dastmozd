@@ -1,5 +1,6 @@
 import '../database/database_helper.dart';
 import '../models/advance_payment.dart';
+import '../utils/business_validation.dart';
 import 'sync_service.dart';
 
 class AdvanceService {
@@ -53,10 +54,11 @@ class AdvanceService {
   }
 
   Future<int> insert(AdvancePayment advance) async {
+    BusinessValidation.advance(advance);
     final db = await _db.database;
     final id = await db.insert('advances', advance.toMap()..remove('id'));
     await _sync.markUpsert('advances', id, schedule: false);
-    await _sync.syncNow(silent: true);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
     return id;
   }
 
@@ -64,6 +66,7 @@ class AdvanceService {
     if (advance.id == null) {
       throw ArgumentError('Advance id is required for update.');
     }
+    BusinessValidation.advance(advance);
     final db = await _db.database;
     final result = await db.update(
       'advances',
@@ -71,14 +74,19 @@ class AdvanceService {
       where: 'id = ? AND deleted_at IS NULL',
       whereArgs: [advance.id],
     );
+    if (result == 0) {
+      throw const BusinessValidationException(
+        'این مساعده قبلاً حذف شده است. فهرست را تازه کنید.',
+      );
+    }
     await _sync.markUpsert('advances', advance.id!, schedule: false);
-    await _sync.syncNow(silent: true);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
     return result;
   }
 
   Future<int> delete(int id) async {
     final result = await _sync.markDelete('advances', id, schedule: false);
-    await _sync.syncNow(silent: true);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
     return result;
   }
 }

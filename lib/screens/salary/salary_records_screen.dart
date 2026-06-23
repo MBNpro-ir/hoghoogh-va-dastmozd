@@ -7,8 +7,10 @@ import '../../services/employee_service.dart';
 import '../../services/salary_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_error_message.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
+import '../../utils/period_filter_helper.dart';
 import '../../widgets/currency_text.dart';
 import '../../widgets/mouse_wheel_picker.dart';
 import '../../widgets/responsive_data_view.dart';
@@ -47,21 +49,20 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
   Future<void> _load() async {
     setState(() => _loading = true);
     _settings = await _settingsService.getCurrentSettings();
-    _availableMonths = await _salaryService.getRecordedMonths();
+    _availableMonths = {...await _salaryService.getRecordedMonths()}.toList();
     final employees = await _employeeService.getAll();
     _employeesMap = {for (var e in employees) e.id!: e};
 
-    if (_availableMonths.isNotEmpty && _filterYear == null) {
-      final current = (
+    final resolvedPeriod = PeriodFilterHelper.resolveAvailablePeriod(
+      selected: _selectedPeriod,
+      available: _availableMonths,
+      preferred: (
         PersianDateHelper.currentYear,
         PersianDateHelper.currentMonth,
-      );
-      final initial = _availableMonths.contains(current)
-          ? current
-          : _availableMonths.first;
-      _filterYear = initial.$1;
-      _filterMonth = initial.$2;
-    }
+      ),
+    );
+    _filterYear = resolvedPeriod?.$1;
+    _filterMonth = resolvedPeriod?.$2;
 
     if (_filterYear != null && _filterMonth != null) {
       _records = await _salaryService.getByYearMonth(
@@ -139,8 +140,23 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       ),
     );
     if (confirm == true && record.id != null) {
-      await _salaryService.delete(record.id!);
-      await _load();
+      try {
+        await _salaryService.delete(record.id!);
+        await _load();
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                error,
+                fallback: 'حذف فیش انجام نشد. فهرست را تازه کنید.',
+              ),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 

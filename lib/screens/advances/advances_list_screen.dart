@@ -4,8 +4,11 @@ import '../../models/advance_payment.dart';
 import '../../models/employee.dart';
 import '../../services/advance_service.dart';
 import '../../services/employee_service.dart';
+import '../../utils/app_error_message.dart';
+import '../../utils/period_filter_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/period_filter_bar.dart';
 import '../../widgets/responsive_data_view.dart';
 import 'advance_form_screen.dart';
 
@@ -19,11 +22,15 @@ class AdvancesListScreen extends StatefulWidget {
 class _AdvancesListScreenState extends State<AdvancesListScreen> {
   final _advanceService = AdvanceService();
   final _employeeService = EmployeeService();
+  final _searchController = TextEditingController();
+  final _searchUndoController = UndoHistoryController();
 
   List<AdvancePayment> _advances = [];
   Map<int, Employee> _employeesMap = {};
   bool _loading = true;
   String _filter = '';
+  int? _filterYear;
+  int? _filterMonth;
   int _sortColumnIndex = 1;
   bool _sortAscending = false;
 
@@ -31,6 +38,13 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchUndoController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -48,15 +62,45 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
   }
 
   List<AdvancePayment> get _filtered {
+    final selected = _selectedPeriod;
+    var list = _advances;
+    if (selected != null) {
+      list = list
+          .where(
+            (advance) => PeriodFilterHelper.dateIsInPeriod(
+              advance.paymentDate,
+              selected,
+            ),
+          )
+          .toList();
+    }
     final filter = _filter.trim();
-    if (filter.isEmpty) return _advances;
+    if (filter.isEmpty) return list;
     final english = PersianNumberFormatter.toEnglish(filter);
-    return _advances.where((advance) {
+    return list.where((advance) {
       final employee = _employeesMap[advance.employeeId];
       return (employee?.fullName.contains(filter) ?? false) ||
           (employee?.personnelCode.toString().contains(english) ?? false) ||
-          advance.paymentDate.contains(english);
+          advance.paymentDate.contains(english) ||
+          (advance.notes?.contains(filter) ?? false);
     }).toList();
+  }
+
+  (int, int)? get _selectedPeriod {
+    if (_filterYear == null || _filterMonth == null) return null;
+    final period = (_filterYear!, _filterMonth!);
+    return _availablePeriods.contains(period) ? period : null;
+  }
+
+  List<(int, int)> get _availablePeriods => PeriodFilterHelper.periodsFromDates(
+    _advances.map((advance) => advance.paymentDate),
+  );
+
+  void _onPeriodChanged((int, int)? value) {
+    setState(() {
+      _filterYear = value?.$1;
+      _filterMonth = value?.$2;
+    });
   }
 
   Future<void> _openForm({AdvancePayment? advance}) async {
@@ -93,8 +137,23 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
       ),
     );
     if (confirm == true && advance.id != null) {
-      await _advanceService.delete(advance.id!);
-      await _load();
+      try {
+        await _advanceService.delete(advance.id!);
+        await _load();
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                error,
+                fallback: 'حذف مساعده انجام نشد. فهرست را تازه کنید.',
+              ),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 
@@ -113,21 +172,21 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'advances-new-fab',
         onPressed: () => _openForm(),
         icon: const Icon(Icons.add_rounded),
         label: const Text('مساعده جدید'),
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
-              onChanged: (value) => setState(() => _filter = value),
-              decoration: const InputDecoration(
-                hintText: 'جستجو بر اساس نام، کد پرسنلی یا تاریخ...',
-                prefixIcon: Icon(Icons.search_rounded),
-              ),
-            ),
+          PeriodFilterBar(
+            selectedPeriod: _selectedPeriod,
+            availablePeriods: _availablePeriods,
+            onPeriodChanged: _onPeriodChanged,
+            searchController: _searchController,
+            searchUndoController: _searchUndoController,
+            onSearchChanged: (value) => setState(() => _filter = value),
+            searchHint: 'جستجو بر اساس نام، کد پرسنلی، تاریخ یا توضیحات...',
           ),
           Expanded(
             child: _loading

@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 
-import '../../models/app_settings.dart';
 import '../../models/employee.dart';
-import '../../models/salary_record.dart';
+import '../../models/employee_leave.dart';
+import '../../services/employee_leave_service.dart';
 import '../../services/employee_service.dart';
-import '../../services/salary_calculator.dart';
-import '../../services/salary_service.dart';
-import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
-import '../../utils/persian_date_helper.dart';
+import '../../utils/app_error_message.dart';
+import '../../utils/period_filter_helper.dart';
 import '../../utils/persian_number_formatter.dart';
-import '../../widgets/currency_text.dart';
-import '../../widgets/persian_number_field.dart';
+import '../../widgets/period_filter_bar.dart';
 import '../../widgets/responsive_data_view.dart';
+import 'employee_leave_form_screen.dart';
 
 class EmployeeLeavesScreen extends StatefulWidget {
   const EmployeeLeavesScreen({super.key});
@@ -22,16 +20,18 @@ class EmployeeLeavesScreen extends StatefulWidget {
 }
 
 class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
-  final _salaryService = SalaryService();
+  final _leaveService = EmployeeLeaveService();
   final _employeeService = EmployeeService();
-  final _settingsService = SettingsService();
+  final _searchController = TextEditingController();
+  final _searchUndoController = UndoHistoryController();
 
-  List<SalaryRecord> _records = [];
-  Map<int, Employee> _employees = {};
-  AppSettings? _settings;
+  List<EmployeeLeave> _leaves = [];
+  Map<int, Employee> _employeesMap = {};
   bool _loading = true;
-
-  int _sortColumnIndex = 3;
+  String _filter = '';
+  int? _filterYear;
+  int? _filterMonth;
+  int _sortColumnIndex = 2;
   bool _sortAscending = false;
 
   @override
@@ -40,17 +40,136 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchUndoController.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
+    final leaves = await _leaveService.getAll();
     final employees = await _employeeService.getAll();
-    _employees = {for (final e in employees) e.id!: e};
-    _settings = await _settingsService.getCurrentSettings();
-    _records = await _salaryService.getAll();
-    if (mounted) setState(() => _loading = false);
+    if (!mounted) return;
+    setState(() {
+      _leaves = leaves;
+      _employeesMap = {
+        for (final employee in employees) employee.id!: employee,
+      };
+      _loading = false;
+    });
+  }
+
+  List<EmployeeLeave> get _filtered {
+    final selected = _selectedPeriod;
+    var list = _leaves;
+    if (selected != null) {
+      list = list
+          .where(
+            (leave) =>
+                PeriodFilterHelper.dateIsInPeriod(leave.fromDate, selected),
+          )
+          .toList();
+    }
+    final filter = _filter.trim();
+    if (filter.isEmpty) return list;
+    final english = PersianNumberFormatter.toEnglish(filter);
+    return list.where((leave) {
+      final employee = _employeesMap[leave.employeeId];
+      return (employee?.fullName.contains(filter) ?? false) ||
+          (employee?.personnelCode.toString().contains(english) ?? false) ||
+          leave.fromDate.contains(english) ||
+          leave.toDate.contains(english) ||
+          (leave.notes?.contains(filter) ?? false);
+    }).toList();
+  }
+
+  (int, int)? get _selectedPeriod {
+    if (_filterYear == null || _filterMonth == null) return null;
+    final period = (_filterYear!, _filterMonth!);
+    return _availablePeriods.contains(period) ? period : null;
+  }
+
+  List<(int, int)> get _availablePeriods => PeriodFilterHelper.periodsFromDates(
+    _leaves.map((leave) => leave.fromDate),
+  );
+
+  void _onPeriodChanged((int, int)? value) {
+    setState(() {
+      _filterYear = value?.$1;
+      _filterMonth = value?.$2;
+    });
+  }
+
+  double get _annualTotal =>
+      _filtered.fold(0, (sum, leave) => leave.isSick ? sum : sum + leave.days);
+
+  double get _sickTotal =>
+      _filtered.fold(0, (sum, leave) => leave.isSick ? sum + leave.days : sum);
+
+  double get _approvedTotal => _filtered.fold(
+    0,
+    (sum, leave) => leave.isApproved ? sum + leave.days : sum,
+  );
+
+  Future<void> _openForm({EmployeeLeave? leave}) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => EmployeeLeaveFormScreen(leave: leave)),
+    );
+    if (changed == true) await _load();
+  }
+
+  Future<void> _delete(EmployeeLeave leave) async {
+    final employee = _employeesMap[leave.employeeId];
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف مرخصی'),
+        content: Text(
+          'آیا از حذف مرخصی ${employee?.fullName ?? ''} به مدت '
+          '${_formatDays(leave.days)} روز مطمئن هستید؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && leave.id != null) {
+      try {
+        await _leaveService.delete(leave.id!);
+        await _load();
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                error,
+                fallback: 'حذف مرخصی انجام نشد. فهرست را تازه کنید.',
+              ),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('مرخصی کارکنان'),
@@ -62,106 +181,74 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
           ),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1100),
-                child: Column(
-                  children: [
-                    _summary(),
-                    Expanded(
-                      child: _records.isEmpty ? const _EmptyLeaves() : _table(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-    );
-  }
-
-  Widget _summary() {
-    final scheme = Theme.of(context).colorScheme;
-    final totalLeave = _records.fold<double>(0, (s, r) => s + r.leaveDays);
-    final totalSickLeave = _records.fold<double>(
-      0,
-      (s, r) => s + r.sickLeaveDays,
-    );
-    final totalExcess = _records.fold<double>(
-      0,
-      (s, r) => s + r.excessLeaveDays,
-    );
-    final totalDeduction = _records.fold<double>(
-      0,
-      (s, r) => s + r.leaveDeduction,
-    );
-    final monthly = _settings?.monthlyLeaveAllowance ?? 2.5;
-    final annual = _settings?.annualLeaveAllowance ?? 30;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth - 24;
-        final cardWidth = availableWidth < 520
-            ? ((availableWidth - 8) / 2).clamp(140.0, 190.0).toDouble()
-            : 190.0;
-        return Padding(
-          padding: const EdgeInsets.all(12),
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _summaryCard(
-                'سقف ماهانه',
-                '${_formatDays(monthly)} روز',
-                scheme.primary,
-                width: cardWidth,
-              ),
-              _summaryCard(
-                'سقف سالانه',
-                '${_formatDays(annual)} روز',
-                scheme.tertiary,
-                width: cardWidth,
-              ),
-              _summaryCard(
-                'کل مرخصی ثبت‌شده',
-                '${_formatDays(totalLeave)} روز',
-                scheme.secondary,
-                width: cardWidth,
-              ),
-              _summaryCard(
-                'کل استعلاجی ثبت‌شده',
-                '${_formatDays(totalSickLeave)} روز',
-                scheme.primary,
-                width: cardWidth,
-              ),
-              _summaryCard(
-                'مرخصی مازاد',
-                '${_formatDays(totalExcess)} روز',
-                scheme.error,
-                width: cardWidth,
-              ),
-              _summaryCard(
-                'کسر مرخصی',
-                PersianNumberFormatter.formatRial(totalDeduction),
-                AppTheme.warningColor,
-                width: cardWidth,
-              ),
-            ],
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'leaves-new-fab',
+        onPressed: () => _openForm(),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('مرخصی جدید'),
+      ),
+      body: Column(
+        children: [
+          PeriodFilterBar(
+            selectedPeriod: _selectedPeriod,
+            availablePeriods: _availablePeriods,
+            onPeriodChanged: _onPeriodChanged,
+            searchController: _searchController,
+            searchUndoController: _searchUndoController,
+            onSearchChanged: (value) => setState(() => _filter = value),
+            searchHint: 'جستجو بر اساس نام، کد پرسنلی، تاریخ یا توضیحات...',
           ),
-        );
-      },
+          _summary(scheme),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _filtered.isEmpty
+                ? const _EmptyLeaves()
+                : _buildTable(scheme),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _summaryCard(
-    String label,
-    String value,
-    Color color, {
-    double width = 190,
-  }) {
+  Widget _summary(ColorScheme scheme) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _summaryCard(
+            'کل مرخصی استحقاقی',
+            '${_formatDays(_annualTotal)} روز',
+            scheme.secondary,
+          ),
+          _summaryCard(
+            'کل استعلاجی',
+            '${_formatDays(_sickTotal)} روز',
+            scheme.primary,
+          ),
+          _summaryCard(
+            'قابل لحاظ در حقوق',
+            '${_formatDays(_approvedTotal)} روز',
+            AppTheme.successColor,
+          ),
+          _summaryCard(
+            'دوره انتخابی',
+            _selectedPeriod == null
+                ? 'همه دوره‌ها'
+                : PeriodFilterHelper.label(_selectedPeriod!),
+            AppTheme.warningColor,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryCard(String label, String value, Color color) {
     return Container(
-      width: width,
+      width: 190,
       constraints: const BoxConstraints(minHeight: 64),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -188,16 +275,15 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
     );
   }
 
-  Widget _table() {
-    final scheme = Theme.of(context).colorScheme;
+  Widget _buildTable(ColorScheme scheme) {
     final columns = _columns(scheme);
     final items = sortResponsiveItems(
-      _records,
+      _filtered,
       columns,
       _sortColumnIndex,
       _sortAscending,
     );
-    return ResponsiveDataView<SalaryRecord>(
+    return ResponsiveDataView<EmployeeLeave>(
       items: items,
       columns: columns,
       sortColumnIndex: _sortColumnIndex,
@@ -213,233 +299,170 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
       }),
       onSortDirectionChanged: (ascending) =>
           setState(() => _sortAscending = ascending),
-      mobileCardBuilder: (context, record, index) =>
-          _mobileCard(record, index, scheme),
+      mobileCardBuilder: (context, leave, index) => _leaveCard(leave, scheme),
     );
   }
 
-  String _employeeNameForRecord(SalaryRecord record) {
-    final snapshot = record.employeeFullNameSnapshot?.trim();
-    if (snapshot != null && snapshot.isNotEmpty) return snapshot;
-    return _employees[record.employeeId]?.fullName ?? '—';
-  }
-
-  List<ResponsiveTableColumn<SalaryRecord>> _columns(ColorScheme scheme) => [
+  List<ResponsiveTableColumn<EmployeeLeave>> _columns(ColorScheme scheme) => [
     ResponsiveTableColumn(
       label: 'کارمند',
-      sortValue: _employeeNameForRecord,
-      cellBuilder: (r) => Text(_employeeNameForRecord(r)),
+      sortValue: (leave) => _employeesMap[leave.employeeId]?.fullName ?? '',
+      cellBuilder: (leave) =>
+          Text(_employeesMap[leave.employeeId]?.fullName ?? '—'),
     ),
     ResponsiveTableColumn(
-      label: 'دوره',
-      sortValue: (r) => r.year * 100 + r.month,
-      cellBuilder: (r) => Text(
-        '${PersianDateHelper.monthName(r.month)} ${PersianNumberFormatter.toPersian(r.year.toString())}',
+      label: 'نوع',
+      sortValue: (leave) => leave.normalizedType,
+      cellBuilder: (leave) => _typePill(leave, scheme),
+    ),
+    ResponsiveTableColumn(
+      label: 'از تاریخ',
+      sortValue: (leave) => leave.fromDate,
+      cellBuilder: (leave) =>
+          Text(PersianNumberFormatter.toPersian(leave.fromDate)),
+    ),
+    ResponsiveTableColumn(
+      label: 'تا تاریخ',
+      sortValue: (leave) => leave.toDate,
+      cellBuilder: (leave) =>
+          Text(PersianNumberFormatter.toPersian(leave.toDate)),
+    ),
+    ResponsiveTableColumn(
+      label: 'مدت',
+      numeric: true,
+      sortValue: (leave) => leave.days,
+      cellBuilder: (leave) => Text('${_formatDays(leave.days)} روز'),
+    ),
+    ResponsiveTableColumn(
+      label: 'وضعیت',
+      sortValue: (leave) => leave.normalizedStatus,
+      cellBuilder: (leave) => _statusPill(leave, scheme),
+    ),
+    ResponsiveTableColumn(
+      label: 'توضیحات',
+      sortValue: (leave) => leave.notes ?? '',
+      cellBuilder: (leave) => Text(
+        leave.notes?.trim().isNotEmpty == true ? leave.notes! : '—',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
-    ),
-    ResponsiveTableColumn(
-      label: 'مرخصی',
-      numeric: true,
-      sortValue: (r) => r.leaveDays,
-      cellBuilder: (r) => Text('${_formatDays(r.leaveDays)} روز'),
-    ),
-    ResponsiveTableColumn(
-      label: 'استعلاجی',
-      numeric: true,
-      sortValue: (r) => r.sickLeaveDays,
-      cellBuilder: (r) => Text('${_formatDays(r.sickLeaveDays)} روز'),
-    ),
-    ResponsiveTableColumn(
-      label: 'مجاز',
-      numeric: true,
-      sortValue: (r) => r.leaveAllowanceDays,
-      cellBuilder: (r) => Text('${_formatDays(r.leaveAllowanceDays)} روز'),
-    ),
-    ResponsiveTableColumn(
-      label: 'مازاد',
-      numeric: true,
-      sortValue: (r) => r.excessLeaveDays,
-      cellBuilder: (r) => Text('${_formatDays(r.excessLeaveDays)} روز'),
-    ),
-    ResponsiveTableColumn(
-      label: 'کسر',
-      numeric: true,
-      sortValue: (r) => r.leaveDeduction,
-      cellBuilder: (r) => CurrencyText(r.leaveDeduction),
     ),
     ResponsiveTableColumn(
       label: 'عملیات',
-      cellBuilder: (r) => IconButton(
-        icon: Icon(Icons.edit_calendar_rounded, color: scheme.primary),
-        tooltip: 'ویرایش مرخصی',
-        onPressed: () => _editLeave(r),
-      ),
+      cellBuilder: (leave) => _actions(leave, scheme),
     ),
   ];
 
-  Widget _mobileCard(SalaryRecord record, int index, ColorScheme scheme) {
+  Widget _actions(EmployeeLeave leave, ColorScheme scheme) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: Icon(
+            Icons.edit_calendar_rounded,
+            size: 20,
+            color: scheme.primary,
+          ),
+          tooltip: 'ویرایش',
+          onPressed: () => _openForm(leave: leave),
+        ),
+        IconButton(
+          icon: Icon(Icons.delete_rounded, size: 20, color: scheme.error),
+          tooltip: 'حذف',
+          onPressed: () => _delete(leave),
+        ),
+      ],
+    );
+  }
+
+  Widget _leaveCard(EmployeeLeave leave, ColorScheme scheme) {
+    final employee = _employeesMap[leave.employeeId];
     return MobileDataCard(
       leading: CircleAvatar(
-        backgroundColor: scheme.secondaryContainer,
-        foregroundColor: scheme.onSecondaryContainer,
-        child: Text(PersianNumberFormatter.toPersian((index + 1).toString())),
+        backgroundColor: leave.isSick
+            ? scheme.primaryContainer
+            : AppTheme.warningColor.withValues(alpha: 0.16),
+        foregroundColor: leave.isSick
+            ? scheme.onPrimaryContainer
+            : AppTheme.warningColor,
+        child: Icon(
+          leave.isSick
+              ? Icons.medical_services_rounded
+              : Icons.beach_access_rounded,
+        ),
       ),
-      title: _employeeNameForRecord(record),
+      title: employee?.fullName ?? 'کارمند نامشخص',
       subtitle:
-          '${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())}',
+          '${PersianNumberFormatter.toPersian(leave.fromDate)} تا ${PersianNumberFormatter.toPersian(leave.toDate)}',
+      trailing: _statusPill(leave, scheme),
       metrics: [
+        MobileMetric(label: 'نوع', value: _typePill(leave, scheme)),
         MobileMetric(
-          label: 'مرخصی',
-          value: Text('${_formatDays(record.leaveDays)} روز'),
+          label: 'مدت',
+          value: Text('${_formatDays(leave.days)} روز'),
+          color: leave.isSick ? scheme.primary : AppTheme.warningColor,
         ),
-        MobileMetric(
-          label: 'استعلاجی',
-          value: Text('${_formatDays(record.sickLeaveDays)} روز'),
-          color: scheme.primary,
-        ),
-        MobileMetric(
-          label: 'مازاد',
-          value: Text('${_formatDays(record.excessLeaveDays)} روز'),
-          color: scheme.error,
-        ),
-        MobileMetric(
-          label: 'کسر',
-          value: CurrencyText(record.leaveDeduction),
-          color: AppTheme.warningColor,
-        ),
+        if (leave.notes?.trim().isNotEmpty == true)
+          MobileMetric(label: 'توضیحات', value: Text(leave.notes!)),
       ],
       actions: [
         IconButton(
           icon: Icon(Icons.edit_calendar_rounded, color: scheme.primary),
-          tooltip: 'ویرایش مرخصی',
-          onPressed: () => _editLeave(record),
+          tooltip: 'ویرایش',
+          onPressed: () => _openForm(leave: leave),
+        ),
+        IconButton(
+          icon: Icon(Icons.delete_rounded, color: scheme.error),
+          tooltip: 'حذف',
+          onPressed: () => _delete(leave),
         ),
       ],
     );
   }
 
-  Future<void> _editLeave(SalaryRecord record) async {
-    if (_settings == null) return;
-    final employee = _employees[record.employeeId];
-    if (employee == null) return;
-    var leaveDays = record.leaveDays;
-    var sickLeaveDays = record.sickLeaveDays;
-    var includeLeave = record.includeLeaveInPayslip;
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ویرایش مرخصی'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PersianNumberField(
-              label: 'مرخصی',
-              suffix: 'روز',
-              prefixIcon: Icons.beach_access_rounded,
-              initialValue: leaveDays,
-              maxDecimalDigits: 1,
-              onChanged: (v) => leaveDays = v?.toDouble() ?? 0,
+  Widget _typePill(EmployeeLeave leave, ColorScheme scheme) {
+    final color = leave.isSick ? scheme.primary : AppTheme.warningColor;
+    return _pill(
+      leave.isSick ? 'استعلاجی' : 'استحقاقی',
+      color,
+      icon: leave.isSick
+          ? Icons.medical_services_rounded
+          : Icons.beach_access_rounded,
+    );
+  }
+
+  Widget _statusPill(EmployeeLeave leave, ColorScheme scheme) {
+    final approved = leave.isApproved;
+    return _pill(
+      approved ? 'لحاظ می‌شود' : 'در انتظار',
+      approved ? AppTheme.successColor : scheme.outline,
+      icon: approved ? Icons.check_circle_rounded : Icons.pending_rounded,
+    );
+  }
+
+  Widget _pill(String label, Color color, {required IconData icon}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 12),
-            PersianNumberField(
-              label: 'استعلاجی',
-              suffix: 'روز',
-              prefixIcon: Icons.medical_services_rounded,
-              initialValue: sickLeaveDays,
-              maxDecimalDigits: 1,
-              onChanged: (v) => sickLeaveDays = v?.toDouble() ?? 0,
-            ),
-            const SizedBox(height: 12),
-            StatefulBuilder(
-              builder: (context, setLocalState) => SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('محاسبه در فیش حقوقی'),
-                value: includeLeave,
-                onChanged: (v) => setLocalState(() => includeLeave = v),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('انصراف'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('ذخیره'),
           ),
         ],
       ),
     );
-    if (result != true) return;
-    if (leaveDays < 0 ||
-        sickLeaveDays < 0 ||
-        leaveDays + sickLeaveDays > record.totalDays) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'جمع مرخصی و استعلاجی نباید از کل روزهای کارکرد بیشتر باشد.',
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-      return;
-    }
-
-    final workDays = (record.totalDays - leaveDays - sickLeaveDays)
-        .clamp(0.0, record.totalDays.toDouble())
-        .toDouble();
-    final recalculated = SalaryCalculator.calculate(
-      employee: employee,
-      settings: _settings!,
-      input: SalaryCalculationInput(
-        totalDays: record.totalDays,
-        leaveDays: leaveDays,
-        sickLeaveDays: sickLeaveDays,
-        overtimeHours: record.overtimeHours,
-        useCustomOvertimeBase: record.useCustomOvertimeBase,
-        overtimeBaseDaily: record.overtimeBaseDaily,
-        shiftWork: record.shiftWork,
-        hourlyBenefitsAmount: record.hourlyBenefitsAmount,
-        hourlyBenefitHours: record.hourlyBenefitHours,
-        autoShiftWork: false,
-        autoHourlyBenefits: record.hourlyBenefitHours > 0,
-        includeLeaveInPayslip: includeLeave,
-        insuranceExempt: record.insuranceBase == 0 && record.totalEarnings > 0,
-        taxExempt: record.tax == 0 && record.totalEarnings > 400000000,
-        otherBenefitsOverride: record.workDays > 0
-            ? record.otherBenefits / record.workDays
-            : record.otherBenefits,
-        loanInstallment: record.loanInstallment,
-        advance: record.advance,
-        otherDeductions: record.otherDeductions,
-      ),
-    );
-    final updated = recalculated
-        .toRecord(
-          employeeId: record.employeeId,
-          employeeFullNameSnapshot:
-              record.employeeFullNameSnapshot ?? employee.fullName,
-          employeePersonnelCodeSnapshot:
-              record.employeePersonnelCodeSnapshot ?? employee.personnelCode,
-          employeeNationalIdSnapshot:
-              record.employeeNationalIdSnapshot ?? employee.nationalId,
-          year: record.year,
-          month: record.month,
-          totalDays: record.totalDays,
-          leaveDays: leaveDays,
-          sickLeaveDays: sickLeaveDays,
-          workDays: workDays,
-          overtimeHours: record.overtimeHours,
-          hourlyBenefitHours: record.hourlyBenefitHours,
-          includeLeaveInPayslip: includeLeave,
-          notes: record.notes,
-        )
-        .copyWithId(record.id!);
-    await _salaryService.update(updated);
-    await _load();
   }
 
   String _formatDays(double value) {
@@ -462,20 +485,18 @@ class _EmptyLeaves extends StatelessWidget {
         children: [
           Icon(
             Icons.beach_access_outlined,
-            size: 88,
+            size: 96,
             color: scheme.outlineVariant,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
-            'هنوز فیشی ثبت نشده است',
+            'هنوز مرخصی ثبت نشده است',
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'پس از ثبت فیش حقوقی، مرخصی کارکنان در این بخش نمایش داده می‌شود.',
-          ),
+          const SizedBox(height: 8),
+          const Text('برای ثبت مرخصی جدید روی دکمه «مرخصی جدید» کلیک کنید'),
         ],
       ),
     );

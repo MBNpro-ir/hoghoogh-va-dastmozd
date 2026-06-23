@@ -14,6 +14,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
+import '../../utils/app_error_message.dart';
 import '../../utils/seniority_helper.dart';
 
 enum _EmployeeGridSection {
@@ -339,9 +340,10 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
             : '${changes.join('، ')} انجام شد؛ همگام‌سازی با سرور در پس‌زمینه ادامه دارد',
       );
     } catch (error) {
-      final message = error is ArgumentError
-          ? error.message?.toString() ?? error.toString()
-          : error.toString();
+      final message = AppErrorMessage.from(
+        error,
+        fallback: 'ثبت گروهی انجام نشد. ردیف‌ها را بررسی کنید.',
+      );
       _message('ثبت گروهی انجام نشد: $message', isError: true);
     } finally {
       if (mounted) setState(() => _saving = false);

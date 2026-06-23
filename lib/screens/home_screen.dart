@@ -23,6 +23,12 @@ import 'salary/salary_calculation_screen.dart';
 import 'salary/salary_records_screen.dart';
 import 'settings/settings_screen.dart';
 
+String homePageStateKey(int index, int dataVersion) {
+  const preserveDuringSync = {2, 7};
+  if (preserveDuringSync.contains(index)) return 'page-$index-stable';
+  return 'page-$index-$dataVersion';
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -128,7 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SyncStatusBanner(),
                   Expanded(
                     child: _AnimatedPageSwitcher(
-                      pageKey: ValueKey('$_index-${_sync.dataVersion.value}'),
+                      pageKey: ValueKey(
+                        homePageStateKey(_index, _sync.dataVersion.value),
+                      ),
                       child: _buildCurrentPage(),
                     ),
                   ),
@@ -192,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   for (var i = 0; i < _pages.length; i++)
                     KeyedSubtree(
                       key: ValueKey(
-                        'mobile-page-$i-${_sync.dataVersion.value}',
+                        'mobile-${homePageStateKey(i, _sync.dataVersion.value)}',
                       ),
                       child: _pages[i],
                     ),
@@ -229,7 +237,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// صفحه فعلی
   Widget _buildCurrentPage() => KeyedSubtree(
-    key: ValueKey('desktop-page-$_index-${_sync.dataVersion.value}'),
+    key: ValueKey(
+      'desktop-${homePageStateKey(_index, _sync.dataVersion.value)}',
+    ),
     child: _pages[_index],
   );
 

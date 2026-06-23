@@ -5,6 +5,7 @@ import '../../models/loan.dart';
 import '../../services/employee_service.dart';
 import '../../services/loan_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_error_message.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
@@ -67,11 +68,11 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
   }
 
   Future<void> _init() async {
-    _employees = await _employeeService.getAll(onlyActive: true);
+    _employees = await _employeeService.getAll(onlyActive: widget.loan == null);
     if (widget.loan != null) {
-      _selectedEmployee = _employees.firstWhere(
-        (e) => e.id == widget.loan!.employeeId,
-        orElse: () => _employees.first,
+      _selectedEmployee = _employees.cast<Employee?>().firstWhere(
+        (e) => e?.id == widget.loan!.employeeId,
+        orElse: () => null,
       );
     }
     if (mounted) setState(() => _loading = false);
@@ -156,6 +157,7 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
     if (_selectedEmployee == null) {
       _showError('کارمند را انتخاب کنید');
@@ -165,8 +167,6 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
       _showError('مبلغ وام نامعتبر است');
       return;
     }
-
-    setState(() => _saving = true);
 
     final totalInstallments = _totalInstallments;
     final paidInstallments = _paidInstallments;
@@ -183,26 +183,27 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
       return;
     }
 
-    int loanNum = _loanNumber;
-    if (widget.loan == null) {
-      final existing = await _loanService.getByEmployee(_selectedEmployee!.id!);
-      loanNum = existing.length + 1;
-    }
-
-    final loan = Loan(
-      id: widget.loan?.id,
-      employeeId: _selectedEmployee!.id!,
-      loanNumber: loanNum,
-      amount: _amount,
-      installmentAmount: _installmentAmount,
-      totalInstallments: totalInstallments,
-      paidInstallments: paidInstallments,
-      startDate: PersianNumberFormatter.toEnglish(_startDateCtrl.text.trim()),
-      notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      isActive: _isActive && paidInstallments < totalInstallments,
-    );
-
+    setState(() => _saving = true);
     try {
+      var loanNum = _loanNumber;
+      if (widget.loan == null) {
+        final existing = await _loanService.getByEmployee(
+          _selectedEmployee!.id!,
+        );
+        loanNum = existing.length + 1;
+      }
+      final loan = Loan(
+        id: widget.loan?.id,
+        employeeId: _selectedEmployee!.id!,
+        loanNumber: loanNum,
+        amount: _amount,
+        installmentAmount: _installmentAmount,
+        totalInstallments: totalInstallments,
+        paidInstallments: paidInstallments,
+        startDate: PersianNumberFormatter.toEnglish(_startDateCtrl.text.trim()),
+        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        isActive: _isActive && paidInstallments < totalInstallments,
+      );
       if (widget.loan == null) {
         await _loanService.insert(loan);
       } else {
@@ -211,7 +212,12 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _showError('خطا در ذخیره: $e');
+      _showError(
+        AppErrorMessage.from(
+          e,
+          fallback: 'ذخیره وام انجام نشد. اطلاعات را بررسی کنید.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -298,12 +304,16 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
             ),
         ],
       ),
-      body: _employees.isEmpty
+      body:
+          _employees.isEmpty ||
+              (widget.loan != null && _selectedEmployee == null)
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(40),
                 child: Text(
-                  'ابتدا حداقل یک کارمند ثبت کنید',
+                  widget.loan != null
+                      ? 'کارمند این وام حذف شده است و امکان ویرایش وام وجود ندارد.'
+                      : 'ابتدا حداقل یک کارمند فعال ثبت کنید',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
@@ -342,8 +352,9 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                                     ),
                                   )
                                   .toList(),
-                              onChanged: (v) =>
-                                  setState(() => _selectedEmployee = v),
+                              onChanged: widget.loan == null
+                                  ? (v) => setState(() => _selectedEmployee = v)
+                                  : null,
                               validator: (v) =>
                                   v == null ? 'انتخاب کارمند الزامی است' : null,
                             ),

@@ -1,5 +1,6 @@
 import '../database/database_helper.dart';
 import '../models/loan.dart';
+import '../utils/business_validation.dart';
 import 'sync_service.dart';
 
 /// سرویس مدیریت وام و اقساط
@@ -51,14 +52,21 @@ class LoanService {
   }
 
   Future<int> insert(Loan loan) async {
+    BusinessValidation.loan(loan);
     final db = await _db.database;
     final id = await db.insert('loans', loan.toMap()..remove('id'));
     await _sync.markUpsert('loans', id, schedule: false);
-    await _sync.syncNow(silent: true);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
     return id;
   }
 
   Future<int> update(Loan loan) async {
+    if (loan.id == null) {
+      throw const BusinessValidationException(
+        'وام موردنظر برای ویرایش پیدا نشد.',
+      );
+    }
+    BusinessValidation.loan(loan);
     final db = await _db.database;
     final result = await db.update(
       'loans',
@@ -66,16 +74,19 @@ class LoanService {
       where: 'id = ? AND deleted_at IS NULL',
       whereArgs: [loan.id],
     );
-    if (loan.id != null) {
-      await _sync.markUpsert('loans', loan.id!, schedule: false);
-      await _sync.syncNow(silent: true);
+    if (result == 0) {
+      throw const BusinessValidationException(
+        'این وام قبلاً حذف شده است. فهرست را تازه کنید.',
+      );
     }
+    await _sync.markUpsert('loans', loan.id!, schedule: false);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
     return result;
   }
 
   Future<int> delete(int id) async {
     final result = await _sync.markDelete('loans', id, schedule: false);
-    await _sync.syncNow(silent: true);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
     return result;
   }
 

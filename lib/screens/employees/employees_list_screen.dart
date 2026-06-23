@@ -4,6 +4,7 @@ import '../../models/employee.dart';
 import '../../services/employee_service.dart';
 import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_error_message.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
 import '../../widgets/responsive_data_view.dart';
@@ -71,7 +72,7 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
         title: const Text('حذف کارمند'),
         content: Text(
           'آیا از حذف کارمند «${employee.fullName}» مطمئن هستید؟\n'
-          'تمام وام‌ها و فیش‌های حقوق این کارمند نیز حذف خواهد شد.',
+          'تمام فیش‌ها، پیش‌نویس‌ها، وام‌ها، مساعده‌ها و مرخصی‌های این کارمند نیز حذف خواهد شد.',
         ),
         actions: [
           TextButton(
@@ -89,12 +90,27 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
       ),
     );
     if (confirm == true && employee.id != null) {
-      await _service.delete(employee.id!);
-      await _load();
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('کارمند با موفقیت حذف شد')));
+      try {
+        await _service.delete(employee.id!);
+        await _load();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('کارمند با موفقیت حذف شد')),
+        );
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                error,
+                fallback: 'حذف کارمند انجام نشد. فهرست را تازه کنید.',
+              ),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 
@@ -112,6 +128,7 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'employees-new-fab',
         onPressed: () => _openForm(),
         icon: const Icon(Icons.person_add_rounded),
         label: const Text('کارمند جدید'),

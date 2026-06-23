@@ -4,8 +4,11 @@ import '../../models/employee.dart';
 import '../../models/loan.dart';
 import '../../services/employee_service.dart';
 import '../../services/loan_service.dart';
+import '../../utils/app_error_message.dart';
+import '../../utils/period_filter_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/period_filter_bar.dart';
 import '../../widgets/responsive_data_view.dart';
 import 'loan_form_screen.dart';
 
@@ -19,11 +22,15 @@ class LoansListScreen extends StatefulWidget {
 class _LoansListScreenState extends State<LoansListScreen> {
   final _loanService = LoanService();
   final _employeeService = EmployeeService();
+  final _searchController = TextEditingController();
+  final _searchUndoController = UndoHistoryController();
   List<Loan> _loans = [];
   Map<int, Employee> _employeesMap = {};
   bool _loading = true;
   bool _onlyActive = false;
   String _filter = '';
+  int? _filterYear;
+  int? _filterMonth;
   int _sortColumnIndex = 0;
   bool _sortAscending = true;
 
@@ -31,6 +38,13 @@ class _LoansListScreenState extends State<LoansListScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchUndoController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -47,6 +61,12 @@ class _LoansListScreenState extends State<LoansListScreen> {
 
   List<Loan> get _filtered {
     var list = _loans;
+    final selected = _selectedPeriod;
+    if (selected != null) {
+      list = list
+          .where((loan) => _loanAppliesToPeriod(loan, selected))
+          .toList();
+    }
     if (_onlyActive) {
       list = list.where((l) => l.isActive).toList();
     }
@@ -58,10 +78,58 @@ class _LoansListScreenState extends State<LoansListScreen> {
         return emp.fullName.contains(f) ||
             emp.personnelCode.toString().contains(
               PersianNumberFormatter.toEnglish(f),
-            );
+            ) ||
+            l.startDate.contains(PersianNumberFormatter.toEnglish(f)) ||
+            (l.notes?.contains(f) ?? false);
       }).toList();
     }
     return list;
+  }
+
+  (int, int)? get _selectedPeriod {
+    if (_filterYear == null || _filterMonth == null) return null;
+    final period = (_filterYear!, _filterMonth!);
+    return _availablePeriods.contains(period) ? period : null;
+  }
+
+  List<(int, int)> get _availablePeriods {
+    final periods = <(int, int)>{};
+    for (final loan in _loans) {
+      final start = PeriodFilterHelper.parsePeriod(loan.startDate);
+      if (start == null) continue;
+      final startIndex = PeriodFilterHelper.periodIndex(start);
+      final months = loan.totalInstallments.ceil().clamp(1, 240).toInt();
+      for (var offset = 0; offset < months; offset++) {
+        periods.add(PeriodFilterHelper.periodFromIndex(startIndex + offset));
+      }
+    }
+    final sorted = periods.toList();
+    sorted.sort(
+      (a, b) => PeriodFilterHelper.periodIndex(
+        b,
+      ).compareTo(PeriodFilterHelper.periodIndex(a)),
+    );
+    return sorted;
+  }
+
+  void _onPeriodChanged((int, int)? value) {
+    setState(() {
+      _filterYear = value?.$1;
+      _filterMonth = value?.$2;
+    });
+  }
+
+  bool _loanAppliesToPeriod(Loan loan, (int, int) period) {
+    final start = PeriodFilterHelper.parsePeriod(loan.startDate);
+    if (start == null) return false;
+    final selectedIndex = PeriodFilterHelper.periodIndex(period);
+    final startIndex = PeriodFilterHelper.periodIndex(start);
+    final installmentMonths = loan.totalInstallments
+        .ceil()
+        .clamp(1, 10000)
+        .toInt();
+    return selectedIndex >= startIndex &&
+        selectedIndex < startIndex + installmentMonths;
   }
 
   Future<void> _openForm({Loan? loan}) async {
@@ -98,8 +166,23 @@ class _LoansListScreenState extends State<LoansListScreen> {
       ),
     );
     if (confirm == true && loan.id != null) {
-      await _loanService.delete(loan.id!);
-      await _load();
+      try {
+        await _loanService.delete(loan.id!);
+        await _load();
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppErrorMessage.from(
+                error,
+                fallback: 'حذف وام انجام نشد. فهرست را تازه کنید.',
+              ),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 
@@ -146,57 +229,36 @@ class _LoansListScreenState extends State<LoansListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'loans-new-fab',
         onPressed: () => _openForm(),
         icon: const Icon(Icons.add_rounded),
         label: const Text('وام جدید'),
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final chip = FilterChip(
-                  label: Text(_onlyActive ? 'فقط وام‌های فعال' : 'همه وام‌ها'),
-                  labelStyle: TextStyle(
-                    color: _onlyActive
-                        ? scheme.onPrimaryContainer
-                        : scheme.onSurface,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  selected: _onlyActive,
-                  onSelected: (v) => setState(() => _onlyActive = v),
-                  selectedColor: scheme.primaryContainer,
-                  backgroundColor: scheme.surfaceContainerLowest,
-                  checkmarkColor: scheme.onPrimaryContainer,
-                  side: BorderSide(color: scheme.outlineVariant),
-                  showCheckmark: true,
-                );
-                final search = TextField(
-                  onChanged: (v) => setState(() => _filter = v),
-                  decoration: const InputDecoration(
-                    hintText: 'جستجو بر اساس نام یا کد پرسنلی...',
-                    prefixIcon: Icon(Icons.search_rounded),
-                  ),
-                );
-                if (constraints.maxWidth < 560) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      search,
-                      const SizedBox(height: 8),
-                      Align(alignment: Alignment.centerRight, child: chip),
-                    ],
-                  );
-                }
-                return Row(
-                  children: [
-                    Expanded(child: search),
-                    const SizedBox(width: 12),
-                    chip,
-                  ],
-                );
-              },
+          PeriodFilterBar(
+            selectedPeriod: _selectedPeriod,
+            availablePeriods: _availablePeriods,
+            onPeriodChanged: _onPeriodChanged,
+            searchController: _searchController,
+            searchUndoController: _searchUndoController,
+            onSearchChanged: (value) => setState(() => _filter = value),
+            searchHint: 'جستجو بر اساس نام، کد پرسنلی، تاریخ یا توضیحات...',
+            trailing: FilterChip(
+              label: Text(_onlyActive ? 'فقط وام‌های فعال' : 'همه وام‌ها'),
+              labelStyle: TextStyle(
+                color: _onlyActive
+                    ? scheme.onPrimaryContainer
+                    : scheme.onSurface,
+                fontWeight: FontWeight.w700,
+              ),
+              selected: _onlyActive,
+              onSelected: (v) => setState(() => _onlyActive = v),
+              selectedColor: scheme.primaryContainer,
+              backgroundColor: scheme.surfaceContainerLowest,
+              checkmarkColor: scheme.onPrimaryContainer,
+              side: BorderSide(color: scheme.outlineVariant),
+              showCheckmark: true,
             ),
           ),
           Expanded(

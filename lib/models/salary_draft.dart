@@ -25,6 +25,9 @@ class SalaryDraft {
   final bool includeLeaveInPayslip;
   final bool insuranceExempt;
   final bool taxExempt;
+  final bool housingExempt;
+  final bool foodExempt;
+  final bool seniorityExempt;
 
   const SalaryDraft({
     this.id,
@@ -53,6 +56,9 @@ class SalaryDraft {
     this.includeLeaveInPayslip = true,
     this.insuranceExempt = false,
     this.taxExempt = false,
+    this.housingExempt = false,
+    this.foodExempt = false,
+    this.seniorityExempt = false,
   });
 
   Map<String, dynamic> toMap() => {
@@ -82,6 +88,9 @@ class SalaryDraft {
     'include_leave_in_payslip': includeLeaveInPayslip ? 1 : 0,
     'insurance_exempt': insuranceExempt ? 1 : 0,
     'tax_exempt': taxExempt ? 1 : 0,
+    'housing_exempt': housingExempt ? 1 : 0,
+    'food_exempt': foodExempt ? 1 : 0,
+    'seniority_exempt': seniorityExempt ? 1 : 0,
   };
 
   factory SalaryDraft.fromMap(Map<String, dynamic> map) => SalaryDraft(
@@ -113,6 +122,9 @@ class SalaryDraft {
     includeLeaveInPayslip: (map['include_leave_in_payslip'] as int? ?? 1) == 1,
     insuranceExempt: (map['insurance_exempt'] as int? ?? 0) == 1,
     taxExempt: (map['tax_exempt'] as int? ?? 0) == 1,
+    housingExempt: (map['housing_exempt'] as int? ?? 0) == 1,
+    foodExempt: (map['food_exempt'] as int? ?? 0) == 1,
+    seniorityExempt: (map['seniority_exempt'] as int? ?? 0) == 1,
   );
 
   SalaryDraft copyForPeriod({required int year, required int month}) {
@@ -142,6 +154,9 @@ class SalaryDraft {
       includeLeaveInPayslip: includeLeaveInPayslip,
       insuranceExempt: insuranceExempt,
       taxExempt: taxExempt,
+      housingExempt: housingExempt,
+      foodExempt: foodExempt,
+      seniorityExempt: seniorityExempt,
     );
   }
 }

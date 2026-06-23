@@ -97,6 +97,9 @@ class SalaryCalculationResult {
     required double overtimeHours,
     required double hourlyBenefitHours,
     required bool includeLeaveInPayslip,
+    required bool housingExempt,
+    required bool foodExempt,
+    required bool seniorityExempt,
     String? notes,
   }) => SalaryRecord(
     employeeId: employeeId,
@@ -131,6 +134,9 @@ class SalaryCalculationResult {
     advance: advance,
     otherDeductions: otherDeductions,
     includeLeaveInPayslip: includeLeaveInPayslip,
+    housingExempt: housingExempt,
+    foodExempt: foodExempt,
+    seniorityExempt: seniorityExempt,
     leaveAllowanceDays: leaveAllowanceDays,
     excessLeaveDays: excessLeaveDays,
     leaveDeduction: leaveDeduction,
@@ -161,6 +167,9 @@ class SalaryCalculationInput {
   final bool includeLeaveInPayslip; // محاسبه مرخصی در فیش
   final bool insuranceExempt; // عدم شمول بیمه برای ردیف‌های خاص
   final bool taxExempt; // عدم شمول مالیات برای ردیف‌های خاص
+  final bool housingExempt; // حذف حق مسکن از این فیش
+  final bool foodExempt; // حذف حق خواروبار از این فیش
+  final bool seniorityExempt; // حذف پایه سنوات از این فیش
   final double otherBenefitsOverride; // سایر مزایا - دستی
   final double loanInstallment; // قسط وام
   final double advance; // مساعده
@@ -181,6 +190,9 @@ class SalaryCalculationInput {
     this.includeLeaveInPayslip = true,
     this.insuranceExempt = false,
     this.taxExempt = false,
+    this.housingExempt = false,
+    this.foodExempt = false,
+    this.seniorityExempt = false,
     this.otherBenefitsOverride = -1, // -1 = خودکار (از کارمند)
     this.loanInstallment = 0,
     this.advance = 0,
@@ -271,10 +283,12 @@ class SalaryCalculator {
     final baseSalary = employee.dailyWage1405 * payableDays;
 
     // 2) مزایای ثابت در اکسل با سقف 30 روز محاسبه می‌شوند.
-    final housing = employee.dailyHousing * benefitDays;
+    final housing = input.housingExempt
+        ? 0.0
+        : employee.dailyHousing * benefitDays;
 
     // 3) حق خواروبار = روزانه × min(کل کارکرد، 30)
-    final food = employee.dailyFood * benefitDays;
+    final food = input.foodExempt ? 0.0 : employee.dailyFood * benefitDays;
 
     // 4) حق تاهل = (در صورت متاهل بودن) روزانه × min(کل کارکرد، 30)
     final marriage = employee.isMarried
@@ -286,7 +300,9 @@ class SalaryCalculator {
         employee.dailyChildAllowance * employee.childrenCount * benefitDays;
 
     // 6) پایه سنوات در اکسل با کل کارکرد محاسبه می‌شود.
-    final seniority = employee.dailySeniority * payableDays;
+    final seniority = input.seniorityExempt
+        ? 0.0
+        : employee.dailySeniority * payableDays;
 
     // 7) سایر مزایا دستی = مبلغ روزانه × کارکرد خالص؛ خودکار مطابق قرارداد/اکسل.
     final otherBenefits = input.otherBenefitsOverride >= 0

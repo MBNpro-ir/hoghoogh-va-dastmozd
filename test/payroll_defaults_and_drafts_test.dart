@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:payroll_app/models/app_settings.dart';
 import 'package:payroll_app/models/employee.dart';
 import 'package:payroll_app/models/salary_draft.dart';
+import 'package:payroll_app/models/salary_record.dart';
 import 'package:payroll_app/services/salary_calculator.dart';
 
 void main() {
@@ -53,6 +54,58 @@ void main() {
     expect(result.overtimeBaseDaily, 5176500);
   });
 
+  test('fixed benefit exemptions zero selected salary rows', () {
+    final employee = Employee(
+      personnelCode: 1,
+      firstName: 'علی',
+      lastName: 'آزمایشی',
+      nationalId: '0012345678',
+      dailyWage1405: 1000000,
+      dailyHousing: 200000,
+      dailyFood: 300000,
+      dailySeniority: 400000,
+      startDate: '1400/01/01',
+    );
+    final result = SalaryCalculator.calculate(
+      employee: employee,
+      settings: AppSettings(
+        employeeInsuranceRate: 0,
+        employerInsuranceRate: 0,
+        unemploymentInsuranceRate: 0,
+      ),
+      input: SalaryCalculationInput(
+        housingExempt: true,
+        foodExempt: true,
+        seniorityExempt: true,
+        taxExempt: true,
+      ),
+    );
+    final record = result.toRecord(
+      employeeId: 1,
+      year: 1405,
+      month: 4,
+      totalDays: 30,
+      leaveDays: 0,
+      sickLeaveDays: 0,
+      workDays: 30,
+      overtimeHours: 0,
+      hourlyBenefitHours: 0,
+      includeLeaveInPayslip: true,
+      housingExempt: true,
+      foodExempt: true,
+      seniorityExempt: true,
+    );
+
+    expect(result.housing, 0);
+    expect(result.food, 0);
+    expect(result.seniority, 0);
+    expect(result.totalEarnings, 30000000);
+    final restored = SalaryRecord.fromMap(record.toMap());
+    expect(restored.housingExempt, isTrue);
+    expect(restored.foodExempt, isTrue);
+    expect(restored.seniorityExempt, isTrue);
+  });
+
   test('salary draft preserves exact monthly form state', () {
     const draft = SalaryDraft(
       employeeId: 4,
@@ -68,6 +121,9 @@ void main() {
       autoLoanInstallment: false,
       skipLoanInstallment: true,
       insuranceExempt: true,
+      housingExempt: true,
+      foodExempt: true,
+      seniorityExempt: true,
     );
 
     final restored = SalaryDraft.fromMap(draft.toMap());
@@ -79,10 +135,16 @@ void main() {
     expect(restored.autoShiftWork, isTrue);
     expect(restored.skipLoanInstallment, isTrue);
     expect(restored.insuranceExempt, isTrue);
+    expect(restored.housingExempt, isTrue);
+    expect(restored.foodExempt, isTrue);
+    expect(restored.seniorityExempt, isTrue);
 
     final nextMonth = restored.copyForPeriod(year: 1405, month: 4);
     expect(nextMonth.id, isNull);
     expect(nextMonth.month, 4);
     expect(nextMonth.overtimeHours, 8.25);
+    expect(nextMonth.housingExempt, isTrue);
+    expect(nextMonth.foodExempt, isTrue);
+    expect(nextMonth.seniorityExempt, isTrue);
   });
 }

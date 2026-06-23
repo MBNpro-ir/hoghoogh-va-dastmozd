@@ -1,5 +1,6 @@
 import '../database/database_helper.dart';
 import '../models/app_settings.dart';
+import '../utils/business_validation.dart';
 import '../utils/persian_date_helper.dart';
 import 'company_service.dart';
 import 'sync_service.dart';
@@ -43,6 +44,7 @@ class SettingsService {
   }
 
   Future<int> update(AppSettings settings) async {
+    BusinessValidation.settings(settings);
     final db = await _db.database;
     final map = settings.toMap()..remove('id');
     final result = settings.id != null
@@ -59,10 +61,13 @@ class SettingsService {
             whereArgs: [settings.year],
           );
     final id = settings.id ?? await _idForYear(settings.year);
-    if (id != null) {
-      await _sync.markUpsert('app_settings', id, schedule: false);
-      await _sync.syncNow(silent: true);
+    if (result == 0 || id == null) {
+      throw const BusinessValidationException(
+        'تنظیمات این سال دیگر وجود ندارد. صفحه را تازه کنید.',
+      );
     }
+    await _sync.markUpsert('app_settings', id, schedule: false);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
     return result;
   }
 
@@ -77,7 +82,7 @@ class SettingsService {
     if (existingId == null) {
       final id = await db.insert('app_settings', defaults);
       await _sync.markUpsert('app_settings', id, schedule: false);
-      await _sync.syncNow(silent: true);
+      await _sync.syncNow(silent: true, throwOnServerError: true);
       return;
     }
     await db.update(
@@ -87,7 +92,7 @@ class SettingsService {
       whereArgs: [existingId],
     );
     await _sync.markUpsert('app_settings', existingId, schedule: false);
-    await _sync.syncNow(silent: true);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
   }
 
   Future<AppSettings> _withServerCompanyName(AppSettings settings) async {

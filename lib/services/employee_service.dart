@@ -2,6 +2,7 @@ import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
 import '../models/employee.dart';
+import '../utils/business_validation.dart';
 import 'salary_draft_service.dart';
 import 'sync_service.dart';
 
@@ -50,11 +51,42 @@ class EmployeeService {
     return Employee.fromMap(rows.first);
   }
 
-  Future<int> insert(Employee employee) async {
+  Future<Employee?> getByNationalId(String nationalId) async {
     final db = await _db.database;
+    final rows = await db.query(
+      'employees',
+      where: 'national_id = ? AND deleted_at IS NULL',
+      whereArgs: [nationalId.trim()],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return Employee.fromMap(rows.first);
+  }
+
+  Future<int> insert(Employee employee) async {
+    BusinessValidation.employee(employee);
+    final db = await _db.database;
+    final codeRows = await db.query(
+      'employees',
+      columns: ['deleted_at'],
+      where: 'personnel_code = ?',
+      whereArgs: [employee.personnelCode],
+      limit: 1,
+    );
+    if (codeRows.isNotEmpty) {
+      final deleting = codeRows.first['deleted_at'] != null;
+      throw BusinessValidationException(
+        deleting
+            ? 'این کد پرسنلی در صف حذف است. ابتدا همگام‌سازی را کامل کنید.'
+            : 'این کد پرسنلی قبلاً ثبت شده است.',
+      );
+    }
+    if (await getByNationalId(employee.nationalId) != null) {
+      throw const BusinessValidationException('این کد ملی قبلاً ثبت شده است.');
+    }
     final id = await db.insert('employees', employee.toMap()..remove('id'));
     await _sync.markUpsert('employees', id, schedule: false);
-    await _sync.syncNow(silent: true);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
     return id;
   }
 
@@ -66,17 +98,26 @@ class EmployeeService {
     final db = await _db.database;
     final existingRows = await db.query(
       'employees',
-      columns: ['personnel_code'],
-      where: 'deleted_at IS NULL',
+      columns: ['personnel_code', 'national_id'],
     );
     final existingCodes = existingRows
         .map((row) => (row['personnel_code'] as num).toInt())
         .toSet();
+    final existingNationalIds = existingRows
+        .map((row) => row['national_id']?.toString().trim() ?? '')
+        .where((value) => value.isNotEmpty)
+        .toSet();
     final incomingCodes = <int>{};
+    final incomingNationalIds = <String>{};
     for (final employee in employees) {
+      BusinessValidation.employee(employee);
       if (existingCodes.contains(employee.personnelCode) ||
           !incomingCodes.add(employee.personnelCode)) {
         throw ArgumentError('کد پرسنلی ${employee.personnelCode} تکراری است');
+      }
+      if (existingNationalIds.contains(employee.nationalId) ||
+          !incomingNationalIds.add(employee.nationalId)) {
+        throw ArgumentError('کد ملی ${employee.nationalId} تکراری است');
       }
     }
 
@@ -96,11 +137,19 @@ class EmployeeService {
       }
       return insertedIds;
     });
-    if (sync) await _sync.syncNow(silent: true);
+    if (sync) {
+      await _sync.syncNow(silent: true, throwOnServerError: true);
+    }
     return ids;
   }
 
   Future<int> update(Employee employee, {bool sync = true}) async {
+    if (employee.id == null) {
+      throw const BusinessValidationException(
+        'کارمند موردنظر برای ویرایش پیدا نشد.',
+      );
+    }
+    BusinessValidation.employee(employee);
     final db = await _db.database;
     final result = await db.update(
       'employees',
@@ -108,9 +157,14 @@ class EmployeeService {
       where: 'id = ? AND deleted_at IS NULL',
       whereArgs: [employee.id],
     );
-    if (employee.id != null) {
-      await _sync.markUpsert('employees', employee.id!, schedule: false);
-      if (sync) await _sync.syncNow(silent: true);
+    if (result == 0) {
+      throw const BusinessValidationException(
+        'این کارمند قبلاً حذف شده است. فهرست را تازه کنید.',
+      );
+    }
+    await _sync.markUpsert('employees', employee.id!, schedule: false);
+    if (sync) {
+      await _sync.syncNow(silent: true, throwOnServerError: true);
     }
     return result;
   }
@@ -136,6 +190,12 @@ class EmployeeService {
       where: 'employee_id = ? AND deleted_at IS NULL',
       whereArgs: [id],
     );
+    final leaveRows = await db.query(
+      'leaves',
+      columns: ['id'],
+      where: 'employee_id = ? AND deleted_at IS NULL',
+      whereArgs: [id],
+    );
     for (final row in salaryRows) {
       final childId = row['id'] as int?;
       if (childId != null) {
@@ -154,8 +214,16 @@ class EmployeeService {
         await _sync.markDelete('advances', childId, schedule: false);
       }
     }
+    for (final row in leaveRows) {
+      final childId = row['id'] as int?;
+      if (childId != null) {
+        await _sync.markDelete('leaves', childId, schedule: false);
+      }
+    }
     final result = await _sync.markDelete('employees', id, schedule: false);
-    if (sync) await _sync.syncNow(silent: true);
+    if (sync) {
+      await _sync.syncNow(silent: true, throwOnServerError: true);
+    }
     return result;
   }
 
@@ -171,7 +239,7 @@ class EmployeeService {
       await update(employee, sync: false);
     }
     await insertMany(newEmployees, sync: false);
-    await _sync.syncNow(silent: true);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
   }
 
   Future<int> getNextPersonnelCode() async {

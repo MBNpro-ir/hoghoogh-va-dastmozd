@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 10;
+  static const int _dbVersion = 13;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -140,6 +140,7 @@ class DatabaseHelper {
 
     // جدول فیش‌های حقوق
     await _createAdvancesTable(db);
+    await _createLeavesTable(db);
 
     await db.execute('''
       CREATE TABLE salary_records (
@@ -176,6 +177,9 @@ class DatabaseHelper {
         advance REAL DEFAULT 0,
         other_deductions REAL DEFAULT 0,
         include_leave_in_payslip INTEGER NOT NULL DEFAULT 1,
+        housing_exempt INTEGER NOT NULL DEFAULT 0,
+        food_exempt INTEGER NOT NULL DEFAULT 0,
+        seniority_exempt INTEGER NOT NULL DEFAULT 0,
         leave_allowance_days REAL NOT NULL DEFAULT 2.5,
         excess_leave_days REAL NOT NULL DEFAULT 0,
         leave_deduction REAL NOT NULL DEFAULT 0,
@@ -401,6 +405,7 @@ class DatabaseHelper {
       await _addSyncColumns(db, 'salary_records');
       await _addSyncColumns(db, 'app_settings');
       await _createAdvancesTable(db);
+      await _createLeavesTable(db);
       await _createSyncIndexes(db);
     }
     if (oldVersion < 7) {
@@ -415,6 +420,7 @@ class DatabaseHelper {
     }
     if (oldVersion < 8) {
       await _createAdvancesTable(db);
+      await _createLeavesTable(db);
       await _createSyncIndexes(db);
     }
     if (oldVersion < 9) {
@@ -451,6 +457,49 @@ class DatabaseHelper {
         'overtime_base_daily REAL NOT NULL DEFAULT 0',
       );
       await _createSalaryDraftsTable(db);
+      await _createLeavesTable(db);
+      await _createSyncIndexes(db);
+    }
+    if (oldVersion < 11) {
+      await _createLeavesTable(db);
+      await _createSyncIndexes(db);
+    }
+    if (oldVersion < 12) {
+      await _createLeavesTable(db);
+      await _migrateSalaryRecordLeaves(db);
+      await _createSyncIndexes(db);
+    }
+    if (oldVersion < 13) {
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'housing_exempt INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'food_exempt INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'seniority_exempt INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_drafts',
+        'housing_exempt INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_drafts',
+        'food_exempt INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_drafts',
+        'seniority_exempt INTEGER NOT NULL DEFAULT 0',
+      );
       await _createSyncIndexes(db);
     }
   }
@@ -484,6 +533,9 @@ class DatabaseHelper {
         include_leave_in_payslip INTEGER NOT NULL DEFAULT 1,
         insurance_exempt INTEGER NOT NULL DEFAULT 0,
         tax_exempt INTEGER NOT NULL DEFAULT 0,
+        housing_exempt INTEGER NOT NULL DEFAULT 0,
+        food_exempt INTEGER NOT NULL DEFAULT 0,
+        seniority_exempt INTEGER NOT NULL DEFAULT 0,
         sync_id TEXT UNIQUE,
         server_updated_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -523,6 +575,132 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> _createLeavesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS leaves (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_id INTEGER NOT NULL,
+        from_date TEXT NOT NULL,
+        to_date TEXT NOT NULL,
+        days REAL NOT NULL DEFAULT 0,
+        type TEXT NOT NULL DEFAULT 'annual',
+        status TEXT NOT NULL DEFAULT 'approved',
+        notes TEXT,
+        sync_id TEXT UNIQUE,
+        server_updated_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT,
+        sync_state TEXT NOT NULL DEFAULT 'synced',
+        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+      );
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_leaves_employee ON leaves(employee_id);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_leaves_from_date ON leaves(from_date);',
+    );
+  }
+
+  Future<void> _migrateSalaryRecordLeaves(Database db) async {
+    final rows = await db.query(
+      'salary_records',
+      columns: [
+        'employee_id',
+        'year',
+        'month',
+        'leave_days',
+        'sick_leave_days',
+        'include_leave_in_payslip',
+        'deleted_at',
+      ],
+      where: '''
+        deleted_at IS NULL
+        AND (
+          COALESCE(leave_days, 0) > 0
+          OR COALESCE(sick_leave_days, 0) > 0
+        )
+      ''',
+      orderBy: 'year ASC, month ASC, employee_id ASC',
+    );
+    final now = DateTime.now().toIso8601String();
+    for (final row in rows) {
+      final employeeId = (row['employee_id'] as num?)?.toInt();
+      final year = (row['year'] as num?)?.toInt();
+      final month = (row['month'] as num?)?.toInt();
+      if (employeeId == null || year == null || month == null) continue;
+      final fromDate = '$year/${month.toString().padLeft(2, '0')}/01';
+      final prefix = '$year/${month.toString().padLeft(2, '0')}/';
+      final annualDays = (row['leave_days'] as num?)?.toDouble() ?? 0;
+      final sickDays = (row['sick_leave_days'] as num?)?.toDouble() ?? 0;
+      final includeAnnual = (row['include_leave_in_payslip'] as num?) != 0;
+
+      if (annualDays > 0) {
+        await _insertLegacyLeaveIfMissing(
+          db: db,
+          employeeId: employeeId,
+          prefix: prefix,
+          fromDate: fromDate,
+          days: annualDays,
+          type: 'annual',
+          status: includeAnnual ? 'approved' : 'pending',
+          notes: 'انتقال خودکار از فیش حقوق',
+          updatedAt: now,
+        );
+      }
+      if (sickDays > 0) {
+        await _insertLegacyLeaveIfMissing(
+          db: db,
+          employeeId: employeeId,
+          prefix: prefix,
+          fromDate: fromDate,
+          days: sickDays,
+          type: 'sick',
+          status: 'approved',
+          notes: 'انتقال خودکار استعلاجی از فیش حقوق',
+          updatedAt: now,
+        );
+      }
+    }
+  }
+
+  Future<void> _insertLegacyLeaveIfMissing({
+    required Database db,
+    required int employeeId,
+    required String prefix,
+    required String fromDate,
+    required double days,
+    required String type,
+    required String status,
+    required String notes,
+    required String updatedAt,
+  }) async {
+    final existing = await db.query(
+      'leaves',
+      columns: ['id'],
+      where: '''
+        employee_id = ?
+        AND from_date LIKE ?
+        AND type = ?
+        AND deleted_at IS NULL
+      ''',
+      whereArgs: [employeeId, '$prefix%', type],
+      limit: 1,
+    );
+    if (existing.isNotEmpty) return;
+    await db.insert('leaves', {
+      'employee_id': employeeId,
+      'from_date': fromDate,
+      'to_date': fromDate,
+      'days': days,
+      'type': type,
+      'status': status,
+      'notes': notes,
+      'updated_at': updatedAt,
+      'sync_state': 'pending',
+    });
+  }
+
   Future<void> _addSyncColumns(Database db, String table) async {
     await _safeAddColumn(db, table, 'sync_id TEXT');
     await _safeAddColumn(db, table, 'server_updated_at TEXT');
@@ -540,6 +718,7 @@ class DatabaseHelper {
       'employees',
       'loans',
       'advances',
+      'leaves',
       'salary_records',
       'salary_drafts',
       'app_settings',

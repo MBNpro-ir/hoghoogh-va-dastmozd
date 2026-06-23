@@ -1405,7 +1405,6 @@ class _BottomSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isNarrow = r.isMobileSize;
     final employeesMap = <int, Employee>{
       for (final e in data.employees)
         if (e.id != null) e.id!: e,
@@ -1418,27 +1417,33 @@ class _BottomSection extends StatelessWidget {
       employeesMap: employeesMap,
     );
 
-    if (isNarrow) {
-      return Column(
-        children: [
-          topCard,
-          SizedBox(height: r.cardGap),
-          loanCard,
-          SizedBox(height: r.cardGap),
-          recentCard,
-        ],
-      );
-    }
-    return Row(
-      textDirection: TextDirection.rtl,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(flex: 5, child: topCard),
-        SizedBox(width: r.cardGap),
-        Expanded(flex: 4, child: loanCard),
-        SizedBox(width: r.cardGap),
-        Expanded(flex: 6, child: recentCard),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // The app sidebar can make this section much narrower than MediaQuery.
+        final stackCards = constraints.maxWidth < 840;
+        if (stackCards) {
+          return Column(
+            children: [
+              topCard,
+              SizedBox(height: r.cardGap),
+              loanCard,
+              SizedBox(height: r.cardGap),
+              recentCard,
+            ],
+          );
+        }
+        return Row(
+          textDirection: TextDirection.rtl,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 5, child: topCard),
+            SizedBox(width: r.cardGap),
+            Expanded(flex: 4, child: loanCard),
+            SizedBox(width: r.cardGap),
+            Expanded(flex: 6, child: recentCard),
+          ],
+        );
+      },
     );
   }
 }
@@ -1711,24 +1716,32 @@ class _LoanSummaryCard extends StatelessWidget {
                   height: 1,
                 ),
                 const SizedBox(height: 12),
-                Row(
+                Wrap(
                   textDirection: TextDirection.rtl,
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 6,
                   children: [
-                    Icon(
-                      Icons.calendar_month_rounded,
-                      size: 14,
-                      color: scheme.onSurfaceVariant,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.calendar_month_rounded,
+                          size: 14,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'کسر ماهانه',
+                          style: TextStyle(
+                            fontFamily: 'Vazirmatn',
+                            fontSize: 11,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      'کسر ماهانه',
-                      style: TextStyle(
-                        fontFamily: 'Vazirmatn',
-                        fontSize: 11,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const Spacer(),
                     Text(
                       '${PersianNumberFormatter.formatNumber(data.monthlyInstallmentSum.round())} ریال',
                       style: TextStyle(

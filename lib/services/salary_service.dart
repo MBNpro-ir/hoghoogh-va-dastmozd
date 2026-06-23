@@ -1,5 +1,6 @@
 import '../database/database_helper.dart';
 import '../models/salary_record.dart';
+import '../utils/business_validation.dart';
 import 'sync_service.dart';
 
 /// سرویس مدیریت فیش‌های حقوق
@@ -76,28 +77,34 @@ class SalaryService {
   }
 
   Future<int> insertOrUpdate(SalaryRecord record) async {
+    BusinessValidation.salaryRecord(record);
     final db = await _db.database;
-    final existing = await getByEmployeeYearMonth(
-      record.employeeId,
-      record.year,
-      record.month,
+    final matchingRows = await db.query(
+      'salary_records',
+      columns: ['id'],
+      where: 'employee_id = ? AND year = ? AND month = ?',
+      whereArgs: [record.employeeId, record.year, record.month],
+      limit: 1,
     );
-    if (existing != null) {
+    final existingId = matchingRows.isEmpty
+        ? null
+        : (matchingRows.first['id'] as num?)?.toInt();
+    if (existingId != null) {
       final map = record.toMap()..remove('id');
       await db.update(
         'salary_records',
         map,
         where: 'id = ?',
-        whereArgs: [existing.id],
+        whereArgs: [existingId],
       );
-      await _sync.markUpsert('salary_records', existing.id!, schedule: false);
-      await _sync.syncNow(silent: true);
-      return existing.id!;
+      await _sync.markUpsert('salary_records', existingId, schedule: false);
+      await _sync.syncNow(silent: true, throwOnServerError: true);
+      return existingId;
     } else {
       final map = record.toMap()..remove('id');
       final id = await db.insert('salary_records', map);
       await _sync.markUpsert('salary_records', id, schedule: false);
-      await _sync.syncNow(silent: true);
+      await _sync.syncNow(silent: true, throwOnServerError: true);
       return id;
     }
   }
@@ -106,6 +113,7 @@ class SalaryService {
     if (record.id == null) {
       throw ArgumentError('Salary record id is required for update.');
     }
+    BusinessValidation.salaryRecord(record);
     final db = await _db.database;
     final map = record.toMap()..remove('id');
     final result = await db.update(
@@ -114,8 +122,13 @@ class SalaryService {
       where: 'id = ? AND deleted_at IS NULL',
       whereArgs: [record.id!],
     );
+    if (result == 0) {
+      throw const BusinessValidationException(
+        'این فیش قبلاً حذف شده است. فهرست را تازه کنید.',
+      );
+    }
     await _sync.markUpsert('salary_records', record.id!, schedule: false);
-    await _sync.syncNow(silent: true);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
     return result;
   }
 
@@ -125,7 +138,7 @@ class SalaryService {
       id,
       schedule: false,
     );
-    await _sync.syncNow(silent: true);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
     return result;
   }
 
@@ -153,7 +166,9 @@ class SalaryService {
         );
       }
     }
-    if (changed > 0) await _sync.syncNow(silent: true);
+    if (changed > 0) {
+      await _sync.syncNow(silent: true, throwOnServerError: true);
+    }
     return changed;
   }
 

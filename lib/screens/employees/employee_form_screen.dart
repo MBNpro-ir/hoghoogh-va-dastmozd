@@ -9,6 +9,7 @@ import '../../services/salary_calculator.dart';
 import '../../services/settings_service.dart';
 import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_error_message.dart';
 import '../../utils/constants.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
@@ -390,6 +391,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   }
 
   Future<void> _save() async {
+    if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
     final code = int.tryParse(
       PersianNumberFormatter.toEnglish(_personnelCodeCtrl.text).trim(),
@@ -416,15 +418,22 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         _showError('شماره پرسنلی باید یکتا باشد');
         return;
       }
+      final nationalId = PersianNumberFormatter.toEnglish(
+        _nationalIdCtrl.text.trim(),
+      );
+      final existingNationalId = await _service.getByNationalId(nationalId);
+      if (existingNationalId != null &&
+          existingNationalId.id != widget.employee?.id) {
+        _showError('این کد ملی قبلاً برای کارمند دیگری ثبت شده است');
+        return;
+      }
 
       final employee = Employee(
         id: widget.employee?.id,
         personnelCode: code,
         firstName: _firstNameCtrl.text.trim(),
         lastName: _lastNameCtrl.text.trim(),
-        nationalId: PersianNumberFormatter.toEnglish(
-          _nationalIdCtrl.text.trim(),
-        ),
+        nationalId: nationalId,
         fatherName: _fatherNameCtrl.text.trim(),
         birthCertificateNumber: PersianNumberFormatter.toEnglish(
           _birthCertificateCtrl.text.trim(),
@@ -484,7 +493,12 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e) {
-      _showError('خطا در ذخیره: $e');
+      _showError(
+        AppErrorMessage.from(
+          e,
+          fallback: 'ذخیره کارمند انجام نشد. اطلاعات را بررسی کنید.',
+        ),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
