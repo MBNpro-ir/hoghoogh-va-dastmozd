@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -33,17 +35,56 @@ class ApiClient {
   }) async {
     final url = _normalizeUrl(serverUrl ?? defaultServerUrl);
     await setServerUrl(url);
-    final response = await http
-        .post(
-          Uri.parse('$url/api/auth/login'),
-          headers: {'content-type': 'application/json'},
-          body: jsonEncode({'username': username, 'password': password}),
-        )
-        .timeout(const Duration(seconds: 20));
+    final response = await _safeRequest(
+      () => http
+          .post(
+            Uri.parse('$url/api/auth/login'),
+            headers: {'content-type': 'application/json'},
+            body: jsonEncode({'username': username, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 20)),
+    );
     final body = _decode(response);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(
-        body['error']?.toString() ?? 'ورود ناموفق بود',
+        _friendlyApiMessage(body['error']?.toString(), response.statusCode),
+        response.statusCode,
+      );
+    }
+    await _storage.write(
+      key: accessTokenKey,
+      value: body['access_token'] as String,
+    );
+    await _storage.write(
+      key: refreshTokenKey,
+      value: body['refresh_token'] as String,
+    );
+    await _storage.write(key: userKey, value: jsonEncode(body['user']));
+    return body;
+  }
+
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final token = await getAccessToken();
+    final serverUrl = await getServerUrl();
+    final response = await _safeRequest(
+      () => http
+          .post(
+            Uri.parse('$serverUrl/api/auth/change-password'),
+            headers: _authHeaders(token),
+            body: jsonEncode({
+              'current_password': currentPassword,
+              'new_password': newPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 20)),
+    );
+    final body = _decode(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _friendlyApiMessage(body['error']?.toString(), response.statusCode),
         response.statusCode,
       );
     }
@@ -64,18 +105,21 @@ class ApiClient {
     if (refreshToken == null || refreshToken.isEmpty) {
       throw ApiException('نشست منقضی شده است', 401);
     }
-    final response = await http
-        .post(
-          Uri.parse('${await getServerUrl()}/api/auth/refresh'),
-          headers: {'content-type': 'application/json'},
-          body: jsonEncode({'refresh_token': refreshToken}),
-        )
-        .timeout(const Duration(seconds: 20));
+    final serverUrl = await getServerUrl();
+    final response = await _safeRequest(
+      () => http
+          .post(
+            Uri.parse('$serverUrl/api/auth/refresh'),
+            headers: {'content-type': 'application/json'},
+            body: jsonEncode({'refresh_token': refreshToken}),
+          )
+          .timeout(const Duration(seconds: 20)),
+    );
     final body = _decode(response);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       await clearSession();
       throw ApiException(
-        body['error']?.toString() ?? 'تمدید نشست ناموفق بود',
+        _friendlyApiMessage(body['error']?.toString(), response.statusCode),
         response.statusCode,
       );
     }
@@ -179,6 +223,30 @@ class ApiClient {
     if (token != null && token.isNotEmpty) 'authorization': 'Bearer $token',
   };
 
+  Future<http.Response> _safeRequest(
+    Future<http.Response> Function() request,
+  ) async {
+    try {
+      return await request();
+    } on TimeoutException {
+      throw ApiException(
+        'ارتباط با سرور زمان‌بر شد. اینترنت یا وضعیت سرور را بررسی کنید.',
+      );
+    } on HandshakeException {
+      throw ApiException(
+        'ارتباط امن با سرور برقرار نشد. تاریخ و ساعت دستگاه یا گواهی سرور را بررسی کنید.',
+      );
+    } on SocketException {
+      throw ApiException(
+        'ارتباط با سرور برقرار نشد. اتصال اینترنت، VPN یا DNS را بررسی کنید.',
+      );
+    } on http.ClientException catch (e) {
+      throw ApiException(_friendlyNetworkMessage(e.message));
+    } catch (_) {
+      throw ApiException('خطا در ارتباط با سرور. دوباره تلاش کنید.');
+    }
+  }
+
   String _normalizeUrl(String url) {
     var normalized = url.trim();
     if (normalized.isEmpty) normalized = defaultServerUrl;
@@ -194,10 +262,61 @@ class ApiClient {
     } catch (_) {
       return {
         'error': response.body.isEmpty
-            ? 'خطا در ارتباط با سرور'
+            ? _friendlyApiMessage(null, response.statusCode)
             : response.body,
       };
     }
+  }
+
+  String _friendlyApiMessage(String? rawMessage, int statusCode) {
+    final message = rawMessage?.trim() ?? '';
+    final lower = message.toLowerCase();
+    if (lower.contains('invalid credentials')) {
+      return 'نام کاربری یا رمز عبور اشتباه است';
+    }
+    if (lower.contains('username and password')) {
+      return 'نام کاربری و رمز عبور الزامی است';
+    }
+    if (lower.contains('company is inactive')) {
+      return 'شرکت غیرفعال یا حذف شده است. با مدیر سیستم تماس بگیرید.';
+    }
+    if (lower.contains('account is temporarily locked')) {
+      return 'حساب به‌صورت موقت قفل شده است. کمی بعد دوباره تلاش کنید.';
+    }
+    if (lower.contains('password must be at least')) {
+      return 'رمز باید حداقل ۱۲ کاراکتر و شامل حرف بزرگ، حرف کوچک، عدد و نماد باشد';
+    }
+    if (lower.contains('unauthorized') ||
+        lower.contains('session required') ||
+        lower.contains('refresh_token')) {
+      return 'نشست شما منقضی شده است. دوباره وارد شوید.';
+    }
+    if (lower.contains('forbidden')) {
+      return 'شما به این بخش دسترسی ندارید.';
+    }
+    if (message.isNotEmpty) return message;
+    if (statusCode == 401) return 'نام کاربری یا رمز عبور اشتباه است';
+    if (statusCode == 423) return 'حساب یا شرکت شما در حال حاضر فعال نیست';
+    if (statusCode >= 500) {
+      return 'خطای داخلی سرور رخ داد. کمی بعد دوباره تلاش کنید.';
+    }
+    return 'خطا در ارتباط با سرور';
+  }
+
+  String _friendlyNetworkMessage(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('connection') && lower.contains('aborted')) {
+      return 'ارتباط با سرور قطع شد. اینترنت، VPN یا وضعیت سرور را بررسی کنید.';
+    }
+    if (lower.contains('failed host lookup') ||
+        lower.contains('nodename') ||
+        lower.contains('getaddrinfo')) {
+      return 'آدرس سرور پیدا نشد. DNS یا اتصال اینترنت را بررسی کنید.';
+    }
+    if (lower.contains('connection refused')) {
+      return 'سرور در دسترس نیست یا سرویس آن متوقف شده است.';
+    }
+    return 'ارتباط با سرور برقرار نشد. اینترنت یا وضعیت سرور را بررسی کنید.';
   }
 }
 

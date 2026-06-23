@@ -168,13 +168,36 @@ class _ServerLoginScreenState extends State<ServerLoginScreen>
     });
     try {
       _sync.stopAutoSync();
-      final body = await _api.login(
+      var body = await _api.login(
         username: _usernameController.text.trim(),
         password: _passwordController.text,
       );
-      final user = body['user'] is Map
+      var user = body['user'] is Map
           ? Map<String, dynamic>.from(body['user'] as Map)
           : null;
+      if (user?['must_change_password'] == true) {
+        if (!mounted) return;
+        final newPassword = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const _PasswordChangeDialog(),
+        );
+        if (newPassword == null) {
+          await _api.clearSession();
+          if (!mounted) return;
+          setState(
+            () => _error = 'برای ادامه، تغییر رمز در ورود بعدی الزامی شده است.',
+          );
+          return;
+        }
+        body = await _api.changePassword(
+          currentPassword: _passwordController.text,
+          newPassword: newPassword,
+        );
+        user = body['user'] is Map
+            ? Map<String, dynamic>.from(body['user'] as Map)
+            : user;
+      }
       await _sync.registerLoginSession(user);
       await _companyService.syncCurrentCompanyFromSession();
       TextInput.finishAutofillContext(shouldSave: true);
@@ -352,4 +375,95 @@ class _ErrorBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PasswordChangeDialog extends StatefulWidget {
+  const _PasswordChangeDialog();
+
+  @override
+  State<_PasswordChangeDialog> createState() => _PasswordChangeDialogState();
+}
+
+class _PasswordChangeDialogState extends State<_PasswordChangeDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+
+  @override
+  void dispose() {
+    _password.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('تغییر رمز عبور'),
+      content: SizedBox(
+        width: 420,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'مدیر سیستم درخواست کرده است در این ورود رمز عبور خود را تغییر دهید.',
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _password,
+                obscureText: true,
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.left,
+                decoration: const InputDecoration(
+                  labelText: 'رمز جدید',
+                  prefixIcon: Icon(Icons.lock_reset_rounded),
+                ),
+                validator: (value) => _isStrongPassword(value ?? '')
+                    ? null
+                    : 'رمز باید ۱۲ کاراکتر و شامل حرف بزرگ، حرف کوچک، عدد و نماد باشد',
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _confirm,
+                obscureText: true,
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.left,
+                decoration: const InputDecoration(
+                  labelText: 'تکرار رمز جدید',
+                  prefixIcon: Icon(Icons.lock_reset_rounded),
+                ),
+                validator: (value) => value == _password.text
+                    ? null
+                    : 'تکرار رمز با رمز جدید یکسان نیست',
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('انصراف'),
+        ),
+        FilledButton.icon(
+          onPressed: () {
+            if (!_formKey.currentState!.validate()) return;
+            Navigator.pop(context, _password.text);
+          },
+          icon: const Icon(Icons.check_rounded),
+          label: const Text('ثبت رمز جدید'),
+        ),
+      ],
+    );
+  }
+}
+
+bool _isStrongPassword(String value) {
+  return value.length >= 12 &&
+      RegExp(r'[a-z]').hasMatch(value) &&
+      RegExp(r'[A-Z]').hasMatch(value) &&
+      RegExp(r'\d').hasMatch(value) &&
+      RegExp(r'[^A-Za-z0-9]').hasMatch(value);
 }
