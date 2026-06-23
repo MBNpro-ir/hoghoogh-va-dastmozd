@@ -16,6 +16,7 @@ class PersianNumberField extends StatefulWidget {
   final String? suffix;
   final bool autofocus;
   final TextEditingController? controller;
+  final int maxDecimalDigits;
 
   const PersianNumberField({
     super.key,
@@ -30,6 +31,7 @@ class PersianNumberField extends StatefulWidget {
     this.suffix,
     this.autofocus = false,
     this.controller,
+    this.maxDecimalDigits = 0,
   });
 
   @override
@@ -49,7 +51,7 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
     } else {
       _controller = TextEditingController(
         text: widget.initialValue != null
-            ? PersianNumberFormatter.formatNumber(widget.initialValue!)
+            ? _formatValue(widget.initialValue!)
             : '',
       );
       _ownsController = true;
@@ -62,7 +64,7 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
     super.didUpdateWidget(oldWidget);
     if (!_ownsController || _focusNode.hasFocus) return;
     final nextText = widget.initialValue != null
-        ? PersianNumberFormatter.formatNumber(widget.initialValue!)
+        ? _formatValue(widget.initialValue!)
         : '';
     if (_controller.text != nextText) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -97,7 +99,7 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [
         FilteringTextInputFormatter.allow(RegExp(r'[0-9٠-٩۰-۹,،\.]')),
-        _ThousandsSeparatorFormatter(),
+        _ThousandsSeparatorFormatter(maxDecimalDigits: widget.maxDecimalDigits),
       ],
       decoration: InputDecoration(
         labelText: widget.label,
@@ -115,9 +117,23 @@ class _PersianNumberFieldState extends State<PersianNumberField> {
       },
     );
   }
+
+  String _formatValue(num value) {
+    if (widget.maxDecimalDigits > 0) {
+      return PersianNumberFormatter.formatDecimal(
+        value,
+        maxDecimalDigits: widget.maxDecimalDigits,
+      );
+    }
+    return PersianNumberFormatter.formatNumber(value);
+  }
 }
 
 class _ThousandsSeparatorFormatter extends TextInputFormatter {
+  final int maxDecimalDigits;
+
+  const _ThousandsSeparatorFormatter({required this.maxDecimalDigits});
+
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
@@ -136,11 +152,16 @@ class _ThousandsSeparatorFormatter extends TextInputFormatter {
       final parts = cleaned.split('.');
       intPart = parts[0];
       decPart = parts.length > 1 ? parts[1] : '';
+      if (maxDecimalDigits >= 0 && decPart.length > maxDecimalDigits) {
+        decPart = decPart.substring(0, maxDecimalDigits);
+      }
     }
     final num? value = num.tryParse(intPart);
     if (value == null) return oldValue;
     String formatted = PersianNumberFormatter.formatNumber(value);
-    if (decPart != null) formatted = '$formatted.$decPart';
+    if (decPart != null && maxDecimalDigits > 0) {
+      formatted = '$formatted.${PersianNumberFormatter.toPersian(decPart)}';
+    }
     return TextEditingValue(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),

@@ -63,6 +63,23 @@ class PersianNumberFormatter {
     return persian ? toPersian(formatted) : formatted;
   }
 
+  /// فرمت عدد اعشاری با جداکننده هزارگان و حذف صفرهای اضافه
+  static String formatDecimal(
+    num value, {
+    bool persian = true,
+    int maxDecimalDigits = 2,
+  }) {
+    final fixed = value.toStringAsFixed(maxDecimalDigits);
+    final parts = fixed.split('.');
+    final integer = NumberFormat('#,###').format(num.parse(parts.first));
+    var formatted = integer;
+    if (parts.length > 1) {
+      final decimal = parts[1].replaceFirst(RegExp(r'0+$'), '');
+      if (decimal.isNotEmpty) formatted = '$formatted.$decimal';
+    }
+    return persian ? toPersian(formatted) : formatted;
+  }
+
   /// فرمت مقدار ریالی
   static String formatRial(
     num value, {

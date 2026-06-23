@@ -49,7 +49,9 @@ class _DashboardViewState extends State<DashboardView> {
   }
 
   Future<void> _load() async {
-    final data = await _service.loadSnapshot(currentYear: 1405);
+    final data = await _service.loadSnapshot(
+      currentYear: PersianDateHelper.currentYear,
+    );
     if (mounted) {
       setState(() {
         _data = data;

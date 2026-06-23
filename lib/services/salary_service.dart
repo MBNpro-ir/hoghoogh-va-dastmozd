@@ -56,6 +56,25 @@ class SalaryService {
     return SalaryRecord.fromMap(rows.first);
   }
 
+  Future<SalaryRecord?> getLatestBefore(
+    int employeeId,
+    int year,
+    int month,
+  ) async {
+    final db = await _db.database;
+    final period = year * 100 + month;
+    final rows = await db.query(
+      'salary_records',
+      where:
+          'employee_id = ? AND (year * 100 + month) < ? AND deleted_at IS NULL',
+      whereArgs: [employeeId, period],
+      orderBy: 'year DESC, month DESC',
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return SalaryRecord.fromMap(rows.first);
+  }
+
   Future<int> insertOrUpdate(SalaryRecord record) async {
     final db = await _db.database;
     final existing = await getByEmployeeYearMonth(

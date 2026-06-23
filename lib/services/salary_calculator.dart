@@ -15,9 +15,12 @@ class SalaryCalculationResult {
   final double otherBenefits; // سایر مزایا
   final double shiftWork; // نوبت‌کاری
   final double overtimeAmount; // اضافه‌کاری
+  final bool useCustomOvertimeBase;
+  final double overtimeBaseDaily;
   final double hourlyBenefitsAmount; // مزایای ساعتی
   final double hourlyBenefitHours; // ساعت مزایای ساعتی
   final double totalEarnings; // جمع حقوق و مزایا
+  final double payableDays; // روزهای قابل پرداخت توسط کارفرما
 
   // کسورات
   final double insurance; // حق بیمه 7%
@@ -54,9 +57,12 @@ class SalaryCalculationResult {
     required this.otherBenefits,
     required this.shiftWork,
     required this.overtimeAmount,
+    required this.useCustomOvertimeBase,
+    required this.overtimeBaseDaily,
     required this.hourlyBenefitsAmount,
     required this.hourlyBenefitHours,
     required this.totalEarnings,
+    required this.payableDays,
     required this.insurance,
     required this.tax,
     required this.loanInstallment,
@@ -86,6 +92,7 @@ class SalaryCalculationResult {
     required int month,
     required int totalDays,
     required double leaveDays,
+    required double sickLeaveDays,
     required double workDays,
     required double overtimeHours,
     required double hourlyBenefitHours,
@@ -101,9 +108,12 @@ class SalaryCalculationResult {
     month: month,
     totalDays: totalDays,
     leaveDays: leaveDays,
+    sickLeaveDays: sickLeaveDays,
     workDays: workDays,
     overtimeHours: overtimeHours,
     overtimeAmount: overtimeAmount,
+    useCustomOvertimeBase: useCustomOvertimeBase,
+    overtimeBaseDaily: overtimeBaseDaily,
     shiftWork: shiftWork,
     hourlyBenefitsAmount: hourlyBenefitsAmount,
     hourlyBenefitHours: hourlyBenefitHours,
@@ -139,7 +149,10 @@ class SalaryCalculationResult {
 class SalaryCalculationInput {
   final int totalDays; // کل کارکرد (روزهای ماه)
   final double leaveDays; // مرخصی
+  final double sickLeaveDays; // مرخصی استعلاجی تاییدشده
   final double overtimeHours; // ساعت اضافه‌کاری
+  final bool useCustomOvertimeBase;
+  final double overtimeBaseDaily;
   final double shiftWork; // مبلغ نوبت‌کاری
   final double hourlyBenefitsAmount; // مزایای ساعتی محاسبه‌شده
   final double hourlyBenefitHours; // ساعت مزایای ساعتی
@@ -156,7 +169,10 @@ class SalaryCalculationInput {
   SalaryCalculationInput({
     this.totalDays = 30,
     this.leaveDays = 0,
+    this.sickLeaveDays = 0,
     this.overtimeHours = 0,
+    this.useCustomOvertimeBase = false,
+    this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
     this.hourlyBenefitsAmount = 0,
     this.hourlyBenefitHours = 0,
@@ -171,8 +187,16 @@ class SalaryCalculationInput {
     this.otherDeductions = 0,
   });
 
+  double get normalizedLeaveDays =>
+      leaveDays.clamp(0.0, totalDays.toDouble()).toDouble();
+
+  double get normalizedSickLeaveDays =>
+      sickLeaveDays.clamp(0.0, totalDays - normalizedLeaveDays).toDouble();
+
   double get workDays =>
-      (totalDays - leaveDays).clamp(0.0, totalDays.toDouble()).toDouble();
+      totalDays - normalizedLeaveDays - normalizedSickLeaveDays;
+
+  double get payableDays => totalDays - normalizedSickLeaveDays;
 }
 
 /// سرویس محاسبه حقوق - منطق اصلی برنامه
@@ -235,12 +259,16 @@ class SalaryCalculator {
     required AppSettings settings,
     required SalaryCalculationInput input,
   }) {
-    final totalDays = input.totalDays;
-    final benefitDays = totalDays.clamp(0, AppConstants.standardMonthDays);
+    final payableDays = input.payableDays;
+    final benefitDays = payableDays.clamp(
+      0.0,
+      AppConstants.standardMonthDays.toDouble(),
+    );
     final workDays = input.workDays;
 
-    // 1) حقوق ثابت = دستمزد روزانه × کل روزها
-    final baseSalary = employee.dailyWage1405 * totalDays;
+    // غرامت ایام بیماری را تامین اجتماعی جداگانه می‌پردازد؛ این فیش فقط
+    // روزهایی را محاسبه می‌کند که پرداخت آن‌ها بر عهده کارفرماست.
+    final baseSalary = employee.dailyWage1405 * payableDays;
 
     // 2) مزایای ثابت در اکسل با سقف 30 روز محاسبه می‌شوند.
     final housing = employee.dailyHousing * benefitDays;
@@ -258,24 +286,30 @@ class SalaryCalculator {
         employee.dailyChildAllowance * employee.childrenCount * benefitDays;
 
     // 6) پایه سنوات در اکسل با کل کارکرد محاسبه می‌شود.
-    final seniority = employee.dailySeniority * totalDays;
+    final seniority = employee.dailySeniority * payableDays;
 
     // 7) سایر مزایا دستی = مبلغ روزانه × کارکرد خالص؛ خودکار مطابق قرارداد/اکسل.
     final otherBenefits = input.otherBenefitsOverride >= 0
         ? input.otherBenefitsOverride * workDays
-        : employee.otherBenefitsDaily * totalDays;
+        : employee.otherBenefitsDaily * payableDays;
 
     // 8) اضافه‌کاری و مزایای ساعتی = ساعت × (دستمزد ساعتی × 1.40)
-    final hourlyRate = employee.dailyWage1405 / AppConstants.dailyWorkHours;
-    final overtimeRate = hourlyRate * AppConstants.overtimeMultiplier;
+    final overtimeBaseDaily = input.useCustomOvertimeBase
+        ? input.overtimeBaseDaily
+        : employee.dailyWage1405;
+    final overtimeHourlyRate = overtimeBaseDaily / AppConstants.dailyWorkHours;
+    final overtimeRate = overtimeHourlyRate * AppConstants.overtimeMultiplier;
     final overtimeAmount = input.overtimeHours * overtimeRate;
     final hourlyBenefitHours = input.autoHourlyBenefits
         ? (input.hourlyBenefitHours > 0
               ? input.hourlyBenefitHours
               : employee.hourlyBenefits)
         : 0.0;
+    final hourlyBenefitsRate =
+        (employee.dailyWage1405 / AppConstants.dailyWorkHours) *
+        AppConstants.overtimeMultiplier;
     final hourlyBenefitsAmount = input.autoHourlyBenefits
-        ? hourlyBenefitHours * overtimeRate
+        ? hourlyBenefitHours * hourlyBenefitsRate
         : input.hourlyBenefitsAmount;
 
     // 9) نوبت‌کاری در اکسل برای افراد مشمول، 15٪ حقوق ثابت است.
@@ -303,7 +337,7 @@ class SalaryCalculator {
       double.infinity,
     );
     final insuranceCap =
-        settings.dailyWage * AppConstants.insuranceCapMultiplier * totalDays;
+        settings.dailyWage * AppConstants.insuranceCapMultiplier * payableDays;
     final insuranceBase = input.insuranceExempt
         ? 0.0
         : uncappedInsuranceBase < insuranceCap
@@ -365,9 +399,12 @@ class SalaryCalculator {
       otherBenefits: otherBenefits,
       shiftWork: shiftWork,
       overtimeAmount: overtimeAmount,
+      useCustomOvertimeBase: input.useCustomOvertimeBase,
+      overtimeBaseDaily: overtimeBaseDaily,
       hourlyBenefitsAmount: hourlyBenefitsAmount,
       hourlyBenefitHours: hourlyBenefitHours,
       totalEarnings: totalEarnings,
+      payableDays: payableDays,
       insurance: insurance,
       tax: tax,
       loanInstallment: input.loanInstallment,

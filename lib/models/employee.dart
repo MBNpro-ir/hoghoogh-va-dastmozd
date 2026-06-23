@@ -30,6 +30,9 @@ class Employee {
   final double dailySeniority;
   final double otherBenefitsDaily;
   final double hourlyBenefits;
+  final bool hasShiftWork;
+  final bool useCustomOvertimeBase;
+  final double overtimeBaseDaily;
   final String startDate;
   final bool isActive;
   final String endDate;
@@ -75,6 +78,9 @@ class Employee {
     this.dailySeniority = 0,
     this.otherBenefitsDaily = 0,
     this.hourlyBenefits = 0,
+    this.hasShiftWork = false,
+    this.useCustomOvertimeBase = false,
+    this.overtimeBaseDaily = 0,
     required this.startDate,
     this.isActive = true,
     this.endDate = '',
@@ -132,6 +138,9 @@ class Employee {
     'daily_seniority': dailySeniority,
     'other_benefits_daily': otherBenefitsDaily,
     'hourly_benefits': hourlyBenefits,
+    'has_shift_work': hasShiftWork ? 1 : 0,
+    'use_custom_overtime_base': useCustomOvertimeBase ? 1 : 0,
+    'overtime_base_daily': overtimeBaseDaily,
     'start_date': startDate,
     'is_active': isActive ? 1 : 0,
     'end_date': endDate,
@@ -179,6 +188,9 @@ class Employee {
     dailySeniority: (map['daily_seniority'] as num?)?.toDouble() ?? 0,
     otherBenefitsDaily: (map['other_benefits_daily'] as num?)?.toDouble() ?? 0,
     hourlyBenefits: (map['hourly_benefits'] as num?)?.toDouble() ?? 0,
+    hasShiftWork: (map['has_shift_work'] as int? ?? 0) == 1,
+    useCustomOvertimeBase: (map['use_custom_overtime_base'] as int? ?? 0) == 1,
+    overtimeBaseDaily: (map['overtime_base_daily'] as num?)?.toDouble() ?? 0,
     startDate: map['start_date'] as String? ?? '',
     isActive: (map['is_active'] as int? ?? 1) == 1,
     endDate: map['end_date'] as String? ?? '',
@@ -225,6 +237,9 @@ class Employee {
     double? dailySeniority,
     double? otherBenefitsDaily,
     double? hourlyBenefits,
+    bool? hasShiftWork,
+    bool? useCustomOvertimeBase,
+    double? overtimeBaseDaily,
     String? startDate,
     bool? isActive,
     String? endDate,
@@ -270,6 +285,9 @@ class Employee {
     dailySeniority: dailySeniority ?? this.dailySeniority,
     otherBenefitsDaily: otherBenefitsDaily ?? this.otherBenefitsDaily,
     hourlyBenefits: hourlyBenefits ?? this.hourlyBenefits,
+    hasShiftWork: hasShiftWork ?? this.hasShiftWork,
+    useCustomOvertimeBase: useCustomOvertimeBase ?? this.useCustomOvertimeBase,
+    overtimeBaseDaily: overtimeBaseDaily ?? this.overtimeBaseDaily,
     startDate: startDate ?? this.startDate,
     isActive: isActive ?? this.isActive,
     endDate: endDate ?? this.endDate,

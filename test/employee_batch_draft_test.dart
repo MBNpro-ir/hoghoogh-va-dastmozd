@@ -4,6 +4,7 @@ import 'package:payroll_app/models/app_settings.dart';
 import 'package:payroll_app/models/employee.dart';
 import 'package:payroll_app/screens/batch/employee_batch_entry_view.dart';
 import 'package:payroll_app/utils/constants.dart';
+import 'package:payroll_app/utils/persian_date_helper.dart';
 
 void main() {
   const companyName = 'شرکت آزمایشی';
@@ -25,7 +26,7 @@ void main() {
 
     expect(draft.personnelCode.text, '42');
     expect(draft.workplace.text, companyName);
-    expect(draft.startDateEnglish, '1405/01/01');
+    expect(draft.startDateEnglish, PersianDateHelper.todayText());
     expect(draft.selectedRate, settings.salaryRateA);
     expect(draft.isActive, isTrue);
     expect(draft.isMarried, isFalse);
@@ -43,7 +44,8 @@ void main() {
     );
     expect(_value(draft.monthlyHousing), settings.monthlyHousing);
     expect(_value(draft.monthlyFood), settings.monthlyFood);
-    expect(_value(draft.monthlyChildAllowance), settings.monthlyChild);
+    expect(_value(draft.dailyChildAllowance), 0);
+    expect(_value(draft.monthlyChildAllowance), 0);
     expect(_value(draft.monthlyMarriage), 0);
   });
 
@@ -79,7 +81,15 @@ void main() {
     expect(_value(draft.monthlyFood), 24000000);
 
     draft.setChildrenCount(3);
+    draft.autoCalculate(settings);
     expect(draft.childrenCountValue, 3);
+    expect(_value(draft.dailyChildAllowance), settings.monthlyChild / 30);
+    expect(_value(draft.monthlyChildAllowance), settings.monthlyChild);
+
+    draft.setChildrenCount(0);
+    draft.autoCalculate(settings);
+    expect(_value(draft.dailyChildAllowance), 0);
+    expect(_value(draft.monthlyChildAllowance), 0);
   });
 
   test('existing employee row keeps identity and copies as a new row', () {
@@ -94,6 +104,7 @@ void main() {
       startDate: '1399/02/03',
       birthDate: '1370/04/05',
       isMarried: true,
+      hasShiftWork: true,
     );
     final draft = EmployeeBatchDraft.fromEmployee(
       employee: employee,
@@ -108,6 +119,8 @@ void main() {
     expect(draft.birthDate.text, '۱۳۷۰/۰۴/۰۵');
     expect(draft.selectedRate, settings.salaryRateB);
     expect(draft.toEmployee().startDate, '1399/02/03');
+    expect(draft.hasShiftWork, isTrue);
+    expect(draft.toEmployee().hasShiftWork, isTrue);
 
     final copy = draft.copyAsNew(settings: settings, personnelCode: 25);
     addTearDown(copy.dispose);

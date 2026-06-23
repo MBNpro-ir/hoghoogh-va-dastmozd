@@ -11,6 +11,7 @@ import '../models/advance_payment.dart';
 import '../models/app_settings.dart';
 import '../models/employee.dart';
 import '../models/loan.dart';
+import '../models/salary_draft.dart';
 import '../models/salary_record.dart';
 import 'api_client.dart';
 
@@ -70,6 +71,7 @@ class SyncService {
     'loans',
     'advances',
     'salary_records',
+    'salary_drafts',
     'app_settings',
   ];
 
@@ -78,11 +80,13 @@ class SyncService {
     'app_settings',
     'loans',
     'advances',
+    'salary_drafts',
     'salary_records',
   ];
 
   static const _deleteOrder = <String>[
     'salary_records',
+    'salary_drafts',
     'advances',
     'loans',
     'employees',
@@ -646,7 +650,10 @@ class SyncService {
     if (baseUpdatedAt != null && baseUpdatedAt.trim().isNotEmpty) {
       payload['base_updated_at'] = baseUpdatedAt;
     }
-    if (table == 'loans' || table == 'advances' || table == 'salary_records') {
+    if (table == 'loans' ||
+        table == 'advances' ||
+        table == 'salary_records' ||
+        table == 'salary_drafts') {
       final employeeId = payload['employee_id'];
       if (employeeId != null) {
         final employeeRows = await db.query(
@@ -679,11 +686,14 @@ class SyncService {
           'is_married',
           'is_active',
           'hard_and_harmful_job',
+          'has_shift_work',
+          'use_custom_overtime_base',
         }),
       ).toMap()..remove('id'),
       'loans' => await _remoteLoanPayload(db, payload),
       'advances' => await _remoteAdvancePayload(db, payload),
       'salary_records' => await _remoteSalaryPayload(db, payload),
+      'salary_drafts' => await _remoteSalaryDraftPayload(db, payload),
       'app_settings' => AppSettings.fromMap(payload).toMap()..remove('id'),
       _ => null,
     };
@@ -720,9 +730,35 @@ class SyncService {
     final employeeId = await _localEmployeeId(db, payload);
     if (employeeId == null) return null;
     return SalaryRecord.fromMap({
-      ..._boolsToInts(payload, const {'include_leave_in_payslip'}),
+      ..._boolsToInts(payload, const {
+        'include_leave_in_payslip',
+        'use_custom_overtime_base',
+      }),
       'employee_id': employeeId,
       'created_at': payload['created_at']?.toString() ?? _nowIso(),
+    }).toMap()..remove('id');
+  }
+
+  Future<Map<String, dynamic>?> _remoteSalaryDraftPayload(
+    Database db,
+    Map<String, dynamic> payload,
+  ) async {
+    final employeeId = await _localEmployeeId(db, payload);
+    if (employeeId == null) return null;
+    return SalaryDraft.fromMap({
+      ..._boolsToInts(payload, const {
+        'use_custom_overtime_base',
+        'auto_shift_work',
+        'auto_hourly_benefits',
+        'auto_other_benefits',
+        'auto_loan_installment',
+        'skip_loan_installment',
+        'auto_advances',
+        'include_leave_in_payslip',
+        'insurance_exempt',
+        'tax_exempt',
+      }),
+      'employee_id': employeeId,
     }).toMap()..remove('id');
   }
 
@@ -760,6 +796,14 @@ class SyncService {
         limit: 1,
       );
     } else if (table == 'salary_records') {
+      rows = await db.query(
+        table,
+        columns: ['id', 'sync_state'],
+        where: 'employee_id = ? AND year = ? AND month = ?',
+        whereArgs: [payload['employee_id'], payload['year'], payload['month']],
+        limit: 1,
+      );
+    } else if (table == 'salary_drafts') {
       rows = await db.query(
         table,
         columns: ['id', 'sync_state'],
@@ -926,8 +970,16 @@ class SyncService {
         'کد پرسنلی تکراری است. اطلاعات سرور را تازه کنید و برای کارمند کد جدید انتخاب کنید.',
       'duplicate_salary_record' =>
         'برای این کارمند و این ماه قبلا فیش حقوقی ثبت شده است. اطلاعات را تازه کنید و دوباره بررسی کنید.',
+      'duplicate_salary_draft' =>
+        'پیش‌نویس این کارمند و ماه همزمان در دستگاه دیگری تغییر کرده است. اطلاعات را تازه کنید.',
       'stale_update' =>
         'این بخش همزمان توسط کاربر دیگری تغییر کرده است. اگر می‌خواهید تغییرات خودتان را اعمال کنید، از کاربر دیگر بخواهید برنامه را ببندد، اطلاعات را تازه کنید و دوباره ذخیره کنید.',
+      'invalid_prior_experience' =>
+        'برای فعال کردن «دارای سابقه»، تاریخ شروع به کار باید تا پایان سال مالی حداقل یک سال سابقه داشته باشد.',
+      'invalid_attendance_days' =>
+        'جمع روزهای مرخصی و استعلاجی نمی‌تواند از کل روزهای کارکرد بیشتر باشد.',
+      'invalid_overtime_base' =>
+        'وقتی مبنای دستی اضافه‌کاری فعال است، مبلغ مبنای روزانه باید بیشتر از صفر باشد.',
       'sync_conflict' || 'duplicate_settings_year' =>
         'تغییر شما با اطلاعات ذخیره‌شده روی سرور تداخل دارد. اطلاعات را تازه کنید و دوباره ذخیره کنید.',
       _ =>
@@ -957,6 +1009,8 @@ class SyncService {
         'کد پرسنلی روی این دستگاه با اطلاعات سرور تداخل دارد. کد کارمند را تغییر دهید و دوباره sync کنید.',
       'salary_records' =>
         'فیش حقوقی این ماه با اطلاعات سرور تداخل دارد. اطلاعات را تازه کنید و دوباره ذخیره کنید.',
+      'salary_drafts' =>
+        'پیش‌نویس این ماه با اطلاعات سرور تداخل دارد. اطلاعات را تازه کنید و دوباره ادامه دهید.',
       _ =>
         'اطلاعات محلی با داده‌های سرور تداخل دارد. اطلاعات را تازه کنید و دوباره تلاش کنید.',
     };

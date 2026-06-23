@@ -27,6 +27,34 @@ class PersianDateHelper {
     'جمعه',
   ];
 
+  static Jalali today([DateTime? now]) {
+    return Jalali.fromDateTime(now ?? DateTime.now());
+  }
+
+  static int get currentYear => today().year;
+
+  static int get currentMonth => today().month;
+
+  static String todayText([DateTime? now]) => formatJalali(today(now));
+
+  static List<int> nearbyYearOptions({
+    int? selectedYear,
+    int yearsBefore = 2,
+    int yearsAfter = 2,
+  }) {
+    final current = currentYear;
+    final years = <int>{
+      for (
+        var year = current - yearsBefore;
+        year <= current + yearsAfter;
+        year++
+      )
+        year,
+    };
+    if (selectedYear != null) years.add(selectedYear);
+    return years.toList()..sort();
+  }
+
   /// تعداد روزهای ماه شمسی
   static int daysInMonth(int year, int month) {
     if (month >= 1 && month <= 6) return 31;

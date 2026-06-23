@@ -83,8 +83,13 @@ class LoanService {
   Future<void> recordInstallmentPayment(int loanId) async {
     final loan = await getById(loanId);
     if (loan == null) return;
-    final newPaid = loan.paidInstallments + 1;
-    final stillActive = newPaid < loan.totalInstallments;
+    final newPaid = (loan.paidInstallments + loan.nextInstallmentStep)
+        .clamp(0.0, loan.totalInstallments)
+        .toDouble();
+    final newRemaining = (loan.amount - loan.installmentAmount * newPaid)
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final stillActive = newPaid < loan.totalInstallments && newRemaining > 0;
     await update(
       loan.copyWith(
         paidInstallments: newPaid,
@@ -99,7 +104,7 @@ class LoanService {
     final loans = await getByEmployee(employeeId, onlyActive: true);
     double total = 0;
     for (final loan in loans) {
-      total += loan.installmentAmount;
+      total += loan.nextInstallmentAmount;
     }
     return total;
   }

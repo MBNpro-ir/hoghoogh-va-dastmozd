@@ -10,6 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/mouse_wheel_picker.dart';
 import '../../widgets/responsive_data_view.dart';
 import 'salary_calculation_screen.dart';
 import 'payslip_screen.dart';
@@ -51,8 +52,15 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     _employeesMap = {for (var e in employees) e.id!: e};
 
     if (_availableMonths.isNotEmpty && _filterYear == null) {
-      _filterYear = _availableMonths.first.$1;
-      _filterMonth = _availableMonths.first.$2;
+      final current = (
+        PersianDateHelper.currentYear,
+        PersianDateHelper.currentMonth,
+      );
+      final initial = _availableMonths.contains(current)
+          ? current
+          : _availableMonths.first;
+      _filterYear = initial.$1;
+      _filterMonth = initial.$2;
     }
 
     if (_filterYear != null && _filterMonth != null) {
@@ -65,6 +73,23 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     }
 
     if (mounted) setState(() => _loading = false);
+  }
+
+  (int, int)? get _selectedPeriod => _filterYear != null && _filterMonth != null
+      ? (_filterYear!, _filterMonth!)
+      : null;
+
+  List<(int, int)?> get _periodOptions => [null, ..._availableMonths];
+
+  Future<void> _onPeriodChanged((int, int)? value) async {
+    setState(() {
+      _filterYear = value?.$1;
+      _filterMonth = value?.$2;
+    });
+    final records = value == null
+        ? await _salaryService.getAll()
+        : await _salaryService.getByYearMonth(value.$1, value.$2);
+    if (mounted) setState(() => _records = records);
   }
 
   Future<void> _openPayslip(SalaryRecord record) async {
@@ -178,67 +203,13 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<(int, int)?>(
-                      initialValue:
-                          (_filterYear != null && _filterMonth != null)
-                          ? (_filterYear!, _filterMonth!)
-                          : null,
-                      decoration: const InputDecoration(
-                        labelText: 'دوره',
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                      items: [
-                        const DropdownMenuItem<(int, int)?>(
-                          value: null,
-                          child: Text('همه دوره‌ها'),
-                        ),
-                        ..._availableMonths.map(
-                          (ym) => DropdownMenuItem(
-                            value: ym,
-                            child: Text(
-                              '${PersianDateHelper.monthName(ym.$2)} ${PersianNumberFormatter.toPersian(ym.$1.toString())}',
-                            ),
-                          ),
-                        ),
-                      ],
-                      onChanged: (v) async {
-                        setState(() {
-                          _filterYear = v?.$1;
-                          _filterMonth = v?.$2;
-                        });
-                        if (v != null) {
-                          final list = await _salaryService.getByYearMonth(
-                            v.$1,
-                            v.$2,
-                          );
-                          setState(() => _records = list);
-                        } else {
-                          final list = await _salaryService.getAll();
-                          setState(() => _records = list);
-                        }
-                      },
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Icon(Icons.filter_alt_rounded, color: scheme.primary),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'فیلتر دوره: ',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
+                    MouseWheelPicker<(int, int)?>(
+                      value: _selectedPeriod,
+                      options: _periodOptions,
+                      onChanged: _onPeriodChanged,
                       child: DropdownButtonFormField<(int, int)?>(
-                        initialValue:
-                            (_filterYear != null && _filterMonth != null)
-                            ? (_filterYear!, _filterMonth!)
-                            : null,
+                        key: ValueKey('records-period-$_selectedPeriod'),
+                        initialValue: _selectedPeriod,
                         decoration: const InputDecoration(
                           labelText: 'دوره',
                           isDense: true,
@@ -261,22 +232,52 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
                             ),
                           ),
                         ],
-                        onChanged: (v) async {
-                          setState(() {
-                            _filterYear = v?.$1;
-                            _filterMonth = v?.$2;
-                          });
-                          if (v != null) {
-                            final list = await _salaryService.getByYearMonth(
-                              v.$1,
-                              v.$2,
-                            );
-                            setState(() => _records = list);
-                          } else {
-                            final list = await _salaryService.getAll();
-                            setState(() => _records = list);
-                          }
-                        },
+                        onChanged: _onPeriodChanged,
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Icon(Icons.filter_alt_rounded, color: scheme.primary),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'فیلتر دوره: ',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: MouseWheelPicker<(int, int)?>(
+                        value: _selectedPeriod,
+                        options: _periodOptions,
+                        onChanged: _onPeriodChanged,
+                        child: DropdownButtonFormField<(int, int)?>(
+                          key: ValueKey('records-period-$_selectedPeriod'),
+                          initialValue: _selectedPeriod,
+                          decoration: const InputDecoration(
+                            labelText: 'دوره',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                          ),
+                          items: [
+                            const DropdownMenuItem<(int, int)?>(
+                              value: null,
+                              child: Text('همه دوره‌ها'),
+                            ),
+                            ..._availableMonths.map(
+                              (ym) => DropdownMenuItem(
+                                value: ym,
+                                child: Text(
+                                  '${PersianDateHelper.monthName(ym.$2)} ${PersianNumberFormatter.toPersian(ym.$1.toString())}',
+                                ),
+                              ),
+                            ),
+                          ],
+                          onChanged: _onPeriodChanged,
+                        ),
                       ),
                     ),
                   ],
@@ -463,6 +464,12 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       cellBuilder: (r) => Text(_formatDays(r.workDays)),
     ),
     ResponsiveTableColumn(
+      label: 'استعلاجی',
+      numeric: true,
+      sortValue: (r) => r.sickLeaveDays,
+      cellBuilder: (r) => Text(_formatDays(r.sickLeaveDays)),
+    ),
+    ResponsiveTableColumn(
       label: 'جمع حقوق و مزایا',
       numeric: true,
       sortValue: (r) => r.totalEarnings,
@@ -543,7 +550,7 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       ),
       title: _employeeNameForRecord(record),
       subtitle:
-          '${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())} • کارکرد ${_formatDays(record.workDays)} روز',
+          '${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())} • کارکرد ${_formatDays(record.workDays)} روز • استعلاجی ${_formatDays(record.sickLeaveDays)} روز',
       metrics: [
         MobileMetric(
           label: 'حقوق و مزایا',

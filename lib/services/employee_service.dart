@@ -2,6 +2,7 @@ import 'package:uuid/uuid.dart';
 
 import '../database/database_helper.dart';
 import '../models/employee.dart';
+import 'salary_draft_service.dart';
 import 'sync_service.dart';
 
 /// سرویس مدیریت کارمندان
@@ -10,6 +11,7 @@ class EmployeeService {
 
   final _db = DatabaseHelper.instance;
   final _sync = SyncService();
+  final _drafts = SalaryDraftService();
 
   Future<List<Employee>> getAll({bool onlyActive = false}) async {
     final db = await _db.database;
@@ -115,6 +117,7 @@ class EmployeeService {
 
   Future<int> delete(int id, {bool sync = true}) async {
     final db = await _db.database;
+    await _drafts.markEmployeeDraftsDeleted(id);
     final salaryRows = await db.query(
       'salary_records',
       columns: ['id'],

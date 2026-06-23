@@ -12,11 +12,14 @@ class SalaryRecord {
   // ورودی‌های زمانی
   final int totalDays; // کل کارکرد (روز)
   final double leaveDays; // مرخصی
+  final double sickLeaveDays; // مرخصی استعلاجی
   final double workDays; // کارکرد خالص
 
   // ساعات و مزایا
   final double overtimeHours; // ساعت اضافه‌کاری
   final double overtimeAmount; // مبلغ اضافه‌کاری
+  final bool useCustomOvertimeBase;
+  final double overtimeBaseDaily;
   final double shiftWork; // نوبت‌کاری
   final double hourlyBenefitsAmount; // مزایای 60-64-160 ساعته
   final double hourlyBenefitHours; // ساعت مزایای ساعتی
@@ -54,6 +57,9 @@ class SalaryRecord {
   final String? notes;
   final DateTime createdAt;
 
+  double get payableDays =>
+      (totalDays - sickLeaveDays).clamp(0.0, totalDays.toDouble()).toDouble();
+
   SalaryRecord({
     this.id,
     required this.employeeId,
@@ -65,9 +71,12 @@ class SalaryRecord {
     required this.month,
     required this.totalDays,
     required this.leaveDays,
+    this.sickLeaveDays = 0,
     required this.workDays,
     this.overtimeHours = 0,
     this.overtimeAmount = 0,
+    this.useCustomOvertimeBase = false,
+    this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
     this.hourlyBenefitsAmount = 0,
     this.hourlyBenefitHours = 0,
@@ -110,9 +119,12 @@ class SalaryRecord {
     'month': month,
     'total_days': totalDays,
     'leave_days': leaveDays,
+    'sick_leave_days': sickLeaveDays,
     'work_days': workDays,
     'overtime_hours': overtimeHours,
     'overtime_amount': overtimeAmount,
+    'use_custom_overtime_base': useCustomOvertimeBase ? 1 : 0,
+    'overtime_base_daily': overtimeBaseDaily,
     'shift_work': shiftWork,
     'hourly_benefits_amount': hourlyBenefitsAmount,
     'hourly_benefit_hours': hourlyBenefitHours,
@@ -157,9 +169,12 @@ class SalaryRecord {
     month: map['month'] as int,
     totalDays: map['total_days'] as int,
     leaveDays: (map['leave_days'] as num).toDouble(),
+    sickLeaveDays: (map['sick_leave_days'] as num?)?.toDouble() ?? 0,
     workDays: (map['work_days'] as num).toDouble(),
     overtimeHours: (map['overtime_hours'] as num?)?.toDouble() ?? 0,
     overtimeAmount: (map['overtime_amount'] as num?)?.toDouble() ?? 0,
+    useCustomOvertimeBase: (map['use_custom_overtime_base'] as int? ?? 0) == 1,
+    overtimeBaseDaily: (map['overtime_base_daily'] as num?)?.toDouble() ?? 0,
     shiftWork: (map['shift_work'] as num?)?.toDouble() ?? 0,
     hourlyBenefitsAmount:
         (map['hourly_benefits_amount'] as num?)?.toDouble() ?? 0,
@@ -205,9 +220,12 @@ class SalaryRecord {
     month: month,
     totalDays: totalDays,
     leaveDays: leaveDays,
+    sickLeaveDays: sickLeaveDays,
     workDays: workDays,
     overtimeHours: overtimeHours,
     overtimeAmount: overtimeAmount,
+    useCustomOvertimeBase: useCustomOvertimeBase,
+    overtimeBaseDaily: overtimeBaseDaily,
     shiftWork: shiftWork,
     hourlyBenefitsAmount: hourlyBenefitsAmount,
     hourlyBenefitHours: hourlyBenefitHours,
@@ -246,9 +264,12 @@ class SalaryRecord {
     String? employeeNationalIdSnapshot,
     String? employeePayslipFooterNoteSnapshot,
     double? leaveDays,
+    double? sickLeaveDays,
     double? workDays,
     double? hourlyBenefitHours,
     double? hourlyBenefitsAmount,
+    bool? useCustomOvertimeBase,
+    double? overtimeBaseDaily,
     bool? includeLeaveInPayslip,
     double? leaveAllowanceDays,
     double? excessLeaveDays,
@@ -273,9 +294,12 @@ class SalaryRecord {
     month: month,
     totalDays: totalDays,
     leaveDays: leaveDays ?? this.leaveDays,
+    sickLeaveDays: sickLeaveDays ?? this.sickLeaveDays,
     workDays: workDays ?? this.workDays,
     overtimeHours: overtimeHours,
     overtimeAmount: overtimeAmount,
+    useCustomOvertimeBase: useCustomOvertimeBase ?? this.useCustomOvertimeBase,
+    overtimeBaseDaily: overtimeBaseDaily ?? this.overtimeBaseDaily,
     shiftWork: shiftWork,
     hourlyBenefitsAmount: hourlyBenefitsAmount ?? this.hourlyBenefitsAmount,
     hourlyBenefitHours: hourlyBenefitHours ?? this.hourlyBenefitHours,

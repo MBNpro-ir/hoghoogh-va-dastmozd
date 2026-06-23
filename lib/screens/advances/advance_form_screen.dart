@@ -41,10 +41,7 @@ class _AdvanceFormScreenState extends State<AdvanceFormScreen> {
     _amount = advance?.amount ?? 0;
     _dateCtrl = TextEditingController(
       text: PersianNumberFormatter.toPersian(
-        advance?.paymentDate ??
-            PersianDateHelper.formatJalali(
-              PersianDateHelper.fromGregorian(DateTime.now()),
-            ),
+        advance?.paymentDate ?? PersianDateHelper.todayText(),
       ),
     );
     _notesCtrl = TextEditingController(text: advance?.notes ?? '');
@@ -76,7 +73,7 @@ class _AdvanceFormScreenState extends State<AdvanceFormScreen> {
         PersianDateHelper.parseJalali(
           PersianNumberFormatter.toEnglish(_dateCtrl.text),
         ) ??
-        PersianDateHelper.fromGregorian(DateTime.now());
+        PersianDateHelper.today();
     final selected = await showPersianDatePicker(
       context: context,
       initialDate: initial,
@@ -243,7 +240,7 @@ class _AdvanceFormScreenState extends State<AdvanceFormScreen> {
                                 labelText: 'تاریخ پرداخت *',
                                 prefixIcon: Icon(Icons.calendar_today_rounded),
                                 suffixIcon: Icon(Icons.edit_calendar_rounded),
-                                hintText: '1405/01/01',
+                                hintText: 'سال/ماه/روز',
                               ),
                               validator: (value) {
                                 final raw = PersianNumberFormatter.toEnglish(

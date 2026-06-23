@@ -3,6 +3,7 @@ import 'package:shamsi_date/shamsi_date.dart';
 
 import '../utils/persian_date_helper.dart';
 import '../utils/persian_number_formatter.dart';
+import 'mouse_wheel_picker.dart';
 
 Future<Jalali?> showPersianDatePicker({
   required BuildContext context,
@@ -10,8 +11,9 @@ Future<Jalali?> showPersianDatePicker({
 }) {
   return showDialog<Jalali>(
     context: context,
-    builder: (_) =>
-        _PersianDatePickerDialog(initialDate: initialDate ?? Jalali.now()),
+    builder: (_) => _PersianDatePickerDialog(
+      initialDate: initialDate ?? PersianDateHelper.today(),
+    ),
   );
 }
 
@@ -61,10 +63,13 @@ class _PersianDatePickerDialogState extends State<_PersianDatePickerDialog> {
               icon: const Icon(Icons.chevron_right_rounded),
             ),
             Expanded(
-              child: Text(
-                '${PersianDateHelper.monthName(_visibleMonth.month)} ${PersianNumberFormatter.toPersian(_visibleMonth.year.toString())}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              child: MouseWheelStepper(
+                onStep: _moveVisibleMonth,
+                child: Text(
+                  '${PersianDateHelper.monthName(_visibleMonth.month)} ${PersianNumberFormatter.toPersian(_visibleMonth.year.toString())}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
             IconButton(
@@ -83,32 +88,40 @@ class _PersianDatePickerDialogState extends State<_PersianDatePickerDialog> {
             children: [
               _monthYearControls(isCompact),
               const SizedBox(height: 12),
-              GridView.count(
-                crossAxisCount: 7,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: isCompact ? 1.15 : 1.35,
-                children: PersianDateHelper.weekDays
-                    .map(
-                      (d) => Center(
-                        child: Text(
-                          d.substring(0, 1),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: scheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-              GridView.count(
-                crossAxisCount: 7,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: isCompact ? 1.05 : 1.25,
-                children: _dayCells(scheme),
+              MouseWheelStepper(
+                onStep: _moveVisibleMonth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GridView.count(
+                      crossAxisCount: 7,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      childAspectRatio: isCompact ? 1.15 : 1.35,
+                      children: PersianDateHelper.weekDays
+                          .map(
+                            (d) => Center(
+                              child: Text(
+                                d.substring(0, 1),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: scheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    GridView.count(
+                      crossAxisCount: 7,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      childAspectRatio: isCompact ? 1.05 : 1.25,
+                      children: _dayCells(scheme),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -128,39 +141,53 @@ class _PersianDatePickerDialogState extends State<_PersianDatePickerDialog> {
   }
 
   Widget _monthYearControls(bool isCompact) {
-    Widget monthControl() => DropdownButtonFormField<int>(
-      initialValue: _visibleMonth.month,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'ماه'),
-      items: [
-        for (var month = 1; month <= 12; month++)
-          DropdownMenuItem(
-            value: month,
-            child: Text(PersianDateHelper.monthName(month)),
-          ),
-      ],
-      onChanged: (month) {
-        if (month == null) return;
-        _setVisibleMonth(_visibleMonth.year, month);
-      },
+    final monthOptions = List.generate(12, (index) => index + 1);
+    final yearOptions = _yearOptions;
+    Widget monthControl() => MouseWheelPicker<int>(
+      value: _visibleMonth.month,
+      options: monthOptions,
+      onChanged: (month) => _setVisibleMonth(_visibleMonth.year, month),
+      child: DropdownButtonFormField<int>(
+        key: ValueKey('calendar-month-${_visibleMonth.month}'),
+        initialValue: _visibleMonth.month,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'ماه'),
+        items: [
+          for (final month in monthOptions)
+            DropdownMenuItem(
+              value: month,
+              child: Text(PersianDateHelper.monthName(month)),
+            ),
+        ],
+        onChanged: (month) {
+          if (month == null) return;
+          _setVisibleMonth(_visibleMonth.year, month);
+        },
+      ),
     );
 
-    Widget yearControl() => DropdownButtonFormField<int>(
-      initialValue: _visibleMonth.year,
-      isExpanded: true,
-      decoration: const InputDecoration(labelText: 'سال'),
-      items: _yearOptions
-          .map(
-            (year) => DropdownMenuItem(
-              value: year,
-              child: Text(PersianNumberFormatter.toPersian(year.toString())),
-            ),
-          )
-          .toList(),
-      onChanged: (year) {
-        if (year == null) return;
-        _setVisibleMonth(year, _visibleMonth.month);
-      },
+    Widget yearControl() => MouseWheelPicker<int>(
+      value: _visibleMonth.year,
+      options: yearOptions,
+      onChanged: (year) => _setVisibleMonth(year, _visibleMonth.month),
+      child: DropdownButtonFormField<int>(
+        key: ValueKey('calendar-year-${_visibleMonth.year}'),
+        initialValue: _visibleMonth.year,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'سال'),
+        items: yearOptions
+            .map(
+              (year) => DropdownMenuItem(
+                value: year,
+                child: Text(PersianNumberFormatter.toPersian(year.toString())),
+              ),
+            )
+            .toList(),
+        onChanged: (year) {
+          if (year == null) return;
+          _setVisibleMonth(year, _visibleMonth.month);
+        },
+      ),
     );
 
     if (isCompact) {
@@ -235,6 +262,10 @@ class _PersianDatePickerDialogState extends State<_PersianDatePickerDialog> {
       month -= 12;
     }
     return Jalali(year, month);
+  }
+
+  void _moveVisibleMonth(int delta) {
+    setState(() => _visibleMonth = _addMonths(_visibleMonth, delta));
   }
 
   List<int> get _yearOptions {

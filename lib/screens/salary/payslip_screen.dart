@@ -275,6 +275,7 @@ class PayslipScreen extends StatelessWidget {
               '${PersianNumberFormatter.toPersian(record.overtimeHours.toStringAsFixed(0))} ساعت',
             ),
             _topBox(context, 'مرخصی', _formatDays(record.leaveDays)),
+            _topBox(context, 'استعلاجی', _formatDays(record.sickLeaveDays)),
           ],
         ),
         const SizedBox(height: 16),
@@ -942,6 +943,7 @@ class PayslipScreen extends StatelessWidget {
       'کد ملی: ${PersianNumberFormatter.toPersian(_employeeNationalId)}',
       'کارکرد: ${_formatDays(record.workDays)} روز',
       'مرخصی: ${_formatDays(record.leaveDays)} روز',
+      'استعلاجی: ${_formatDays(record.sickLeaveDays)} روز',
       '',
       'حقوق و مزایا:',
       ..._earningsRows().map(
@@ -1007,6 +1009,7 @@ class PayslipScreen extends StatelessWidget {
     ]);
     row(['کارکرد', '${_formatDays(record.workDays)} روز']);
     row(['مرخصی', '${_formatDays(record.leaveDays)} روز']);
+    row(['استعلاجی', '${_formatDays(record.sickLeaveDays)} روز']);
     row([]);
     row(['حقوق و مزایا', 'مبلغ'], header: true);
     for (final item in _earningsRows()) {
@@ -1191,6 +1194,31 @@ class PayslipScreen extends StatelessWidget {
                     ),
                     pw.Text(
                       _formatDays(record.leaveDays, persian: false),
+                      style: pw.TextStyle(
+                        fontSize: 13,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            pw.SizedBox(width: 4),
+            pw.Expanded(
+              child: pw.Container(
+                padding: const pw.EdgeInsets.all(6),
+                decoration: pw.BoxDecoration(border: pw.Border.all(width: 1)),
+                child: pw.Column(
+                  children: [
+                    pw.Text(
+                      'استعلاجی',
+                      style: const pw.TextStyle(
+                        fontSize: 9,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                    pw.Text(
+                      _formatDays(record.sickLeaveDays, persian: false),
                       style: pw.TextStyle(
                         fontSize: 13,
                         fontWeight: pw.FontWeight.bold,

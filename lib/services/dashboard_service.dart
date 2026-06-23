@@ -2,6 +2,7 @@ import '../models/app_settings.dart';
 import '../models/employee.dart';
 import '../models/loan.dart';
 import '../models/salary_record.dart';
+import '../utils/persian_date_helper.dart';
 import 'employee_service.dart';
 import 'loan_service.dart';
 import 'salary_service.dart';
@@ -25,7 +26,7 @@ class DashboardService {
     final recordedMonths = await _salaries.getRecordedMonths();
     final hasAnyRecord = recordedMonths.isNotEmpty;
 
-    int currentMonth = now.month;
+    final currentMonth = PersianDateHelper.currentMonth;
     int targetYear = currentYear;
     int targetMonth = currentMonth;
     if (hasAnyRecord) {
@@ -157,7 +158,7 @@ class DashboardService {
     );
     final monthlyInstallmentSum = activeLoans.fold<double>(
       0,
-      (s, l) => s + l.installmentAmount,
+      (s, l) => s + l.nextInstallmentAmount,
     );
     final loanProgress = totalActiveLoanAmount == 0
         ? 0.0

@@ -12,6 +12,10 @@ import '../../widgets/currency_text.dart';
 import '../../widgets/persian_date_picker.dart';
 import '../../widgets/persian_number_field.dart';
 
+enum _LoanCalculationAnchor { totalInstallments, installmentAmount }
+
+enum _LoanCalculationSource { amount, totalInstallments, installmentAmount }
+
 class LoanFormScreen extends StatefulWidget {
   final Loan? loan;
   const LoanFormScreen({super.key, this.loan});
@@ -32,35 +36,30 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
 
   late TextEditingController _startDateCtrl;
   late TextEditingController _notesCtrl;
-  late TextEditingController _installmentsCtrl;
-  late TextEditingController _paidCtrl;
 
   double _amount = 0;
   double _installmentAmount = 0;
+  double _totalInstallments = 0;
+  double _paidInstallments = 0;
   int _loanNumber = 1;
   bool _isActive = true;
+  _LoanCalculationAnchor _anchor = _LoanCalculationAnchor.totalInstallments;
 
   @override
   void initState() {
     super.initState();
     final l = widget.loan;
     _startDateCtrl = TextEditingController(
-      text: PersianNumberFormatter.toPersian(l?.startDate ?? '1405/01/01'),
+      text: PersianNumberFormatter.toPersian(
+        l?.startDate ?? PersianDateHelper.todayText(),
+      ),
     );
     _notesCtrl = TextEditingController(text: l?.notes ?? '');
-    _installmentsCtrl = TextEditingController(
-      text: l != null
-          ? PersianNumberFormatter.toPersian(l.totalInstallments.toString())
-          : '',
-    );
-    _paidCtrl = TextEditingController(
-      text: l != null
-          ? PersianNumberFormatter.toPersian(l.paidInstallments.toString())
-          : '0',
-    );
     if (l != null) {
       _amount = l.amount;
       _installmentAmount = l.installmentAmount;
+      _totalInstallments = l.totalInstallments;
+      _paidInstallments = l.paidInstallments;
       _loanNumber = l.loanNumber;
       _isActive = l.isActive;
     }
@@ -82,18 +81,59 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
   void dispose() {
     _startDateCtrl.dispose();
     _notesCtrl.dispose();
-    _installmentsCtrl.dispose();
-    _paidCtrl.dispose();
     super.dispose();
   }
 
-  void _autoCalculateInstallment() {
-    final installments = int.tryParse(
-      PersianNumberFormatter.toEnglish(_installmentsCtrl.text).trim(),
-    );
-    if (installments != null && installments > 0 && _amount > 0) {
-      _installmentAmount = (_amount / installments).roundToDouble();
-      setState(() {});
+  void _setAmount(num? value) {
+    setState(() {
+      _amount = value?.toDouble() ?? 0;
+      _syncLoanNumbers(_LoanCalculationSource.amount);
+    });
+  }
+
+  void _setTotalInstallments(num? value) {
+    setState(() {
+      _totalInstallments = value?.toDouble() ?? 0;
+      _anchor = _LoanCalculationAnchor.totalInstallments;
+      _syncLoanNumbers(_LoanCalculationSource.totalInstallments);
+    });
+  }
+
+  void _setInstallmentAmount(num? value) {
+    setState(() {
+      _installmentAmount = value?.toDouble() ?? 0;
+      _anchor = _LoanCalculationAnchor.installmentAmount;
+      _syncLoanNumbers(_LoanCalculationSource.installmentAmount);
+    });
+  }
+
+  void _setPaidInstallments(num? value) {
+    setState(() => _paidInstallments = value?.toDouble() ?? 0);
+  }
+
+  void _syncLoanNumbers(_LoanCalculationSource source) {
+    if (_amount <= 0) return;
+    switch (source) {
+      case _LoanCalculationSource.amount:
+        if (_anchor == _LoanCalculationAnchor.installmentAmount &&
+            _installmentAmount > 0) {
+          _totalInstallments = _amount / _installmentAmount;
+        } else if (_totalInstallments > 0) {
+          _installmentAmount = _amount / _totalInstallments;
+        } else if (_installmentAmount > 0) {
+          _totalInstallments = _amount / _installmentAmount;
+        }
+        break;
+      case _LoanCalculationSource.totalInstallments:
+        if (_totalInstallments > 0) {
+          _installmentAmount = _amount / _totalInstallments;
+        }
+        break;
+      case _LoanCalculationSource.installmentAmount:
+        if (_installmentAmount > 0) {
+          _totalInstallments = _amount / _installmentAmount;
+        }
+        break;
     }
   }
 
@@ -102,7 +142,7 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
         PersianDateHelper.parseJalali(
           PersianNumberFormatter.toEnglish(_startDateCtrl.text),
         ) ??
-        PersianDateHelper.parseJalali('1405/01/01');
+        PersianDateHelper.today();
     final selected = await showPersianDatePicker(
       context: context,
       initialDate: initial,
@@ -128,14 +168,20 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
 
     setState(() => _saving = true);
 
-    final totalInstallments =
-        int.tryParse(
-          PersianNumberFormatter.toEnglish(_installmentsCtrl.text).trim(),
-        ) ??
-        0;
-    final paidInstallments =
-        int.tryParse(PersianNumberFormatter.toEnglish(_paidCtrl.text).trim()) ??
-        0;
+    final totalInstallments = _totalInstallments;
+    final paidInstallments = _paidInstallments;
+    if (_installmentAmount <= 0) {
+      _showError('مبلغ هر قسط نامعتبر است');
+      return;
+    }
+    if (totalInstallments <= 0) {
+      _showError('تعداد کل اقساط نامعتبر است');
+      return;
+    }
+    if (paidInstallments < 0 || paidInstallments > totalInstallments) {
+      _showError('تعداد اقساط پرداخت‌شده نامعتبر است');
+      return;
+    }
 
     int loanNum = _loanNumber;
     if (widget.loan == null) {
@@ -179,6 +225,20 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
   }
 
   bool get _isMobile => MediaQuery.sizeOf(context).width < 600;
+
+  double get _paidAmountPreview =>
+      (_installmentAmount * _paidInstallments).clamp(0.0, _amount).toDouble();
+
+  double get _remainingAmountPreview =>
+      (_amount - _paidAmountPreview).clamp(0.0, double.infinity).toDouble();
+
+  double get _nextInstallmentPreview {
+    if (!_isActive || _remainingAmountPreview <= 0) return 0;
+    if (_installmentAmount <= 0) return _remainingAmountPreview;
+    return _installmentAmount < _remainingAmountPreview
+        ? _installmentAmount
+        : _remainingAmountPreview;
+  }
 
   Widget _responsiveRow({
     required bool isMobile,
@@ -301,10 +361,7 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                               isCurrency: true,
                               prefixIcon: Icons.attach_money_rounded,
                               initialValue: _amount,
-                              onChanged: (v) {
-                                _amount = v?.toDouble() ?? 0;
-                                _autoCalculateInstallment();
-                              },
+                              onChanged: _setAmount,
                               validator: (v) => v == null || v.trim().isEmpty
                                   ? 'الزامی است'
                                   : null,
@@ -313,49 +370,60 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                             _responsiveRow(
                               isMobile: isMobile,
                               children: [
-                                TextFormField(
-                                  controller: _installmentsCtrl,
-                                  textDirection: TextDirection.ltr,
-                                  decoration: const InputDecoration(
-                                    labelText: 'تعداد کل اقساط *',
-                                    prefixIcon: Icon(Icons.numbers_rounded),
-                                  ),
-                                  onChanged: (_) => _autoCalculateInstallment(),
+                                PersianNumberField(
+                                  label: 'تعداد کل اقساط *',
+                                  suffix: 'قسط',
+                                  prefixIcon: Icons.numbers_rounded,
+                                  initialValue: _totalInstallments > 0
+                                      ? _totalInstallments
+                                      : null,
+                                  maxDecimalDigits: 2,
+                                  onChanged: _setTotalInstallments,
                                   validator: (v) {
                                     if (v == null || v.trim().isEmpty) {
                                       return 'الزامی است';
                                     }
-                                    final num = int.tryParse(
-                                      PersianNumberFormatter.toEnglish(
-                                        v,
-                                      ).trim(),
-                                    );
-                                    if (num == null || num <= 0) {
+                                    final value =
+                                        PersianNumberFormatter.parseNumber(v);
+                                    if (value == null || value <= 0) {
                                       return 'عدد نامعتبر';
                                     }
                                     return null;
                                   },
                                 ),
-                                TextFormField(
-                                  controller: _paidCtrl,
-                                  textDirection: TextDirection.ltr,
-                                  decoration: const InputDecoration(
-                                    labelText: 'اقساط پرداخت شده',
-                                    prefixIcon: Icon(Icons.done_rounded),
-                                  ),
+                                PersianNumberField(
+                                  label: 'اقساط پرداخت شده',
+                                  suffix: 'قسط',
+                                  prefixIcon: Icons.done_rounded,
+                                  initialValue: _paidInstallments,
+                                  maxDecimalDigits: 2,
+                                  onChanged: _setPaidInstallments,
+                                  validator: (v) {
+                                    final value =
+                                        PersianNumberFormatter.parseNumber(
+                                          v ?? '',
+                                        ) ??
+                                        0;
+                                    if (value < 0 ||
+                                        (_totalInstallments > 0 &&
+                                            value > _totalInstallments)) {
+                                      return 'عدد نامعتبر';
+                                    }
+                                    return null;
+                                  },
                                 ),
                               ],
                             ),
                             const SizedBox(height: 12),
                             PersianNumberField(
-                              key: ValueKey('inst_$_installmentAmount'),
                               label: 'مبلغ هر قسط (ریال) *',
                               isCurrency: true,
                               prefixIcon: Icons.calculate_rounded,
                               initialValue: _installmentAmount,
-                              onChanged: (v) => setState(
-                                () => _installmentAmount = v?.toDouble() ?? 0,
-                              ),
+                              onChanged: _setInstallmentAmount,
+                              validator: (v) => v == null || v.trim().isEmpty
+                                  ? 'الزامی است'
+                                  : null,
                             ),
                             const SizedBox(height: 8),
                             if (_amount > 0 && _installmentAmount > 0)
@@ -376,24 +444,22 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                                     _summaryRow(
                                       context,
                                       'جمع اقساط:',
-                                      _installmentAmount *
-                                          (int.tryParse(
-                                                PersianNumberFormatter.toEnglish(
-                                                  _installmentsCtrl.text,
-                                                ).trim(),
-                                              ) ??
-                                              0),
+                                      _installmentAmount * _totalInstallments,
                                     ),
                                     _summaryRow(
                                       context,
                                       'پرداخت‌شده تاکنون:',
-                                      _installmentAmount *
-                                          (int.tryParse(
-                                                PersianNumberFormatter.toEnglish(
-                                                  _paidCtrl.text,
-                                                ).trim(),
-                                              ) ??
-                                              0),
+                                      _paidAmountPreview,
+                                    ),
+                                    _summaryRow(
+                                      context,
+                                      'مانده وام:',
+                                      _remainingAmountPreview,
+                                    ),
+                                    _summaryRow(
+                                      context,
+                                      'قسط بعدی:',
+                                      _nextInstallmentPreview,
                                     ),
                                   ],
                                 ),
@@ -416,7 +482,7 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                                 labelText: 'تاریخ شروع وام (شمسی) *',
                                 prefixIcon: Icon(Icons.calendar_today_rounded),
                                 suffixIcon: Icon(Icons.edit_calendar_rounded),
-                                hintText: '1405/01/01',
+                                hintText: 'سال/ماه/روز',
                               ),
                               validator: (v) {
                                 if (v == null || v.trim().isEmpty) {

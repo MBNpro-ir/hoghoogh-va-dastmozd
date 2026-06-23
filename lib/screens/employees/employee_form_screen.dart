@@ -61,6 +61,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   bool _isMarried = false;
   bool _hasPriorExperience = true;
   bool _hardAndHarmfulJob = false;
+  bool _hasShiftWork = false;
   int _childrenCount = 0;
 
   String _gender = EmployeeReferenceData.genders.first;
@@ -87,6 +88,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   void initState() {
     super.initState();
     final e = widget.employee;
+    final today = PersianDateHelper.todayText();
     _personnelCodeCtrl = TextEditingController(
       text: e?.personnelCode.toString() ?? '',
     );
@@ -109,7 +111,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     _jobCodeCtrl = TextEditingController(text: e?.jobCode ?? '');
     _jobTitleCtrl = TextEditingController(text: e?.jobTitle ?? '');
     _startDateCtrl = TextEditingController(
-      text: PersianNumberFormatter.toPersian(e?.startDate ?? '1405/01/01'),
+      text: PersianNumberFormatter.toPersian(e?.startDate ?? today),
     );
     _endDateCtrl = TextEditingController(
       text: PersianNumberFormatter.toPersian(e?.endDate ?? ''),
@@ -130,6 +132,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       _isMarried = e.isMarried;
       _hasPriorExperience = e.hasPriorExperience;
       _hardAndHarmfulJob = e.hardAndHarmfulJob;
+      _hasShiftWork = e.hasShiftWork;
       _childrenCount = e.childrenCount;
       _gender = _safeChoice(EmployeeReferenceData.genders, e.gender);
       _bankName = _safeChoice(EmployeeReferenceData.iranianBanks, e.bankName);
@@ -232,8 +235,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     _baseSalary30Days = _dailyWage1405 * AppConstants.standardMonthDays;
     _dailyHousing = _settings!.monthlyHousing / AppConstants.standardMonthDays;
     _dailyFood = _settings!.monthlyFood / AppConstants.standardMonthDays;
-    _dailyChildAllowance =
-        _settings!.monthlyChild / AppConstants.standardMonthDays;
+    _dailyChildAllowance = _childrenCount > 0
+        ? _settings!.monthlyChild / AppConstants.standardMonthDays
+        : 0;
     if (_hasPriorExperience && _dailySeniority == 0) {
       _dailySeniority = _settings!.dailySeniority;
     }
@@ -245,9 +249,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
 
   void _syncExperienceAndSeniorityFromDate({bool notify = true}) {
     if (_settings == null) return;
-    final hasFourYears = SeniorityHelper.hasAtLeastFourYears(_startDateEnglish);
-    _hasPriorExperience = hasFourYears;
-    _dailySeniority = hasFourYears
+    final eligible = _isEligibleForPriorExperience();
+    _hasPriorExperience = eligible;
+    _dailySeniority = eligible
         ? SeniorityHelper.calculateDailySeniority(
             startDate: _startDateEnglish,
             settings: _settings!,
@@ -262,8 +266,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   }) async {
     final current = PersianNumberFormatter.toEnglish(controller.text.trim());
     final initial =
-        SeniorityHelper.parseStartDate(current) ??
-        SeniorityHelper.parseStartDate('1405/01/01');
+        SeniorityHelper.parseStartDate(current) ?? PersianDateHelper.today();
     final selected = await showPersianDatePicker(
       context: context,
       initialDate: initial,
@@ -297,18 +300,22 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
 
   Future<void> _setPriorExperienceManually(bool value) async {
     if (_settings == null) return;
-    final expected = SeniorityHelper.hasAtLeastFourYears(_startDateEnglish);
+    final expected = _isEligibleForPriorExperience();
+    if (value && !expected) {
+      _showError(
+        'برای فعال کردن «دارای سابقه»، تاریخ شروع باید تا پایان سال مالی حداقل یک سال سابقه داشته باشد.',
+      );
+      return;
+    }
     var confirmed = true;
-    if (value != expected) {
+    if (!value && expected) {
       confirmed =
           await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
               title: const Text('تغییر دستی سابقه'),
-              content: Text(
-                expected
-                    ? 'این شخص بیش از ۴ سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را غیر فعال کنید؟'
-                    : 'این شخص کمتر از ۴ سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را فعال کنید؟',
+              content: const Text(
+                'این شخص تا پایان سال مالی حداقل یک سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را غیر فعال کنید؟',
               ),
               actions: [
                 TextButton(
@@ -334,6 +341,15 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             )
           : 0;
     });
+  }
+
+  bool _isEligibleForPriorExperience() {
+    final settings = _settings;
+    if (settings == null) return false;
+    return SeniorityHelper.isEligibleForPriorExperience(
+      startDate: _startDateEnglish,
+      settings: settings,
+    );
   }
 
   double _toMonthly(double daily) => daily * AppConstants.standardMonthDays;
@@ -386,6 +402,12 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       _showError('برای کارمند غیرفعال، تاریخ ترک کار را وارد کنید');
       return;
     }
+    if (_hasPriorExperience && !_isEligibleForPriorExperience()) {
+      _showError(
+        'برای فعال بودن «دارای سابقه»، تاریخ شروع باید تا پایان سال مالی حداقل یک سال سابقه داشته باشد.',
+      );
+      return;
+    }
 
     setState(() => _saving = true);
     try {
@@ -433,6 +455,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         dailySeniority: _dailySeniority,
         otherBenefitsDaily: _otherBenefitsDaily,
         hourlyBenefits: _hourlyBenefits,
+        hasShiftWork: _hasShiftWork,
         startDate: PersianNumberFormatter.toEnglish(_startDateCtrl.text.trim()),
         isActive: _isActive,
         endDate: PersianNumberFormatter.toEnglish(_endDateCtrl.text.trim()),
@@ -895,7 +918,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 contentPadding: EdgeInsets.zero,
               ),
               SwitchListTile(
-                title: const Text('بیش از ۴ سال سابقه'),
+                title: const Text('دارای سابقه (حداقل ۱ سال)'),
                 value: _hasPriorExperience,
                 onChanged: _setPriorExperienceManually,
                 secondary: const Icon(Icons.workspace_premium_rounded),
@@ -925,7 +948,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               ),
               Expanded(
                 child: SwitchListTile(
-                  title: const Text('بیش از ۴ سال سابقه'),
+                  title: const Text('دارای سابقه (حداقل ۱ سال)'),
                   value: _hasPriorExperience,
                   onChanged: _setPriorExperienceManually,
                   secondary: const Icon(Icons.workspace_premium_rounded),
@@ -1103,7 +1126,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               (v) => setState(() => _dailyMarriage = v),
             ),
             _moneyField(
-              'حق فرزند روزانه',
+              'حق هر فرزند روزانه',
               Icons.child_care_rounded,
               _dailyChildAllowance,
               (v) => setState(() => _dailyChildAllowance = v),
@@ -1148,6 +1171,17 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             ),
           ],
         ),
+        SizedBox(height: isMobile ? 8 : 12),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('نوبت‌کاری'),
+          subtitle: const Text(
+            'در ساخت فیش، نوبت‌کاری این کارمند به‌صورت پیش‌فرض فعال می‌شود',
+          ),
+          value: _hasShiftWork,
+          onChanged: (value) => setState(() => _hasShiftWork = value),
+          secondary: const Icon(Icons.schedule_rounded),
+        ),
       ],
     );
   }
@@ -1187,7 +1221,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               (v) => _setDailyFromMonthly(v, (d) => _dailyMarriage = d),
             ),
             _moneyField(
-              'حق فرزند ماهانه',
+              'حق هر فرزند ماهانه',
               Icons.child_friendly_rounded,
               _toMonthly(_dailyChildAllowance),
               (v) => _setDailyFromMonthly(v, (d) => _dailyChildAllowance = d),

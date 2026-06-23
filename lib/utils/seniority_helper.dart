@@ -1,6 +1,5 @@
 import 'package:shamsi_date/shamsi_date.dart';
 
-import 'constants.dart';
 import 'persian_date_helper.dart';
 import '../models/app_settings.dart';
 
@@ -22,16 +21,17 @@ class SeniorityHelper {
     return PersianDateHelper.parseJalali(normalized);
   }
 
-  static bool hasAtLeastFourYears(String startDate, {Jalali? asOf}) {
-    final parsed = parseStartDate(startDate);
-    if (parsed == null) return false;
-    return PersianDateHelper.yearsSince(parsed, endDate: asOf) >= 4;
-  }
-
   static bool hasAtLeastOneYear(String startDate, {Jalali? asOf}) {
     final parsed = parseStartDate(startDate);
     if (parsed == null) return false;
     return PersianDateHelper.yearsSince(parsed, endDate: asOf) >= 1;
+  }
+
+  static bool isEligibleForPriorExperience({
+    required String startDate,
+    required AppSettings settings,
+  }) {
+    return hasAtLeastOneYear(startDate, asOf: _payrollYearEnd(settings.year));
   }
 
   static double calculateDailySeniority({
@@ -43,7 +43,7 @@ class SeniorityHelper {
     if (parsed == null) return 0;
     final serviceYears = PersianDateHelper.yearsSince(
       parsed,
-      endDate: asOf ?? Jalali(AppConstants.currentYear, 12, 29),
+      endDate: asOf ?? _payrollYearEnd(settings.year),
     );
     if (serviceYears < 1) return 0;
     if (settings.year == 1405) {
@@ -51,5 +51,9 @@ class SeniorityHelper {
           settings.dailySeniority;
     }
     return settings.dailySeniority;
+  }
+
+  static Jalali _payrollYearEnd(int year) {
+    return Jalali(year, 12, Jalali(year).isLeapYear() ? 30 : 29);
   }
 }

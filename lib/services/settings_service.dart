@@ -1,6 +1,6 @@
 import '../database/database_helper.dart';
 import '../models/app_settings.dart';
-import '../utils/constants.dart';
+import '../utils/persian_date_helper.dart';
 import 'company_service.dart';
 import 'sync_service.dart';
 
@@ -11,7 +11,7 @@ class SettingsService {
 
   Future<AppSettings> getCurrentSettings({int? year}) async {
     final db = await _db.database;
-    final targetYear = year ?? AppConstants.currentYear;
+    final targetYear = year ?? PersianDateHelper.currentYear;
     var rows = await db.query(
       'app_settings',
       where: 'year = ? AND deleted_at IS NULL',
@@ -68,7 +68,7 @@ class SettingsService {
 
   Future<void> resetToDefaults({int? year}) async {
     final db = await _db.database;
-    final targetYear = year ?? AppConstants.currentYear;
+    final targetYear = year ?? PersianDateHelper.currentYear;
     final defaultSettings = await _withServerCompanyName(
       AppSettings(year: targetYear),
     );

@@ -14,6 +14,7 @@ import 'screens/auth/server_login_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/api_client.dart';
 import 'services/local_security_service.dart';
+import 'services/single_instance_guard.dart';
 import 'services/sync_service.dart';
 import 'services/window_close_service.dart';
 import 'utils/constants.dart';
@@ -21,9 +22,17 @@ import 'utils/responsive.dart';
 import 'widgets/windows_window_frame.dart';
 import 'widgets/app_viewport_scale.dart';
 
+SingleInstanceGuard? _singleInstanceGuard;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isWindows) {
+    _singleInstanceGuard = await SingleInstanceGuard.acquire(
+      onActivate: _activateExistingWindow,
+    );
+    if (!_singleInstanceGuard!.isPrimary) {
+      exit(0);
+    }
     await windowManager.ensureInitialized();
     await windowManager.waitUntilReadyToShow(
       const WindowOptions(
@@ -48,6 +57,16 @@ Future<void> main() async {
       ),
     ),
   );
+}
+
+Future<void> _activateExistingWindow() async {
+  if (!Platform.isWindows) return;
+  try {
+    await windowManager.show();
+    await windowManager.restore();
+    await windowManager.maximize();
+    await windowManager.focus();
+  } catch (_) {}
 }
 
 class _RootAppHost extends StatelessWidget {

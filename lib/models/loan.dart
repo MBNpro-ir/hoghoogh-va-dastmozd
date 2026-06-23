@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 /// مدل وام
 class Loan {
   final int? id;
@@ -5,8 +7,8 @@ class Loan {
   final int loanNumber; // شماره وام (وام چندم برای این کارمند)
   final double amount; // مبلغ وام
   final double installmentAmount; // مبلغ هر قسط
-  final int totalInstallments; // تعداد کل اقساط
-  final int paidInstallments; // تعداد اقساط پرداخت شده
+  final double totalInstallments; // تعداد کل اقساط
+  final double paidInstallments; // تعداد اقساط پرداخت شده
   final String startDate; // تاریخ شروع (یا تاریخ اولین قسط) - شمسی
   final String? endDate; // تاریخ اتمام واقعی
   final String? notes; // توضیحات
@@ -27,14 +29,32 @@ class Loan {
   });
 
   /// تعداد اقساط باقیمانده
-  int get remainingInstallments => totalInstallments - paidInstallments;
+  double get remainingInstallments => (totalInstallments - paidInstallments)
+      .clamp(0.0, double.infinity)
+      .toDouble();
 
   /// مبلغ کسر شده
-  double get deductedAmount => installmentAmount * paidInstallments;
+  double get deductedAmount =>
+      (installmentAmount * paidInstallments).clamp(0.0, amount).toDouble();
 
   /// مبلغ باقیمانده جهت کسر از حقوق
   double get remainingAmount =>
-      (amount - deductedAmount).clamp(0, double.infinity);
+      (amount - deductedAmount).clamp(0.0, double.infinity).toDouble();
+
+  /// مبلغ قسط بعدی؛ برای قسط آخر از مانده وام بیشتر نمی‌شود.
+  double get nextInstallmentAmount {
+    if (!isActive || remainingAmount <= 0) return 0;
+    if (installmentAmount <= 0) return remainingAmount;
+    return math.min(installmentAmount, remainingAmount);
+  }
+
+  /// معادل تعداد قسطی که با پرداخت قسط بعدی تسویه می‌شود.
+  double get nextInstallmentStep {
+    if (installmentAmount <= 0) return remainingInstallments;
+    return (nextInstallmentAmount / installmentAmount)
+        .clamp(0.0, remainingInstallments)
+        .toDouble();
+  }
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -56,8 +76,8 @@ class Loan {
     loanNumber: map['loan_number'] as int? ?? 1,
     amount: (map['amount'] as num).toDouble(),
     installmentAmount: (map['installment_amount'] as num).toDouble(),
-    totalInstallments: map['total_installments'] as int,
-    paidInstallments: map['paid_installments'] as int? ?? 0,
+    totalInstallments: (map['total_installments'] as num).toDouble(),
+    paidInstallments: (map['paid_installments'] as num?)?.toDouble() ?? 0,
     startDate: map['start_date'] as String,
     endDate: map['end_date'] as String?,
     notes: map['notes'] as String?,
@@ -70,8 +90,8 @@ class Loan {
     int? loanNumber,
     double? amount,
     double? installmentAmount,
-    int? totalInstallments,
-    int? paidInstallments,
+    double? totalInstallments,
+    double? paidInstallments,
     String? startDate,
     String? endDate,
     String? notes,

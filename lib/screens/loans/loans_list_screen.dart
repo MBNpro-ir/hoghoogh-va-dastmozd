@@ -109,8 +109,9 @@ class _LoansListScreenState extends State<LoansListScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('ثبت قسط'),
         content: Text(
-          'آیا قسط شماره ${PersianNumberFormatter.toPersian((loan.paidInstallments + 1).toString())} '
-          'به مبلغ ${PersianNumberFormatter.formatRial(loan.installmentAmount)} ریال پرداخت شد؟',
+          'آیا قسط شماره ${PersianNumberFormatter.formatDecimal(loan.paidInstallments + loan.nextInstallmentStep)} '
+          'از ${PersianNumberFormatter.formatDecimal(loan.totalInstallments)} '
+          'به مبلغ ${PersianNumberFormatter.formatRial(loan.nextInstallmentAmount)} ریال پرداخت شد؟',
         ),
         actions: [
           TextButton(
@@ -275,24 +276,22 @@ class _LoansListScreenState extends State<LoansListScreen> {
       label: 'تعداد اقساط',
       numeric: true,
       sortValue: (loan) => loan.totalInstallments,
-      cellBuilder: (loan) => Text(
-        PersianNumberFormatter.toPersian(loan.totalInstallments.toString()),
-      ),
+      cellBuilder: (loan) =>
+          Text(PersianNumberFormatter.formatDecimal(loan.totalInstallments)),
     ),
     ResponsiveTableColumn(
       label: 'پرداخت شده',
       numeric: true,
       sortValue: (loan) => loan.paidInstallments,
-      cellBuilder: (loan) => Text(
-        PersianNumberFormatter.toPersian(loan.paidInstallments.toString()),
-      ),
+      cellBuilder: (loan) =>
+          Text(PersianNumberFormatter.formatDecimal(loan.paidInstallments)),
     ),
     ResponsiveTableColumn(
       label: 'باقیمانده',
       numeric: true,
       sortValue: (loan) => loan.remainingInstallments,
       cellBuilder: (loan) => Text(
-        PersianNumberFormatter.toPersian(loan.remainingInstallments.toString()),
+        PersianNumberFormatter.formatDecimal(loan.remainingInstallments),
         style: TextStyle(
           color: loan.remainingInstallments == 0 ? Colors.green : null,
           fontWeight: loan.remainingInstallments == 0 ? FontWeight.w700 : null,
@@ -399,9 +398,7 @@ class _LoansListScreenState extends State<LoansListScreen> {
         MobileMetric(
           label: 'باقیمانده',
           value: Text(
-            PersianNumberFormatter.toPersian(
-              loan.remainingInstallments.toString(),
-            ),
+            PersianNumberFormatter.formatDecimal(loan.remainingInstallments),
           ),
           color: loan.remainingInstallments == 0
               ? Colors.green

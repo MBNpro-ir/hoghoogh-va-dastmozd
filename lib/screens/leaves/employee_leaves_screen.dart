@@ -83,6 +83,10 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
   Widget _summary() {
     final scheme = Theme.of(context).colorScheme;
     final totalLeave = _records.fold<double>(0, (s, r) => s + r.leaveDays);
+    final totalSickLeave = _records.fold<double>(
+      0,
+      (s, r) => s + r.sickLeaveDays,
+    );
     final totalExcess = _records.fold<double>(
       0,
       (s, r) => s + r.excessLeaveDays,
@@ -123,6 +127,12 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
                 'کل مرخصی ثبت‌شده',
                 '${_formatDays(totalLeave)} روز',
                 scheme.secondary,
+                width: cardWidth,
+              ),
+              _summaryCard(
+                'کل استعلاجی ثبت‌شده',
+                '${_formatDays(totalSickLeave)} روز',
+                scheme.primary,
                 width: cardWidth,
               ),
               _summaryCard(
@@ -234,6 +244,12 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
       cellBuilder: (r) => Text('${_formatDays(r.leaveDays)} روز'),
     ),
     ResponsiveTableColumn(
+      label: 'استعلاجی',
+      numeric: true,
+      sortValue: (r) => r.sickLeaveDays,
+      cellBuilder: (r) => Text('${_formatDays(r.sickLeaveDays)} روز'),
+    ),
+    ResponsiveTableColumn(
       label: 'مجاز',
       numeric: true,
       sortValue: (r) => r.leaveAllowanceDays,
@@ -277,6 +293,11 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
           value: Text('${_formatDays(record.leaveDays)} روز'),
         ),
         MobileMetric(
+          label: 'استعلاجی',
+          value: Text('${_formatDays(record.sickLeaveDays)} روز'),
+          color: scheme.primary,
+        ),
+        MobileMetric(
           label: 'مازاد',
           value: Text('${_formatDays(record.excessLeaveDays)} روز'),
           color: scheme.error,
@@ -302,6 +323,7 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
     final employee = _employees[record.employeeId];
     if (employee == null) return;
     var leaveDays = record.leaveDays;
+    var sickLeaveDays = record.sickLeaveDays;
     var includeLeave = record.includeLeaveInPayslip;
     final result = await showDialog<bool>(
       context: context,
@@ -315,7 +337,17 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
               suffix: 'روز',
               prefixIcon: Icons.beach_access_rounded,
               initialValue: leaveDays,
+              maxDecimalDigits: 1,
               onChanged: (v) => leaveDays = v?.toDouble() ?? 0,
+            ),
+            const SizedBox(height: 12),
+            PersianNumberField(
+              label: 'استعلاجی',
+              suffix: 'روز',
+              prefixIcon: Icons.medical_services_rounded,
+              initialValue: sickLeaveDays,
+              maxDecimalDigits: 1,
+              onChanged: (v) => sickLeaveDays = v?.toDouble() ?? 0,
             ),
             const SizedBox(height: 12),
             StatefulBuilder(
@@ -341,8 +373,22 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
       ),
     );
     if (result != true) return;
+    if (leaveDays < 0 ||
+        sickLeaveDays < 0 ||
+        leaveDays + sickLeaveDays > record.totalDays) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'جمع مرخصی و استعلاجی نباید از کل روزهای کارکرد بیشتر باشد.',
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
 
-    final workDays = (record.totalDays - leaveDays)
+    final workDays = (record.totalDays - leaveDays - sickLeaveDays)
         .clamp(0.0, record.totalDays.toDouble())
         .toDouble();
     final recalculated = SalaryCalculator.calculate(
@@ -351,7 +397,10 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
       input: SalaryCalculationInput(
         totalDays: record.totalDays,
         leaveDays: leaveDays,
+        sickLeaveDays: sickLeaveDays,
         overtimeHours: record.overtimeHours,
+        useCustomOvertimeBase: record.useCustomOvertimeBase,
+        overtimeBaseDaily: record.overtimeBaseDaily,
         shiftWork: record.shiftWork,
         hourlyBenefitsAmount: record.hourlyBenefitsAmount,
         hourlyBenefitHours: record.hourlyBenefitHours,
@@ -381,6 +430,7 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
           month: record.month,
           totalDays: record.totalDays,
           leaveDays: leaveDays,
+          sickLeaveDays: sickLeaveDays,
           workDays: workDays,
           overtimeHours: record.overtimeHours,
           hourlyBenefitHours: record.hourlyBenefitHours,

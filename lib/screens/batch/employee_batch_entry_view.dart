@@ -12,6 +12,7 @@ import '../../services/settings_service.dart';
 import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
+import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/seniority_helper.dart';
 
@@ -35,11 +36,18 @@ class EmployeeBatchEntryView extends StatefulWidget {
 }
 
 class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
+  static const double _pinnedColumnWidth = 220;
+  static const double _pinnedColumnInnerWidth = 204;
+  static const double _tableHeaderHeight = 52;
+  static const double _tableRowHeight = 64;
+
   final _employeeService = EmployeeService();
   final _settingsService = SettingsService();
   final _sync = SyncService();
   final _horizontalScroll = ScrollController();
+  final _headerHorizontalScroll = ScrollController();
   final _verticalScroll = ScrollController();
+  final _pinnedVerticalScroll = ScrollController();
   final List<EmployeeBatchDraft> _drafts = [];
   final Set<int> _deletedEmployeeIds = {};
 
@@ -51,10 +59,24 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
   int _nextPersonnelCode = 1;
   bool _loading = true;
   bool _saving = false;
+  bool _syncingHorizontalScroll = false;
+  bool _syncingVerticalScroll = false;
 
   @override
   void initState() {
     super.initState();
+    _horizontalScroll.addListener(
+      () => _syncHorizontalScroll(_horizontalScroll, _headerHorizontalScroll),
+    );
+    _headerHorizontalScroll.addListener(
+      () => _syncHorizontalScroll(_headerHorizontalScroll, _horizontalScroll),
+    );
+    _verticalScroll.addListener(
+      () => _syncVerticalScroll(_verticalScroll, _pinnedVerticalScroll),
+    );
+    _pinnedVerticalScroll.addListener(
+      () => _syncVerticalScroll(_pinnedVerticalScroll, _verticalScroll),
+    );
     _loadExisting();
   }
 
@@ -64,8 +86,46 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
       draft.dispose();
     }
     _horizontalScroll.dispose();
+    _headerHorizontalScroll.dispose();
     _verticalScroll.dispose();
+    _pinnedVerticalScroll.dispose();
     super.dispose();
+  }
+
+  void _syncHorizontalScroll(ScrollController source, ScrollController target) {
+    if (_syncingHorizontalScroll) return;
+    _syncScrollOffset(
+      source: source,
+      target: target,
+      setSyncing: (value) => _syncingHorizontalScroll = value,
+    );
+  }
+
+  void _syncVerticalScroll(ScrollController source, ScrollController target) {
+    if (_syncingVerticalScroll) return;
+    _syncScrollOffset(
+      source: source,
+      target: target,
+      setSyncing: (value) => _syncingVerticalScroll = value,
+    );
+  }
+
+  void _syncScrollOffset({
+    required ScrollController source,
+    required ScrollController target,
+    required ValueChanged<bool> setSyncing,
+  }) {
+    if (!source.hasClients || !target.hasClients) return;
+    final nextOffset = source.offset
+        .clamp(target.position.minScrollExtent, target.position.maxScrollExtent)
+        .toDouble();
+    if ((target.offset - nextOffset).abs() < 0.5) return;
+    setSyncing(true);
+    try {
+      target.jumpTo(nextOffset);
+    } finally {
+      setSyncing(false);
+    }
   }
 
   Future<void> _loadExisting({bool pullLatest = true}) async {
@@ -215,6 +275,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
       draft.errors = [];
       if (!draft.touched) continue;
       draft.errors = draft.validate(
+        settings: _settings!,
         existingCodes: existingCodes,
         existingNationalIds: existingNationalIds,
         seenCodes: seenCodes,
@@ -536,66 +597,136 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: LayoutBuilder(
-        builder: (context, constraints) => Scrollbar(
-          controller: _horizontalScroll,
-          thumbVisibility: true,
-          trackVisibility: true,
-          interactive: true,
-          thickness: 10,
-          radius: const Radius.circular(5),
-          scrollbarOrientation: ScrollbarOrientation.bottom,
-          notificationPredicate: (notification) =>
-              notification.metrics.axis == Axis.horizontal,
-          child: SingleChildScrollView(
-            controller: _horizontalScroll,
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              height: constraints.maxHeight,
-              child: Scrollbar(
-                controller: _verticalScroll,
-                thumbVisibility: true,
-                trackVisibility: true,
-                interactive: true,
-                thickness: 10,
-                radius: const Radius.circular(5),
-                scrollbarOrientation: ScrollbarOrientation.right,
-                notificationPredicate: (notification) =>
-                    notification.metrics.axis == Axis.vertical,
-                child: SingleChildScrollView(
-                  controller: _verticalScroll,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: DataTable(
-                      headingRowHeight: 52,
-                      dataRowMinHeight: 64,
-                      dataRowMaxHeight: 64,
-                      columnSpacing: 12,
-                      horizontalMargin: 12,
-                      columns: [
-                        const DataColumn(
-                          label: SizedBox(width: 124, child: Text('ردیف')),
+        builder: (context, constraints) {
+          final bodyWidth = (constraints.maxWidth - _pinnedColumnWidth)
+              .clamp(360.0, double.infinity)
+              .toDouble();
+          return SizedBox(
+            height: constraints.maxHeight,
+            child: Column(
+              children: [
+                Row(
+                  textDirection: TextDirection.rtl,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _pinnedHeader(scheme),
+                    SizedBox(
+                      width: bodyWidth,
+                      height: _tableHeaderHeight,
+                      child: _withoutAutomaticScrollbars(
+                        child: SingleChildScrollView(
+                          controller: _headerHorizontalScroll,
+                          scrollDirection: Axis.horizontal,
+                          child: _bodyHeader(columns),
                         ),
-                        for (final column in columns)
-                          DataColumn(
-                            label: SizedBox(
-                              width: column.width,
-                              child: Text(
-                                column.label,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: Row(
+                    textDirection: TextDirection.rtl,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _pinnedRowsViewport(scheme),
+                      SizedBox(
+                        width: bodyWidth,
+                        child: Scrollbar(
+                          controller: _horizontalScroll,
+                          thumbVisibility: true,
+                          trackVisibility: true,
+                          interactive: true,
+                          thickness: 10,
+                          radius: const Radius.circular(5),
+                          scrollbarOrientation: ScrollbarOrientation.bottom,
+                          notificationPredicate: (notification) =>
+                              notification.metrics.axis == Axis.horizontal,
+                          child: SingleChildScrollView(
+                            controller: _horizontalScroll,
+                            scrollDirection: Axis.horizontal,
+                            child: _withoutAutomaticScrollbars(
+                              child: SingleChildScrollView(
+                                controller: _verticalScroll,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 14),
+                                  child: _bodyRows(columns, scheme),
                                 ),
                               ),
                             ),
                           ),
-                      ],
-                      rows: [
-                        for (var index = 0; index < _drafts.length; index++)
-                          _dataRow(index, _drafts[index], columns, scheme),
-                      ],
-                    ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _pinnedHeader(ColorScheme scheme) {
+    return Container(
+      width: _pinnedColumnWidth,
+      height: _tableHeaderHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      alignment: Alignment.centerRight,
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        border: Border(
+          left: BorderSide(color: scheme.outlineVariant),
+          bottom: BorderSide(color: scheme.outlineVariant),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(-3, 0),
+          ),
+        ],
+      ),
+      child: const SizedBox(
+        width: _pinnedColumnInnerWidth,
+        child: Text(
+          'ردیف و نام کارمند',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+
+  Widget _pinnedRowsViewport(ColorScheme scheme) {
+    return Container(
+      width: _pinnedColumnWidth,
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        border: Border(left: BorderSide(color: scheme.outlineVariant)),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(-3, 0),
+          ),
+        ],
+      ),
+      child: Scrollbar(
+        controller: _pinnedVerticalScroll,
+        thumbVisibility: true,
+        trackVisibility: true,
+        interactive: true,
+        thickness: 10,
+        radius: const Radius.circular(5),
+        scrollbarOrientation: ScrollbarOrientation.right,
+        notificationPredicate: (notification) =>
+            notification.metrics.axis == Axis.vertical,
+        child: _withoutAutomaticScrollbars(
+          child: SingleChildScrollView(
+            controller: _pinnedVerticalScroll,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _pinnedRows(scheme),
             ),
           ),
         ),
@@ -603,10 +734,74 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
     );
   }
 
-  DataRow _dataRow(
+  Widget _withoutAutomaticScrollbars({required Widget child}) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: child,
+    );
+  }
+
+  Widget _bodyHeader(List<_EmployeeGridColumn> columns) {
+    return DataTable(
+      headingRowHeight: _tableHeaderHeight,
+      dataRowMinHeight: 0,
+      dataRowMaxHeight: 0,
+      columnSpacing: 12,
+      horizontalMargin: 12,
+      columns: [
+        for (final column in columns)
+          DataColumn(
+            label: SizedBox(
+              width: column.width,
+              child: Text(
+                column.label,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+      ],
+      rows: const [],
+    );
+  }
+
+  Widget _bodyRows(List<_EmployeeGridColumn> columns, ColorScheme scheme) {
+    return DataTable(
+      headingRowHeight: 0,
+      dataRowMinHeight: _tableRowHeight,
+      dataRowMaxHeight: _tableRowHeight,
+      columnSpacing: 12,
+      horizontalMargin: 12,
+      columns: [
+        for (final column in columns)
+          DataColumn(label: SizedBox(width: column.width)),
+      ],
+      rows: [
+        for (var index = 0; index < _drafts.length; index++)
+          _bodyDataRow(_drafts[index], columns, scheme),
+      ],
+    );
+  }
+
+  Widget _pinnedRows(ColorScheme scheme) {
+    return DataTable(
+      headingRowHeight: 0,
+      dataRowMinHeight: _tableRowHeight,
+      dataRowMaxHeight: _tableRowHeight,
+      columnSpacing: 0,
+      horizontalMargin: 8,
+      columns: const [
+        DataColumn(label: SizedBox(width: _pinnedColumnInnerWidth)),
+      ],
+      rows: [
+        for (var index = 0; index < _drafts.length; index++)
+          _pinnedDataRow(index, _drafts[index], scheme),
+      ],
+    );
+  }
+
+  DataRow _pinnedDataRow(
     int index,
     EmployeeBatchDraft draft,
-    List<_EmployeeGridColumn> columns,
     ColorScheme scheme,
   ) {
     return DataRow(
@@ -618,10 +813,19 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
       cells: [
         DataCell(
           SizedBox(
-            width: 124,
+            width: _pinnedColumnInnerWidth,
             child: Row(
+              textDirection: TextDirection.rtl,
               children: [
-                Text('${index + 1}'),
+                SizedBox(
+                  width: 28,
+                  child: Text(
+                    PersianNumberFormatter.toPersian('${index + 1}'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: 6),
                 if (draft.errors.isNotEmpty)
                   Tooltip(
                     message: draft.errors.join('\n'),
@@ -631,7 +835,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
                       size: 18,
                     ),
                   ),
-                const Spacer(),
+                Expanded(child: _PinnedEmployeeName(draft: draft)),
                 IconButton(
                   tooltip: 'کپی ردیف',
                   visualDensity: VisualDensity.compact,
@@ -658,8 +862,22 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
             ),
           ),
         ),
-        for (final column in columns) DataCell(column.builder(draft)),
       ],
+    );
+  }
+
+  DataRow _bodyDataRow(
+    EmployeeBatchDraft draft,
+    List<_EmployeeGridColumn> columns,
+    ColorScheme scheme,
+  ) {
+    return DataRow(
+      color: WidgetStatePropertyAll(
+        draft.errors.isEmpty
+            ? null
+            : scheme.errorContainer.withValues(alpha: 0.28),
+      ),
+      cells: [for (final column in columns) DataCell(column.builder(draft))],
     );
   }
 
@@ -736,6 +954,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           160,
           (d) => d.dailyWage1404,
           numeric: true,
+          separateThousands: true,
           onChanged: (draft, _) => draft.autoCalculate(settings),
         ),
         _rateColumn(settings),
@@ -744,6 +963,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           160,
           (d) => d.dailyWage1405,
           numeric: true,
+          separateThousands: true,
           onChanged: (draft, _) => draft.syncBaseSalary(),
         ),
         _textColumn(
@@ -751,12 +971,14 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           160,
           (d) => d.baseSalary30Days,
           numeric: true,
+          separateThousands: true,
         ),
         _textColumn(
           'مسکن روزانه',
           150,
           (d) => d.dailyHousing,
           numeric: true,
+          separateThousands: true,
           onChanged: (draft, _) => draft.syncMonthlyFromDaily(
             draft.dailyHousing,
             draft.monthlyHousing,
@@ -767,6 +989,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           160,
           (d) => d.dailyFood,
           numeric: true,
+          separateThousands: true,
           onChanged: (draft, _) =>
               draft.syncMonthlyFromDaily(draft.dailyFood, draft.monthlyFood),
         ),
@@ -775,16 +998,18 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           160,
           (d) => d.dailyMarriage,
           numeric: true,
+          separateThousands: true,
           onChanged: (draft, _) => draft.syncMonthlyFromDaily(
             draft.dailyMarriage,
             draft.monthlyMarriage,
           ),
         ),
         _textColumn(
-          'حق فرزند روزانه',
+          'حق هر فرزند روزانه',
           170,
           (d) => d.dailyChildAllowance,
           numeric: true,
+          separateThousands: true,
           onChanged: (draft, _) => draft.syncMonthlyFromDaily(
             draft.dailyChildAllowance,
             draft.monthlyChildAllowance,
@@ -795,6 +1020,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           150,
           (d) => d.dailySeniority,
           numeric: true,
+          separateThousands: true,
           onChanged: (draft, _) => draft.syncMonthlyFromDaily(
             draft.dailySeniority,
             draft.monthlySeniority,
@@ -805,6 +1031,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           170,
           (d) => d.otherBenefitsDaily,
           numeric: true,
+          separateThousands: true,
           onChanged: (draft, _) => draft.syncMonthlyFromDaily(
             draft.otherBenefitsDaily,
             draft.monthlyOtherBenefits,
@@ -815,12 +1042,20 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           170,
           (d) => d.hourlyBenefits,
           numeric: true,
+          separateThousands: true,
         ),
         _textColumn(
           'سنوات سال قبل',
           150,
           (d) => d.lastYearSeniority,
           numeric: true,
+          separateThousands: true,
+        ),
+        _boolColumn(
+          'نوبت‌کاری',
+          120,
+          (d) => d.hasShiftWork,
+          (d, value) => d.hasShiftWork = value,
         ),
       ],
       _EmployeeGridSection.monthlyBenefits => [
@@ -840,7 +1075,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           (d) => d.dailyMarriage,
         ),
         _monthlyBenefitColumn(
-          'حق فرزند ماهانه',
+          'حق هر فرزند ماهانه',
           (d) => d.monthlyChildAllowance,
           (d) => d.dailyChildAllowance,
         ),
@@ -906,6 +1141,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
     double width,
     TextEditingController Function(EmployeeBatchDraft) controller, {
     bool numeric = false,
+    bool separateThousands = false,
     bool date = false,
     String? hint,
     void Function(EmployeeBatchDraft, String)? onChanged,
@@ -927,7 +1163,15 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
               ? TextDirection.ltr
               : TextDirection.rtl,
           textAlign: numeric || date ? TextAlign.left : TextAlign.right,
-          inputFormatters: date ? const [_PersianDateInputFormatter()] : null,
+          inputFormatters: date
+              ? const [_PersianDateInputFormatter()]
+              : numeric
+              ? [
+                  separateThousands
+                      ? const _PersianNumberInputFormatter()
+                      : const _PersianDigitsInputFormatter(),
+                ]
+              : null,
           textInputAction: TextInputAction.next,
           decoration: InputDecoration(
             hintText: hint,
@@ -1046,6 +1290,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
       180,
       monthly,
       numeric: true,
+      separateThousands: true,
       onChanged: (draft, _) =>
           draft.syncDailyFromMonthly(monthly(draft), daily(draft)),
     );
@@ -1117,6 +1362,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
                 keyboardType: TextInputType.number,
                 textDirection: TextDirection.ltr,
                 textAlign: TextAlign.center,
+                inputFormatters: const [_PersianDigitsInputFormatter()],
                 decoration: const InputDecoration(
                   isDense: true,
                   contentPadding: EdgeInsets.symmetric(vertical: 12),
@@ -1169,20 +1415,29 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
 
   Future<void> _setPriorExperience(EmployeeBatchDraft draft, bool value) async {
     final settings = _settings!;
-    final expected = SeniorityHelper.hasAtLeastFourYears(
-      draft.startDateEnglish,
+    final expected = SeniorityHelper.isEligibleForPriorExperience(
+      startDate: draft.startDateEnglish,
+      settings: settings,
     );
+    if (value && !expected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'برای فعال کردن «دارای سابقه»، تاریخ شروع باید تا پایان سال مالی حداقل یک سال سابقه داشته باشد.',
+          ),
+        ),
+      );
+      return;
+    }
     var confirmed = true;
-    if (value != expected) {
+    if (!value && expected) {
       confirmed =
           await showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
               title: const Text('تغییر دستی سابقه'),
-              content: Text(
-                expected
-                    ? 'این شخص بیش از ۴ سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را غیر فعال کنید؟'
-                    : 'این شخص کمتر از ۴ سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را فعال کنید؟',
+              content: const Text(
+                'این شخص تا پایان سال مالی حداقل یک سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را غیر فعال کنید؟',
               ),
               actions: [
                 TextButton(
@@ -1209,6 +1464,52 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
               settings: settings,
             )
           : 0,
+    );
+  }
+}
+
+class _PinnedEmployeeName extends StatelessWidget {
+  final EmployeeBatchDraft draft;
+
+  const _PinnedEmployeeName({required this.draft});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final name = draft.fullName.isEmpty ? 'نام وارد نشده' : draft.fullName;
+    final code = draft.personnelCode.text.trim();
+    return Tooltip(
+      message: code.isEmpty ? name : '$name\nکد پرسنلی: $code',
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Vazirmatn',
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: draft.fullName.isEmpty
+                  ? scheme.onSurfaceVariant
+                  : scheme.onSurface,
+            ),
+          ),
+          if (code.isNotEmpty)
+            Text(
+              'کد ${PersianNumberFormatter.toPersian(code)}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontFamily: 'Vazirmatn',
+                fontSize: 10,
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1242,6 +1543,115 @@ class _PersianDateInputFormatter extends TextInputFormatter {
       text: text,
       selection: TextSelection.collapsed(offset: offset),
     );
+  }
+}
+
+class _PersianDigitsInputFormatter extends TextInputFormatter {
+  const _PersianDigitsInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = _NumberInputText.persianDigitsOnly(newValue.text);
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(
+        offset: _NumberInputText.selectionOffset(
+          formatted: text,
+          sourceText: newValue.text,
+          sourceOffset: newValue.selection.extentOffset,
+        ),
+      ),
+      composing: TextRange.empty,
+    );
+  }
+}
+
+class _PersianNumberInputFormatter extends TextInputFormatter {
+  const _PersianNumberInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.trim().isEmpty) return newValue.copyWith(text: '');
+    final normalized = PersianNumberFormatter.toEnglish(newValue.text);
+    final numeric = normalized
+        .replaceAll(',', '')
+        .replaceAll('،', '')
+        .replaceAll(RegExp(r'[^0-9.]'), '');
+    if (numeric.isEmpty) return newValue.copyWith(text: '');
+
+    final parts = numeric.split('.');
+    final intPart = parts.first;
+    if (intPart.isEmpty) return oldValue;
+    final value = int.tryParse(intPart);
+    if (value == null) return oldValue;
+
+    var formatted = PersianNumberFormatter.formatNumber(value);
+    if (parts.length > 1) {
+      final decimal = parts.skip(1).join();
+      formatted = '$formatted.${PersianNumberFormatter.toPersian(decimal)}';
+    }
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(
+        offset: _NumberInputText.selectionOffset(
+          formatted: formatted,
+          sourceText: newValue.text,
+          sourceOffset: newValue.selection.extentOffset,
+          countDecimalPoint: true,
+        ),
+      ),
+      composing: TextRange.empty,
+    );
+  }
+}
+
+class _NumberInputText {
+  const _NumberInputText._();
+
+  static String persianDigitsOnly(String value) {
+    final buffer = StringBuffer();
+    for (final rune in PersianNumberFormatter.toPersian(value).runes) {
+      final char = String.fromCharCode(rune);
+      if (RegExp(r'[۰-۹]').hasMatch(char)) buffer.write(char);
+    }
+    return buffer.toString();
+  }
+
+  static int selectionOffset({
+    required String formatted,
+    required String sourceText,
+    required int sourceOffset,
+    bool countDecimalPoint = false,
+  }) {
+    final source = PersianNumberFormatter.toEnglish(
+      sourceText.substring(0, sourceOffset.clamp(0, sourceText.length)),
+    );
+    var wanted = 0;
+    for (final rune in source.runes) {
+      final char = String.fromCharCode(rune);
+      if (RegExp(r'[0-9]').hasMatch(char) ||
+          (countDecimalPoint && char == '.')) {
+        wanted++;
+      }
+    }
+    if (wanted <= 0) return 0;
+    var seen = 0;
+    for (var index = 0; index < formatted.length; index++) {
+      final char = formatted[index];
+      if (RegExp(r'[۰-۹]').hasMatch(char) ||
+          (countDecimalPoint && char == '.')) {
+        seen++;
+        if (seen >= wanted) return index + 1;
+      }
+    }
+    return formatted.length;
   }
 }
 
@@ -1324,6 +1734,7 @@ class EmployeeBatchDraft {
     isMarried = employee.isMarried;
     isActive = employee.isActive;
     hardAndHarmfulJob = employee.hardAndHarmfulJob;
+    hasShiftWork = employee.hasShiftWork;
     syncMonthlyFromDaily(dailyHousing, monthlyHousing);
     syncMonthlyFromDaily(dailyFood, monthlyFood);
     syncMonthlyFromDaily(dailyMarriage, monthlyMarriage);
@@ -1385,6 +1796,7 @@ class EmployeeBatchDraft {
   bool isMarried = false;
   bool isActive = true;
   bool hardAndHarmfulJob = false;
+  bool hasShiftWork = false;
   bool touched = false;
   List<String> errors = [];
 
@@ -1456,12 +1868,15 @@ class EmployeeBatchDraft {
     isMarried = false;
     isActive = true;
     hardAndHarmfulJob = false;
+    hasShiftWork = false;
     errors = [];
     employeeId = null;
 
     this.personnelCode.text = personnelCode.toString();
     workplace.text = settings.companyName;
-    startDate.text = PersianNumberFormatter.toPersian('1405/01/01');
+    startDate.text = PersianNumberFormatter.toPersian(
+      PersianDateHelper.todayText(),
+    );
     childrenCount.text = '۰';
     lastYearSeniority.text = formatNumber(0);
     otherBenefitsDaily.text = formatNumber(0);
@@ -1509,11 +1924,7 @@ class EmployeeBatchDraft {
       monthlyFood,
       settings.monthlyFood / AppConstants.standardMonthDays,
     );
-    setDailyAndMonthly(
-      dailyChildAllowance,
-      monthlyChildAllowance,
-      settings.monthlyChild / AppConstants.standardMonthDays,
-    );
+    syncChildAllowance(settings);
     if (hasPriorExperience && (parseNumber(dailySeniority.text) ?? 0) == 0) {
       setDailyAndMonthly(
         dailySeniority,
@@ -1532,16 +1943,29 @@ class EmployeeBatchDraft {
   }
 
   void syncExperienceAndSeniority(AppSettings settings) {
-    final hasFourYears = SeniorityHelper.hasAtLeastFourYears(startDateEnglish);
-    hasPriorExperience = hasFourYears;
+    final eligible = SeniorityHelper.isEligibleForPriorExperience(
+      startDate: startDateEnglish,
+      settings: settings,
+    );
+    hasPriorExperience = eligible;
     setDailyAndMonthly(
       dailySeniority,
       monthlySeniority,
-      hasFourYears
+      eligible
           ? SeniorityHelper.calculateDailySeniority(
               startDate: startDateEnglish,
               settings: settings,
             )
+          : 0,
+    );
+  }
+
+  void syncChildAllowance(AppSettings settings) {
+    setDailyAndMonthly(
+      dailyChildAllowance,
+      monthlyChildAllowance,
+      childrenCountValue > 0
+          ? settings.monthlyChild / AppConstants.standardMonthDays
           : 0,
     );
   }
@@ -1586,6 +2010,7 @@ class EmployeeBatchDraft {
   }
 
   List<String> validate({
+    required AppSettings settings,
     required Set<int> existingCodes,
     required Set<String> existingNationalIds,
     required Set<int> seenCodes,
@@ -1612,6 +2037,14 @@ class EmployeeBatchDraft {
     final start = textOf(startDate);
     if (SeniorityHelper.parseStartDate(start) == null) {
       result.add('تاریخ شروع به کار نامعتبر است');
+    } else if (hasPriorExperience &&
+        !SeniorityHelper.isEligibleForPriorExperience(
+          startDate: start,
+          settings: settings,
+        )) {
+      result.add(
+        'دارای سابقه نیازمند حداقل یک سال سابقه تا پایان سال مالی است',
+      );
     }
     final birth = textOf(birthDate);
     if (birth.isNotEmpty && SeniorityHelper.parseStartDate(birth) == null) {
@@ -1637,14 +2070,14 @@ class EmployeeBatchDraft {
       ('مسکن', dailyHousing),
       ('خواروبار', dailyFood),
       ('حق تاهل', dailyMarriage),
-      ('حق فرزند', dailyChildAllowance),
+      ('حق هر فرزند', dailyChildAllowance),
       ('سنوات', dailySeniority),
       ('سایر مزایا', otherBenefitsDaily),
       ('مزایای ساعتی', hourlyBenefits),
       ('مسکن ماهانه', monthlyHousing),
       ('خواروبار ماهانه', monthlyFood),
       ('حق تاهل ماهانه', monthlyMarriage),
-      ('حق فرزند ماهانه', monthlyChildAllowance),
+      ('حق هر فرزند ماهانه', monthlyChildAllowance),
       ('سنوات ماهانه', monthlySeniority),
       ('سایر مزایا ماهانه', monthlyOtherBenefits),
     ]) {
@@ -1691,6 +2124,7 @@ class EmployeeBatchDraft {
     dailySeniority: parseNumber(dailySeniority.text) ?? 0,
     otherBenefitsDaily: parseNumber(otherBenefitsDaily.text) ?? 0,
     hourlyBenefits: parseNumber(hourlyBenefits.text) ?? 0,
+    hasShiftWork: hasShiftWork,
     startDate: textOf(startDate),
     isActive: isActive,
     endDate: textOf(endDate),

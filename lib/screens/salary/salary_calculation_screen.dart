@@ -1,23 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/app_settings.dart';
 import '../../models/advance_payment.dart';
 import '../../models/employee.dart';
 import '../../models/loan.dart';
+import '../../models/salary_draft.dart';
 import '../../models/salary_record.dart';
 import '../../services/advance_service.dart';
 import '../../services/employee_service.dart';
 import '../../services/loan_service.dart';
 import '../../services/salary_calculator.dart';
+import '../../services/salary_draft_service.dart';
 import '../../services/salary_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
-import '../../utils/constants.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
 import '../../utils/gradient_helpers.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/mouse_wheel_picker.dart';
 import '../../widgets/persian_number_field.dart';
 import 'payslip_screen.dart';
 
@@ -45,6 +49,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   final _loanService = LoanService();
   final _advanceService = AdvanceService();
   final _salaryService = SalaryService();
+  final _salaryDraftService = SalaryDraftService();
   final _settingsService = SettingsService();
 
   List<Employee> _employees = [];
@@ -56,12 +61,15 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   bool _loading = true;
   bool _saving = false;
 
-  int _year = AppConstants.currentYear;
-  int _month = 1;
-  int _totalDays = 31;
+  late int _year;
+  late int _month;
+  late int _totalDays;
   double _leaveDays = 0;
+  double _sickLeaveDays = 0;
 
   double _overtimeHours = 0;
+  bool _useCustomOvertimeBase = false;
+  double _overtimeBaseDaily = 0;
   double _shiftWork = 0;
   double _hourlyBenefitsAmount = 0;
   double _hourlyBenefitHours = 0;
@@ -79,6 +87,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   bool _includeLeaveInPayslip = true;
   bool _insuranceExempt = false;
   bool _taxExempt = false;
+  bool _restoringInputs = false;
+  int _restoreGeneration = 0;
+  Timer? _draftSaveTimer;
 
   SalaryCalculationResult? _result;
   SalaryRecord? get _editRecord => widget.editRecord;
@@ -87,13 +98,16 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   @override
   void initState() {
     super.initState();
+    final today = PersianDateHelper.today();
+    _year = today.year;
+    _month = today.month;
     _totalDays = PersianDateHelper.daysInMonth(_year, _month);
     _init();
   }
 
   Future<void> _init() async {
     _employees = await _employeeService.getAll(onlyActive: !_isEditMode);
-    _settings = await _settingsService.getCurrentSettings();
+    _settings = await _settingsService.getCurrentSettings(year: _year);
     if (_editRecord != null) {
       _year = _editRecord!.year;
       _month = _editRecord!.month;
@@ -112,7 +126,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       if (_selectedEmployee!.id != null) {
         await _loadEmployeeDeductions(_selectedEmployee!.id!);
       }
-      _resetInputs(notify: false);
+      await _checkExistingRecord(notify: false);
     }
     if (mounted) setState(() => _loading = false);
     _calculate();
@@ -135,6 +149,31 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     _calculate();
   }
 
+  Future<void> _onMonthChanged(int month) async {
+    setState(() {
+      _month = month;
+      _totalDays = PersianDateHelper.daysInMonth(_year, month);
+    });
+    if (_selectedEmployee?.id != null) {
+      await _loadEmployeeDeductions(_selectedEmployee!.id!);
+    }
+    await _checkExistingRecord();
+    _calculate();
+  }
+
+  Future<void> _onYearChanged(int year) async {
+    setState(() {
+      _year = year;
+      _totalDays = PersianDateHelper.daysInMonth(year, _month);
+    });
+    _settings = await _settingsService.getCurrentSettings(year: year);
+    if (_selectedEmployee?.id != null) {
+      await _loadEmployeeDeductions(_selectedEmployee!.id!);
+    }
+    await _checkExistingRecord();
+    _calculate();
+  }
+
   Future<void> _loadEmployeeDeductions(int employeeId) async {
     _employeeLoans = await _loanService.getActiveLoansForEmployee(employeeId);
     _employeeAdvances = await _advanceService.getByEmployeeYearMonth(
@@ -144,17 +183,76 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     );
   }
 
-  Future<void> _checkExistingRecord() async {
-    if (_selectedEmployee == null) return;
-    final existing = await _salaryService.getByEmployeeYearMonth(
-      _selectedEmployee!.id!,
-      _year,
-      _month,
-    );
-    if (_isEditMode && existing?.id == _editRecord?.id) {
-      _applyRecordToInputs(existing!, notify: true);
-    } else {
-      _resetInputs();
+  Future<void> _checkExistingRecord({bool notify = true}) async {
+    final employeeId = _selectedEmployee?.id;
+    if (employeeId == null) return;
+    final targetYear = _year;
+    final targetMonth = _month;
+    final generation = ++_restoreGeneration;
+    bool isStale() =>
+        generation != _restoreGeneration ||
+        _selectedEmployee?.id != employeeId ||
+        _year != targetYear ||
+        _month != targetMonth;
+    _draftSaveTimer?.cancel();
+    _restoringInputs = true;
+    try {
+      final existing = await _salaryService.getByEmployeeYearMonth(
+        employeeId,
+        targetYear,
+        targetMonth,
+      );
+      if (isStale()) return;
+      if (_isEditMode && existing != null) {
+        _applyRecordToInputs(existing, notify: notify);
+        return;
+      }
+
+      final exactDraft = await _salaryDraftService.getForPeriod(
+        employeeId,
+        targetYear,
+        targetMonth,
+      );
+      if (isStale()) return;
+      if (exactDraft != null) {
+        _applyDraftToInputs(exactDraft, notify: notify);
+        return;
+      }
+
+      if (existing != null) {
+        _applyRecordToInputs(existing, notify: notify);
+        return;
+      }
+
+      final previousDraft = await _salaryDraftService.getLatestBefore(
+        employeeId,
+        targetYear,
+        targetMonth,
+      );
+      if (isStale()) return;
+      final previousRecord = await _salaryService.getLatestBefore(
+        employeeId,
+        targetYear,
+        targetMonth,
+      );
+      if (isStale()) return;
+      final draftPeriod = previousDraft == null
+          ? -1
+          : previousDraft.year * 100 + previousDraft.month;
+      final recordPeriod = previousRecord == null
+          ? -1
+          : previousRecord.year * 100 + previousRecord.month;
+      if (previousDraft != null && draftPeriod >= recordPeriod) {
+        _applyDraftToInputs(previousDraft, notify: notify);
+        return;
+      }
+      if (previousRecord != null) {
+        _applyRecordToInputs(previousRecord, notify: notify);
+        return;
+      }
+      _resetInputs(notify: notify);
+    } finally {
+      if (generation == _restoreGeneration) _restoringInputs = false;
     }
   }
 
@@ -162,11 +260,15 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     void apply() {
       _totalDays = record.totalDays;
       _leaveDays = record.leaveDays;
+      _sickLeaveDays = record.sickLeaveDays;
       _overtimeHours = record.overtimeHours;
+      _useCustomOvertimeBase = record.useCustomOvertimeBase;
+      _overtimeBaseDaily = record.overtimeBaseDaily;
       _shiftWork = record.shiftWork;
       _hourlyBenefitsAmount = record.hourlyBenefitsAmount;
       _hourlyBenefitHours = record.hourlyBenefitHours;
-      _useAutoShiftWork = false;
+      _useAutoShiftWork =
+          (_selectedEmployee?.hasShiftWork ?? false) && record.shiftWork > 0;
       _useAutoHourlyBenefits = record.hourlyBenefitHours > 0;
       _otherBenefitsOverride = record.workDays > 0
           ? record.otherBenefits / record.workDays
@@ -195,15 +297,52 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     }
   }
 
+  void _applyDraftToInputs(SalaryDraft draft, {bool notify = true}) {
+    void apply() {
+      _totalDays = draft.totalDays;
+      _leaveDays = draft.leaveDays;
+      _sickLeaveDays = draft.sickLeaveDays;
+      _overtimeHours = draft.overtimeHours;
+      _useCustomOvertimeBase = draft.useCustomOvertimeBase;
+      _overtimeBaseDaily = draft.overtimeBaseDaily;
+      _shiftWork = draft.shiftWork;
+      _useAutoShiftWork = draft.autoShiftWork;
+      _hourlyBenefitsAmount = draft.hourlyBenefitsAmount;
+      _hourlyBenefitHours = draft.hourlyBenefitHours;
+      _useAutoHourlyBenefits = draft.autoHourlyBenefits;
+      _otherBenefitsOverride = draft.otherBenefitsOverride;
+      _useAutoOtherBenefits = draft.autoOtherBenefits;
+      _loanInstallment = draft.loanInstallment;
+      _useAutoLoanInstallment = draft.autoLoanInstallment;
+      _skipLoanInstallmentThisMonth = draft.skipLoanInstallment;
+      _advance = draft.advance;
+      _useAutoAdvances = draft.autoAdvances;
+      _otherDeductions = draft.otherDeductions;
+      _includeLeaveInPayslip = draft.includeLeaveInPayslip;
+      _insuranceExempt = draft.insuranceExempt;
+      _taxExempt = draft.taxExempt;
+    }
+
+    if (notify && mounted) {
+      setState(apply);
+    } else {
+      apply();
+    }
+  }
+
   void _resetInputs({bool notify = true}) {
     void apply() {
       _totalDays = PersianDateHelper.daysInMonth(_year, _month);
       _leaveDays = 0;
+      _sickLeaveDays = 0;
       _overtimeHours = 0;
+      _useCustomOvertimeBase =
+          _selectedEmployee?.useCustomOvertimeBase ?? false;
+      _overtimeBaseDaily = _selectedEmployee?.overtimeBaseDaily ?? 0;
       _shiftWork = 0;
       _hourlyBenefitsAmount = 0;
       _hourlyBenefitHours = _selectedEmployee?.hourlyBenefits ?? 0;
-      _useAutoShiftWork = false;
+      _useAutoShiftWork = _selectedEmployee?.hasShiftWork ?? false;
       _useAutoHourlyBenefits = true;
       _includeLeaveInPayslip = true;
       _otherBenefitsOverride = -1;
@@ -233,7 +372,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     final input = SalaryCalculationInput(
       totalDays: _totalDays,
       leaveDays: _leaveDays,
+      sickLeaveDays: _sickLeaveDays,
       overtimeHours: _overtimeHours,
+      useCustomOvertimeBase: _useCustomOvertimeBase,
+      overtimeBaseDaily: _overtimeBaseDaily,
       shiftWork: _shiftWork,
       hourlyBenefitsAmount: _hourlyBenefitsAmount,
       hourlyBenefitHours: _hourlyBenefitHours,
@@ -255,16 +397,107 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       input: input,
     );
     setState(() => _result = result);
+    _scheduleDraftSave();
+  }
+
+  void _scheduleDraftSave() {
+    if (_loading || _restoringInputs) return;
+    if (_selectedEmployee?.id == null) return;
+    _draftSaveTimer?.cancel();
+    _draftSaveTimer = Timer(const Duration(milliseconds: 700), _saveDraft);
+  }
+
+  Future<void> _saveDraft() async {
+    final employeeId = _selectedEmployee?.id;
+    if (employeeId == null || _restoringInputs) return;
+    final draft = SalaryDraft(
+      employeeId: employeeId,
+      year: _year,
+      month: _month,
+      totalDays: _totalDays,
+      leaveDays: _leaveDays,
+      sickLeaveDays: _sickLeaveDays,
+      overtimeHours: _overtimeHours,
+      useCustomOvertimeBase: _useCustomOvertimeBase,
+      overtimeBaseDaily: _overtimeBaseDaily,
+      shiftWork: _shiftWork,
+      autoShiftWork: _useAutoShiftWork,
+      hourlyBenefitsAmount: _hourlyBenefitsAmount,
+      hourlyBenefitHours: _hourlyBenefitHours,
+      autoHourlyBenefits: _useAutoHourlyBenefits,
+      otherBenefitsOverride: _otherBenefitsOverride,
+      autoOtherBenefits: _useAutoOtherBenefits,
+      loanInstallment: _loanInstallment,
+      autoLoanInstallment: _useAutoLoanInstallment,
+      skipLoanInstallment: _skipLoanInstallmentThisMonth,
+      advance: _advance,
+      autoAdvances: _useAutoAdvances,
+      otherDeductions: _otherDeductions,
+      includeLeaveInPayslip: _includeLeaveInPayslip,
+      insuranceExempt: _insuranceExempt,
+      taxExempt: _taxExempt,
+    );
+    try {
+      await _salaryDraftService.upsert(draft);
+    } catch (_) {
+      // Draft saving is best-effort and must not interrupt salary entry.
+    }
+  }
+
+  @override
+  void dispose() {
+    _draftSaveTimer?.cancel();
+    super.dispose();
   }
 
   double get _activeLoanInstallmentTotal =>
-      _employeeLoans.fold(0, (s, l) => s + l.installmentAmount);
+      _employeeLoans.fold(0, (s, l) => s + l.nextInstallmentAmount);
 
   double get _activeAdvanceTotal =>
       _employeeAdvances.fold(0, (sum, advance) => sum + advance.amount);
 
+  double get _workDays => (_totalDays - _leaveDays - _sickLeaveDays).clamp(
+    0.0,
+    _totalDays.toDouble(),
+  );
+
+  double get _payableDays =>
+      (_totalDays - _sickLeaveDays).clamp(0.0, _totalDays.toDouble());
+
+  String? get _attendanceError {
+    if (_leaveDays < 0 || _sickLeaveDays < 0) {
+      return 'تعداد روزهای مرخصی و استعلاجی نمی‌تواند منفی باشد.';
+    }
+    if (_leaveDays + _sickLeaveDays > _totalDays) {
+      return 'جمع مرخصی و استعلاجی نباید از کل روزهای کارکرد بیشتر باشد.';
+    }
+    return null;
+  }
+
+  bool _validateAttendance() {
+    final error = _attendanceError;
+    if (error == null) return true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ),
+    );
+    return false;
+  }
+
   Future<void> _saveAndShowPayslip({bool deductLoanInstallments = true}) async {
     if (_result == null || _selectedEmployee == null) return;
+    if (!_validateAttendance()) return;
+    if (_useCustomOvertimeBase && _overtimeBaseDaily <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('مبنای روزانه اضافه‌کاری باید بیشتر از صفر باشد'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
     if (!_isEditMode && !_selectedEmployee!.isActive) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -278,9 +511,6 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     }
     setState(() => _saving = true);
 
-    final workDays = (_totalDays - _leaveDays)
-        .clamp(0.0, _totalDays.toDouble())
-        .toDouble();
     final record = _result!.toRecord(
       employeeId: _selectedEmployee!.id!,
       employeeFullNameSnapshot: _selectedEmployee!.fullName,
@@ -291,7 +521,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       month: _month,
       totalDays: _totalDays,
       leaveDays: _leaveDays,
-      workDays: workDays,
+      sickLeaveDays: _sickLeaveDays,
+      workDays: _workDays,
       overtimeHours: _overtimeHours,
       hourlyBenefitHours: _useAutoHourlyBenefits ? _hourlyBenefitHours : 0,
       includeLeaveInPayslip: _includeLeaveInPayslip,
@@ -324,6 +555,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         }
       }
 
+      await _persistEmployeeOvertimePreference();
+      await _saveDraft();
       final recordId = await _salaryService.insertOrUpdate(record);
 
       if (deductLoanInstallments &&
@@ -368,6 +601,53 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _persistEmployeeOvertimePreference() async {
+    final employee = _selectedEmployee;
+    if (employee?.id == null) return;
+    if (employee!.useCustomOvertimeBase == _useCustomOvertimeBase &&
+        employee.overtimeBaseDaily == _overtimeBaseDaily) {
+      return;
+    }
+    final updated = employee.copyWith(
+      useCustomOvertimeBase: _useCustomOvertimeBase,
+      overtimeBaseDaily: _overtimeBaseDaily,
+    );
+    await _employeeService.update(updated, sync: false);
+    _selectedEmployee = updated;
+    final index = _employees.indexWhere((item) => item.id == updated.id);
+    if (index >= 0) _employees[index] = updated;
+  }
+
+  Future<void> _onAutoShiftWorkChanged(bool value) async {
+    if (!value &&
+        _useAutoShiftWork &&
+        (_selectedEmployee?.hasShiftWork ?? false)) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('غیرفعال‌کردن نوبت‌کاری'),
+          content: const Text(
+            'این کارمند در اطلاعات پرسنلی به‌عنوان نوبت‌کار ثبت شده است. نوبت‌کاری فقط برای این فیش غیرفعال شود؟',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('انصراف'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('غیرفعال شود'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+    if (!mounted) return;
+    setState(() => _useAutoShiftWork = value);
+    _calculate();
   }
 
   Future<_ExistingRecordAction?> _showExistingRecordDialog() {
@@ -447,9 +727,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                     icon: const Icon(Icons.print_rounded),
                     tooltip: 'مشاهده فیش حقوق',
                     onPressed: () {
-                      final workDays = (_totalDays - _leaveDays)
-                          .clamp(0.0, _totalDays.toDouble())
-                          .toDouble();
+                      if (!_validateAttendance()) return;
                       final rec = _result!.toRecord(
                         employeeId: _selectedEmployee!.id!,
                         employeeFullNameSnapshot: _selectedEmployee!.fullName,
@@ -463,7 +741,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                         month: _month,
                         totalDays: _totalDays,
                         leaveDays: _leaveDays,
-                        workDays: workDays,
+                        sickLeaveDays: _sickLeaveDays,
+                        workDays: _workDays,
                         overtimeHours: _overtimeHours,
                         hourlyBenefitHours: _useAutoHourlyBenefits
                             ? _hourlyBenefitHours
@@ -550,62 +829,61 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               _responsiveRow(
                 isMobile: _isMobile,
                 children: [
-                  DropdownButtonFormField<int>(
-                    initialValue: _month,
-                    decoration: const InputDecoration(
-                      labelText: 'ماه',
-                      prefixIcon: Icon(Icons.calendar_view_month_rounded),
+                  MouseWheelPicker<int>(
+                    value: _month,
+                    options: List.generate(12, (index) => index + 1),
+                    onChanged: _onMonthChanged,
+                    child: DropdownButtonFormField<int>(
+                      key: ValueKey('salary-month-$_month'),
+                      initialValue: _month,
+                      decoration: const InputDecoration(
+                        labelText: 'ماه',
+                        prefixIcon: Icon(Icons.calendar_view_month_rounded),
+                      ),
+                      items: List.generate(12, (i) {
+                        final m = i + 1;
+                        return DropdownMenuItem(
+                          value: m,
+                          child: Text(PersianDateHelper.monthName(m)),
+                        );
+                      }),
+                      onChanged: (value) {
+                        if (value != null) _onMonthChanged(value);
+                      },
                     ),
-                    items: List.generate(12, (i) {
-                      final m = i + 1;
-                      return DropdownMenuItem(
-                        value: m,
-                        child: Text(PersianDateHelper.monthName(m)),
-                      );
-                    }),
-                    onChanged: (v) async {
-                      if (v != null) {
-                        setState(() {
-                          _month = v;
-                          _totalDays = PersianDateHelper.daysInMonth(_year, v);
-                        });
-                        if (_selectedEmployee?.id != null) {
-                          await _loadEmployeeDeductions(_selectedEmployee!.id!);
-                        }
-                        await _checkExistingRecord();
-                        _calculate();
-                      }
-                    },
                   ),
-                  DropdownButtonFormField<int>(
-                    initialValue: _year,
-                    decoration: const InputDecoration(
-                      labelText: 'سال',
-                      prefixIcon: Icon(Icons.event_rounded),
+                  MouseWheelPicker<int>(
+                    value: _year,
+                    options: PersianDateHelper.nearbyYearOptions(
+                      selectedYear: _year,
                     ),
-                    items: [1404, 1405, 1406]
-                        .map(
-                          (y) => DropdownMenuItem(
-                            value: y,
-                            child: Text(
-                              PersianNumberFormatter.toPersian(y.toString()),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) async {
-                      if (v != null) {
-                        setState(() {
-                          _year = v;
-                          _totalDays = PersianDateHelper.daysInMonth(v, _month);
-                        });
-                        if (_selectedEmployee?.id != null) {
-                          await _loadEmployeeDeductions(_selectedEmployee!.id!);
-                        }
-                        await _checkExistingRecord();
-                        _calculate();
-                      }
-                    },
+                    onChanged: _onYearChanged,
+                    child: DropdownButtonFormField<int>(
+                      key: ValueKey('salary-year-$_year'),
+                      initialValue: _year,
+                      decoration: const InputDecoration(
+                        labelText: 'سال',
+                        prefixIcon: Icon(Icons.event_rounded),
+                      ),
+                      items:
+                          PersianDateHelper.nearbyYearOptions(
+                                selectedYear: _year,
+                              )
+                              .map(
+                                (y) => DropdownMenuItem(
+                                  value: y,
+                                  child: Text(
+                                    PersianNumberFormatter.toPersian(
+                                      y.toString(),
+                                    ),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                      onChanged: (value) {
+                        if (value != null) _onYearChanged(value);
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -634,8 +912,20 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                     prefixIcon: Icons.beach_access_rounded,
                     suffix: 'روز',
                     initialValue: _leaveDays,
+                    maxDecimalDigits: 1,
                     onChanged: (v) {
                       setState(() => _leaveDays = v?.toDouble() ?? 0);
+                      _calculate();
+                    },
+                  ),
+                  PersianNumberField(
+                    label: 'استعلاجی (روز)',
+                    prefixIcon: Icons.medical_services_rounded,
+                    suffix: 'روز',
+                    initialValue: _sickLeaveDays,
+                    maxDecimalDigits: 1,
+                    onChanged: (v) {
+                      setState(() => _sickLeaveDays = v?.toDouble() ?? 0);
                       _calculate();
                     },
                   ),
@@ -643,20 +933,37 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('محاسبه مرخصی در فیش حقوقی'),
-                subtitle: Text(
-                  _settings == null
-                      ? ''
-                      : 'سقف ماهانه ${PersianNumberFormatter.toPersian(_settings!.monthlyLeaveAllowance.toString())} روز، سالانه ${PersianNumberFormatter.toPersian(_settings!.annualLeaveAllowance.toString())} روز',
+              if (_leaveDays > 0) ...[
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('محاسبه مرخصی در فیش حقوقی'),
+                  subtitle: Text(
+                    _settings == null
+                        ? ''
+                        : 'سقف ماهانه ${PersianNumberFormatter.toPersian(_settings!.monthlyLeaveAllowance.toString())} روز، سالانه ${PersianNumberFormatter.toPersian(_settings!.annualLeaveAllowance.toString())} روز',
+                  ),
+                  value: _includeLeaveInPayslip,
+                  onChanged: (v) {
+                    setState(() => _includeLeaveInPayslip = v);
+                    _calculate();
+                  },
                 ),
-                value: _includeLeaveInPayslip,
-                onChanged: (v) {
-                  setState(() => _includeLeaveInPayslip = v);
-                  _calculate();
-                },
-              ),
+                const SizedBox(height: 8),
+              ],
+              if (_sickLeaveDays > 0)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.secondaryContainer.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  ),
+                  child: const Text(
+                    'استعلاجی تاییدشده از سهم مرخصی استحقاقی کم نمی‌شود. حقوق این روزها در فیش کارفرما محاسبه نمی‌شود و غرامت آن طبق مقررات، جداگانه توسط تامین اجتماعی پرداخت می‌شود.',
+                  ),
+                ),
               const SizedBox(height: 12),
               _responsiveRow(
                 isMobile: _isMobile,
@@ -673,16 +980,44 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('نوبت‌کاری خودکار'),
-                    subtitle: const Text('۱۵٪ حقوق ثابت، مطابق اکسل'),
+                    subtitle: const Text('۱۵٪ حقوق ثابت'),
                     value: _useAutoShiftWork,
-                    onChanged: (v) {
-                      setState(() => _useAutoShiftWork = v);
-                      _calculate();
-                    },
+                    onChanged: _onAutoShiftWorkChanged,
                   ),
                 ],
               ),
               const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('مبنای دستی اضافه‌کاری'),
+                subtitle: const Text(
+                  'فرمول: مبنای روزانه ÷ ۷.۳۳ × ۱.۴ × ساعت اضافه‌کاری',
+                ),
+                value: _useCustomOvertimeBase,
+                onChanged: (value) {
+                  setState(() {
+                    _useCustomOvertimeBase = value;
+                    if (value && _overtimeBaseDaily <= 0) {
+                      _overtimeBaseDaily =
+                          _selectedEmployee?.dailyWage1405 ?? 0;
+                    }
+                  });
+                  _calculate();
+                },
+              ),
+              if (_useCustomOvertimeBase) ...[
+                PersianNumberField(
+                  label: 'مبنای روزانه اضافه‌کاری (ریال)',
+                  isCurrency: true,
+                  prefixIcon: Icons.calculate_rounded,
+                  initialValue: _overtimeBaseDaily,
+                  onChanged: (value) {
+                    _overtimeBaseDaily = value?.toDouble() ?? 0;
+                    _calculate();
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
               if (!_useAutoShiftWork)
                 PersianNumberField(
                   label: 'مبلغ نوبت‌کاری (ریال)',
@@ -858,9 +1193,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('عدم شمول بیمه برای این فیش'),
-                subtitle: const Text(
-                  'برای ردیف‌هایی که در اکسل مبنای بیمه آن‌ها صفر ثبت شده است',
-                ),
+                subtitle: const Text('برای فیش‌هایی که مشمول حق بیمه نیستند'),
                 value: _insuranceExempt,
                 onChanged: (v) {
                   setState(() => _insuranceExempt = v);
@@ -872,7 +1205,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 contentPadding: EdgeInsets.zero,
                 title: const Text('عدم شمول مالیات برای این فیش'),
                 subtitle: const Text(
-                  'برای ردیف‌هایی که در اکسل مالیات آن‌ها صفر ثبت شده است',
+                  'برای فیش‌هایی که مشمول مالیات حقوق نیستند',
                 ),
                 value: _taxExempt,
                 onChanged: (v) {
@@ -964,12 +1297,17 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            '${_formatDays((_totalDays - _leaveDays).clamp(0.0, _totalDays.toDouble()).toDouble())} روز',
+            '${_formatDays(_workDays)} روز',
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: AppTheme.successColor,
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'قابل پرداخت کارفرما: ${_formatDays(_payableDays)} روز',
+            style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -1011,14 +1349,14 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                     style: const TextStyle(fontSize: 13),
                   ),
                   CurrencyText(
-                    l.installmentAmount,
+                    l.nextInstallmentAmount,
                     style: const TextStyle(fontSize: 13),
                   ),
                   const Text(' ریال', style: TextStyle(fontSize: 11)),
                   const Spacer(),
                   Text(
-                    'قسط ${PersianNumberFormatter.toPersian((l.paidInstallments + 1).toString())} '
-                    'از ${PersianNumberFormatter.toPersian(l.totalInstallments.toString())}',
+                    'قسط ${PersianNumberFormatter.formatDecimal(l.paidInstallments + l.nextInstallmentStep)} '
+                    'از ${PersianNumberFormatter.formatDecimal(l.totalInstallments)}',
                     style: TextStyle(
                       fontSize: 11,
                       color: scheme.onSurfaceVariant,
@@ -1303,6 +1641,15 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         _plainDetailRow(
           'مرخصی مازاد',
           '${_formatDays(_result!.excessLeaveDays)} روز',
+        ),
+        if (_sickLeaveDays > 0)
+          _plainDetailRow(
+            'مرخصی استعلاجی',
+            '${_formatDays(_sickLeaveDays)} روز',
+          ),
+        _plainDetailRow(
+          'روزهای قابل پرداخت کارفرما',
+          '${_formatDays(_result!.payableDays)} روز',
         ),
         const Divider(),
         _resultRow('سهم کارفرما (۲۰٪)', _result!.employerInsurance),

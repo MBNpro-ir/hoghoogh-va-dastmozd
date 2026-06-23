@@ -15,9 +15,9 @@ import '../../services/employee_service.dart';
 import '../../services/salary_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
-import '../../utils/constants.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
+import '../../widgets/mouse_wheel_picker.dart';
 import '../salary/salary_calculation_screen.dart';
 import 'employee_batch_entry_view.dart';
 
@@ -129,12 +129,15 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
   AppSettings? _settings;
   Set<int> _selectedEmployeeIds = {};
   bool _loading = true;
-  int _year = AppConstants.currentYear;
-  int _month = 1;
+  late int _year;
+  late int _month;
 
   @override
   void initState() {
     super.initState();
+    final today = PersianDateHelper.today();
+    _year = today.year;
+    _month = today.month;
     _load();
   }
 
@@ -279,6 +282,8 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
       'نام',
       'سال',
       'ماه',
+      'مرخصی',
+      'استعلاجی',
       'جمع حقوق و مزایا',
       'جمع کسورات',
       'مالیات',
@@ -293,6 +298,8 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
         _employeeName(record),
         record.year,
         record.month,
+        _formatDays(record.leaveDays, persian: false),
+        _formatDays(record.sickLeaveDays, persian: false),
         record.totalEarnings.round(),
         record.totalDeductions.round(),
         record.tax.round(),
@@ -336,7 +343,8 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
         'نام',
         'سال',
         'ماه',
-        'کارکرد',
+        'روز قابل پرداخت کارفرما',
+        'استعلاجی',
         'مبنای بیمه',
         'بیمه کارمند',
         'بیمه کارفرما',
@@ -349,7 +357,8 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
           _employeeName(record),
           record.year,
           record.month,
-          _formatDays(record.workDays, persian: false),
+          _formatDays(record.payableDays, persian: false),
+          _formatDays(record.sickLeaveDays, persian: false),
           record.insuranceBase.round(),
           record.insurance.round(),
           settings == null
@@ -434,6 +443,11 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
               pw.Expanded(
                 child: pw.Text(
                   'کارکرد: ${_formatDays(record.workDays, persian: false)}',
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Text(
+                  'استعلاجی: ${_formatDays(record.sickLeaveDays, persian: false)}',
                 ),
               ),
             ],
@@ -549,42 +563,59 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final controls = [
-                DropdownButtonFormField<int>(
-                  initialValue: _year,
-                  decoration: const InputDecoration(
-                    labelText: 'سال',
-                    prefixIcon: Icon(Icons.event_rounded),
+                MouseWheelPicker<int>(
+                  value: _year,
+                  options: PersianDateHelper.nearbyYearOptions(
+                    selectedYear: _year,
                   ),
-                  items: [1404, 1405, 1406]
-                      .map(
-                        (year) => DropdownMenuItem(
-                          value: year,
-                          child: Text(
-                            PersianNumberFormatter.toPersian(year.toString()),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) _changePeriod(year: value);
-                  },
+                  onChanged: (year) => _changePeriod(year: year),
+                  child: DropdownButtonFormField<int>(
+                    key: ValueKey('batch-year-$_year'),
+                    initialValue: _year,
+                    decoration: const InputDecoration(
+                      labelText: 'سال',
+                      prefixIcon: Icon(Icons.event_rounded),
+                    ),
+                    items:
+                        PersianDateHelper.nearbyYearOptions(selectedYear: _year)
+                            .map(
+                              (year) => DropdownMenuItem(
+                                value: year,
+                                child: Text(
+                                  PersianNumberFormatter.toPersian(
+                                    year.toString(),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                    onChanged: (value) {
+                      if (value != null) _changePeriod(year: value);
+                    },
+                  ),
                 ),
-                DropdownButtonFormField<int>(
-                  initialValue: _month,
-                  decoration: const InputDecoration(
-                    labelText: 'ماه',
-                    prefixIcon: Icon(Icons.calendar_view_month_rounded),
+                MouseWheelPicker<int>(
+                  value: _month,
+                  options: List.generate(12, (index) => index + 1),
+                  onChanged: (month) => _changePeriod(month: month),
+                  child: DropdownButtonFormField<int>(
+                    key: ValueKey('batch-month-$_month'),
+                    initialValue: _month,
+                    decoration: const InputDecoration(
+                      labelText: 'ماه',
+                      prefixIcon: Icon(Icons.calendar_view_month_rounded),
+                    ),
+                    items: List.generate(12, (index) {
+                      final month = index + 1;
+                      return DropdownMenuItem(
+                        value: month,
+                        child: Text(PersianDateHelper.monthName(month)),
+                      );
+                    }),
+                    onChanged: (value) {
+                      if (value != null) _changePeriod(month: value);
+                    },
                   ),
-                  items: List.generate(12, (index) {
-                    final month = index + 1;
-                    return DropdownMenuItem(
-                      value: month,
-                      child: Text(PersianDateHelper.monthName(month)),
-                    );
-                  }),
-                  onChanged: (value) {
-                    if (value != null) _changePeriod(month: value);
-                  },
                 ),
               ];
               if (constraints.maxWidth < 620) {
@@ -737,7 +768,7 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
             title: Text(employee.fullName),
             subtitle: Text(
               'کد ${PersianNumberFormatter.toPersian(employee.personnelCode.toString())}'
-              '${record == null ? ' | فیش این ماه ثبت نشده' : ''}',
+              '${record == null ? ' | فیش این ماه ثبت نشده' : ' | استعلاجی ${_formatDays(record.sickLeaveDays)} روز'}',
             ),
             controlAffinity: ListTileControlAffinity.leading,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12),

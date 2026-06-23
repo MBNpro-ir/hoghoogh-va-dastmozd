@@ -969,12 +969,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    FadeInUp(
-                      delay: const Duration(milliseconds: 540),
-                      child: const _AccessibilitySection(),
-                    ),
-                    const SizedBox(height: 16),
                     FadeInUp(
                       delay: const Duration(milliseconds: 600),
                       child: _SecuritySection(

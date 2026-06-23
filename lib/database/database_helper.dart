@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 8;
+  static const int _dbVersion = 10;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -92,6 +92,9 @@ class DatabaseHelper {
         daily_seniority REAL DEFAULT 0,
         other_benefits_daily REAL DEFAULT 0,
         hourly_benefits REAL DEFAULT 0,
+        has_shift_work INTEGER NOT NULL DEFAULT 0,
+        use_custom_overtime_base INTEGER NOT NULL DEFAULT 0,
+        overtime_base_daily REAL NOT NULL DEFAULT 0,
         start_date TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 1,
         end_date TEXT DEFAULT '',
@@ -120,8 +123,8 @@ class DatabaseHelper {
         loan_number INTEGER NOT NULL DEFAULT 1,
         amount REAL NOT NULL,
         installment_amount REAL NOT NULL,
-        total_installments INTEGER NOT NULL,
-        paid_installments INTEGER NOT NULL DEFAULT 0,
+        total_installments REAL NOT NULL,
+        paid_installments REAL NOT NULL DEFAULT 0,
         start_date TEXT NOT NULL,
         end_date TEXT,
         notes TEXT,
@@ -150,9 +153,12 @@ class DatabaseHelper {
         month INTEGER NOT NULL,
         total_days INTEGER NOT NULL,
         leave_days REAL NOT NULL DEFAULT 0,
+        sick_leave_days REAL NOT NULL DEFAULT 0,
         work_days REAL NOT NULL,
         overtime_hours REAL DEFAULT 0,
         overtime_amount REAL DEFAULT 0,
+        use_custom_overtime_base INTEGER NOT NULL DEFAULT 0,
+        overtime_base_daily REAL NOT NULL DEFAULT 0,
         shift_work REAL DEFAULT 0,
         hourly_benefits_amount REAL DEFAULT 0,
         hourly_benefit_hours REAL DEFAULT 0,
@@ -191,6 +197,8 @@ class DatabaseHelper {
         FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
       );
     ''');
+
+    await _createSalaryDraftsTable(db);
 
     // جدول تنظیمات
     await db.execute('''
@@ -409,6 +417,86 @@ class DatabaseHelper {
       await _createAdvancesTable(db);
       await _createSyncIndexes(db);
     }
+    if (oldVersion < 9) {
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'sick_leave_days REAL NOT NULL DEFAULT 0',
+      );
+    }
+    if (oldVersion < 10) {
+      await _safeAddColumn(
+        db,
+        'employees',
+        'has_shift_work INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'employees',
+        'use_custom_overtime_base INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'employees',
+        'overtime_base_daily REAL NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'use_custom_overtime_base INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_records',
+        'overtime_base_daily REAL NOT NULL DEFAULT 0',
+      );
+      await _createSalaryDraftsTable(db);
+      await _createSyncIndexes(db);
+    }
+  }
+
+  Future<void> _createSalaryDraftsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS salary_drafts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_id INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        month INTEGER NOT NULL,
+        total_days INTEGER NOT NULL,
+        leave_days REAL NOT NULL DEFAULT 0,
+        sick_leave_days REAL NOT NULL DEFAULT 0,
+        overtime_hours REAL NOT NULL DEFAULT 0,
+        use_custom_overtime_base INTEGER NOT NULL DEFAULT 0,
+        overtime_base_daily REAL NOT NULL DEFAULT 0,
+        shift_work REAL NOT NULL DEFAULT 0,
+        auto_shift_work INTEGER NOT NULL DEFAULT 0,
+        hourly_benefits_amount REAL NOT NULL DEFAULT 0,
+        hourly_benefit_hours REAL NOT NULL DEFAULT 0,
+        auto_hourly_benefits INTEGER NOT NULL DEFAULT 1,
+        other_benefits_override REAL NOT NULL DEFAULT -1,
+        auto_other_benefits INTEGER NOT NULL DEFAULT 1,
+        loan_installment REAL NOT NULL DEFAULT 0,
+        auto_loan_installment INTEGER NOT NULL DEFAULT 1,
+        skip_loan_installment INTEGER NOT NULL DEFAULT 0,
+        advance REAL NOT NULL DEFAULT 0,
+        auto_advances INTEGER NOT NULL DEFAULT 1,
+        other_deductions REAL NOT NULL DEFAULT 0,
+        include_leave_in_payslip INTEGER NOT NULL DEFAULT 1,
+        insurance_exempt INTEGER NOT NULL DEFAULT 0,
+        tax_exempt INTEGER NOT NULL DEFAULT 0,
+        sync_id TEXT UNIQUE,
+        server_updated_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT,
+        sync_state TEXT NOT NULL DEFAULT 'synced',
+        UNIQUE (employee_id, year, month),
+        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+      );
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_salary_drafts_employee_period '
+      'ON salary_drafts(employee_id, year, month);',
+    );
   }
 
   Future<void> _createAdvancesTable(Database db) async {
@@ -453,6 +541,7 @@ class DatabaseHelper {
       'loans',
       'advances',
       'salary_records',
+      'salary_drafts',
       'app_settings',
     ]) {
       await db.execute(
