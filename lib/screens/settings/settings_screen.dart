@@ -26,7 +26,6 @@ import '../../utils/persian_number_formatter.dart';
 import '../../utils/gradient_helpers.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/persian_number_field.dart';
-import '../help/help_support_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -475,13 +474,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     controller.dispose();
     return result;
-  }
-
-  void _openHelp() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
-    );
   }
 
   Future<void> _changeLocalCredential() async {
@@ -1028,7 +1020,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 16),
                     FadeInUp(
                       delay: const Duration(milliseconds: 660),
-                      child: _AboutSection(onOpenHelp: _openHelp),
+                      child: const _AboutSection(),
                     ),
                   ],
                 ),
@@ -2504,9 +2496,7 @@ class _BackupSection extends StatelessWidget {
 
 // -------- بخش درباره --------
 class _AboutSection extends StatelessWidget {
-  final VoidCallback onOpenHelp;
-
-  const _AboutSection({required this.onOpenHelp});
+  const _AboutSection();
 
   @override
   Widget build(BuildContext context) {
@@ -2559,12 +2549,6 @@ class _AboutSection extends StatelessWidget {
               value: 'Flutter (Windows, Android, Linux)',
             ),
             _AboutRow(label: 'فونت', value: 'Vazirmatn'),
-            const SizedBox(height: 8),
-            FilledButton.tonalIcon(
-              onPressed: onOpenHelp,
-              icon: const Icon(Icons.menu_book_rounded),
-              label: const Text('مشاهده راهنما'),
-            ),
           ],
         ),
       ),

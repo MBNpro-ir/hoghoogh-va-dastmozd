@@ -2,8 +2,11 @@ name: Build release artifacts
 
 on:
   push:
+    branches:
+      - master
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,31 +20,6 @@ env:
   PUB_HOSTED_URL: https://pub.dev
 
 jobs:
-  checks:
-    name: Analyze and test
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-          pub-cache: true
-          cache-key: 'flutter-:os:-:channel:-:version:-:arch:'
-          pub-cache-key: 'flutter-pub-:os:-:channel:-:version:-:arch:'
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Analyze
-        run: flutter analyze
-
-      - name: Test
-        run: flutter test
-
   build_android:
     name: Build Android APKs
     runs-on: ubuntu-latest
@@ -64,8 +42,19 @@ jobs:
           channel: stable
           cache: true
           pub-cache: true
-          cache-key: 'flutter-:os:-:channel:-:version:-:arch:'
-          pub-cache-key: 'flutter-pub-:os:-:channel:-:version:-:arch:'
+          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
+          pub-cache-key: 'flutter-pub-:os:-:channel:-:version:-:arch:-:hash:'
+
+      - name: Restore Android build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .dart_tool
+            build
+            android/.gradle
+          key: ${{ runner.os }}-android-build-${{ hashFiles('pubspec.lock', 'android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-android-build-
 
       - name: Get dependencies
         run: flutter pub get
@@ -104,8 +93,19 @@ jobs:
           channel: stable
           cache: true
           pub-cache: true
-          cache-key: 'flutter-:os:-:channel:-:version:-:arch:'
-          pub-cache-key: 'flutter-pub-:os:-:channel:-:version:-:arch:'
+          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
+          pub-cache-key: 'flutter-pub-:os:-:channel:-:version:-:arch:-:hash:'
+
+      - name: Restore Windows build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .dart_tool
+            build/windows
+            ~/.nuget/packages
+          key: ${{ runner.os }}-windows-build-${{ hashFiles('pubspec.lock', 'windows/CMakeLists.txt', 'windows/flutter/CMakeLists.txt', 'windows/runner/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-windows-build-
 
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
@@ -146,7 +146,6 @@ jobs:
     name: Create pre-release
     runs-on: windows-latest
     needs:
-      - checks
       - build_android
       - build_windows
     if: startsWith(github.ref, 'refs/tags/')

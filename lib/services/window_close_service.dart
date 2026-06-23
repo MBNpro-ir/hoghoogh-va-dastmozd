@@ -161,6 +161,7 @@ class _DesktopWindowCloseHostState extends State<DesktopWindowCloseHost>
   Future<void> _showWindow() async {
     await windowManager.show();
     await windowManager.restore();
+    await windowManager.maximize();
     await windowManager.focus();
   }
 

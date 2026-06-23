@@ -26,11 +26,13 @@ enum _ExistingRecordAction { replace, showExisting }
 class SalaryCalculationScreen extends StatefulWidget {
   final Employee? initialEmployee;
   final SalaryRecord? editRecord;
+  final bool embedded;
 
   const SalaryCalculationScreen({
     super.key,
     this.initialEmployee,
     this.editRecord,
+    this.embedded = false,
   });
 
   @override
@@ -425,57 +427,63 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      const loading = Center(child: CircularProgressIndicator());
+      return widget.embedded ? loading : const Scaffold(body: loading);
     }
     final scheme = Theme.of(context).colorScheme;
     final responsive = Responsive.of(context);
     final isWide = responsive.isExpanded;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isEditMode ? 'ویرایش فیش حقوق' : 'محاسبه حقوق ماهانه'),
-        actions: [
-          if (_result != null && _selectedEmployee != null)
-            IconButton(
-              icon: const Icon(Icons.print_rounded),
-              tooltip: 'مشاهده فیش حقوق',
-              onPressed: () {
-                final workDays = (_totalDays - _leaveDays)
-                    .clamp(0.0, _totalDays.toDouble())
-                    .toDouble();
-                final rec = _result!.toRecord(
-                  employeeId: _selectedEmployee!.id!,
-                  employeeFullNameSnapshot: _selectedEmployee!.fullName,
-                  employeePersonnelCodeSnapshot:
-                      _selectedEmployee!.personnelCode,
-                  employeeNationalIdSnapshot: _selectedEmployee!.nationalId,
-                  employeePayslipFooterNoteSnapshot:
-                      _selectedEmployee!.payslipFooterNote,
-                  year: _year,
-                  month: _month,
-                  totalDays: _totalDays,
-                  leaveDays: _leaveDays,
-                  workDays: workDays,
-                  overtimeHours: _overtimeHours,
-                  hourlyBenefitHours: _useAutoHourlyBenefits
-                      ? _hourlyBenefitHours
-                      : 0,
-                  includeLeaveInPayslip: _includeLeaveInPayslip,
-                );
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PayslipScreen(
-                      employee: _selectedEmployee!,
-                      settings: _settings!,
-                      record: rec,
-                    ),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: Text(
+                _isEditMode ? 'ویرایش فیش حقوق' : 'محاسبه حقوق ماهانه',
+              ),
+              actions: [
+                if (_result != null && _selectedEmployee != null)
+                  IconButton(
+                    icon: const Icon(Icons.print_rounded),
+                    tooltip: 'مشاهده فیش حقوق',
+                    onPressed: () {
+                      final workDays = (_totalDays - _leaveDays)
+                          .clamp(0.0, _totalDays.toDouble())
+                          .toDouble();
+                      final rec = _result!.toRecord(
+                        employeeId: _selectedEmployee!.id!,
+                        employeeFullNameSnapshot: _selectedEmployee!.fullName,
+                        employeePersonnelCodeSnapshot:
+                            _selectedEmployee!.personnelCode,
+                        employeeNationalIdSnapshot:
+                            _selectedEmployee!.nationalId,
+                        employeePayslipFooterNoteSnapshot:
+                            _selectedEmployee!.payslipFooterNote,
+                        year: _year,
+                        month: _month,
+                        totalDays: _totalDays,
+                        leaveDays: _leaveDays,
+                        workDays: workDays,
+                        overtimeHours: _overtimeHours,
+                        hourlyBenefitHours: _useAutoHourlyBenefits
+                            ? _hourlyBenefitHours
+                            : 0,
+                        includeLeaveInPayslip: _includeLeaveInPayslip,
+                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PayslipScreen(
+                            employee: _selectedEmployee!,
+                            settings: _settings!,
+                            record: rec,
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+              ],
             ),
-        ],
-      ),
       body: _employees.isEmpty
           ? Center(
               child: Padding(

@@ -1,9 +1,13 @@
+import 'package:uuid/uuid.dart';
+
 import '../database/database_helper.dart';
 import '../models/employee.dart';
 import 'sync_service.dart';
 
 /// سرویس مدیریت کارمندان
 class EmployeeService {
+  static const _uuid = Uuid();
+
   final _db = DatabaseHelper.instance;
   final _sync = SyncService();
 
@@ -50,6 +54,45 @@ class EmployeeService {
     await _sync.markUpsert('employees', id, schedule: false);
     await _sync.syncNow(silent: true);
     return id;
+  }
+
+  Future<List<int>> insertMany(List<Employee> employees) async {
+    if (employees.isEmpty) return const [];
+    final db = await _db.database;
+    final existingRows = await db.query(
+      'employees',
+      columns: ['personnel_code'],
+      where: 'deleted_at IS NULL',
+    );
+    final existingCodes = existingRows
+        .map((row) => (row['personnel_code'] as num).toInt())
+        .toSet();
+    final incomingCodes = <int>{};
+    for (final employee in employees) {
+      if (existingCodes.contains(employee.personnelCode) ||
+          !incomingCodes.add(employee.personnelCode)) {
+        throw ArgumentError('کد پرسنلی ${employee.personnelCode} تکراری است');
+      }
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    final ids = await db.transaction<List<int>>((txn) async {
+      final insertedIds = <int>[];
+      for (final employee in employees) {
+        final values = employee.toMap()
+          ..remove('id')
+          ..addAll({
+            'sync_id': _uuid.v4(),
+            'updated_at': now,
+            'deleted_at': null,
+            'sync_state': 'pending',
+          });
+        insertedIds.add(await txn.insert('employees', values));
+      }
+      return insertedIds;
+    });
+    await _sync.syncNow(silent: true);
+    return ids;
   }
 
   Future<int> update(Employee employee) async {

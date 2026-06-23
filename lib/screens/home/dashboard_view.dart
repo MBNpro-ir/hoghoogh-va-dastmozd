@@ -20,7 +20,6 @@ class DashboardView extends StatefulWidget {
   final VoidCallback onNavigateToSalaryRecords;
   final VoidCallback onNavigateToLoans;
   final VoidCallback onNavigateToSettings;
-  final VoidCallback onNavigateToHelp;
   final DashboardService? service;
 
   const DashboardView({
@@ -30,7 +29,6 @@ class DashboardView extends StatefulWidget {
     required this.onNavigateToSalaryRecords,
     required this.onNavigateToLoans,
     required this.onNavigateToSettings,
-    required this.onNavigateToHelp,
     this.service,
   });
 
@@ -125,7 +123,6 @@ class _DashboardViewState extends State<DashboardView> {
                           onRecords: widget.onNavigateToSalaryRecords,
                           onLoans: widget.onNavigateToLoans,
                           onSettings: widget.onNavigateToSettings,
-                          onHelp: widget.onNavigateToHelp,
                         ),
                       ),
                     ],
@@ -1039,7 +1036,6 @@ class _QuickActionsGrid extends StatefulWidget {
   final VoidCallback onRecords;
   final VoidCallback onLoans;
   final VoidCallback onSettings;
-  final VoidCallback onHelp;
   const _QuickActionsGrid({
     required this.r,
     required this.isDark,
@@ -1048,7 +1044,6 @@ class _QuickActionsGrid extends StatefulWidget {
     required this.onRecords,
     required this.onLoans,
     required this.onSettings,
-    required this.onHelp,
   });
 
   @override
@@ -1095,13 +1090,6 @@ class _QuickActionsGridState extends State<_QuickActionsGrid> {
         icon: Icons.tune_rounded,
         gradient: const [Color(0xFF7B1FA2), Color(0xFF4A148C)],
         onTap: widget.onSettings,
-      ),
-      _ActionItem(
-        title: 'راهنما',
-        subtitle: 'مستندات و پشتیبانی',
-        icon: Icons.support_agent_rounded,
-        gradient: const [Color(0xFF455A64), Color(0xFF1C313A)],
-        onTap: widget.onHelp,
       ),
     ];
 

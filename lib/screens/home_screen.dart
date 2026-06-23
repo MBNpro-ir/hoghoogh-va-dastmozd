@@ -14,7 +14,6 @@ import '../widgets/sync_status_banner.dart';
 import 'advances/advances_list_screen.dart';
 import 'batch/batch_operations_screen.dart';
 import 'employees/employees_list_screen.dart';
-import 'help/help_support_screen.dart';
 import 'home/dashboard_view.dart';
 import 'leaves/employee_leaves_screen.dart';
 import 'loans/loans_list_screen.dart';
@@ -43,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> {
       onNavigateToSalaryRecords: () => _goToIndex(3),
       onNavigateToLoans: () => _goToIndex(5),
       onNavigateToSettings: () => _goToIndex(8),
-      onNavigateToHelp: () => _goToIndex(9),
     ),
     const EmployeesListScreen(),
     const SalaryCalculationScreen(),
@@ -67,10 +65,6 @@ class _HomeScreenState extends State<HomeScreen> {
     const SidebarItem(label: 'مساعده کارکنان', icon: Icons.payments_rounded),
     const SidebarItem(label: 'عملیات دسته‌ای', icon: Icons.fact_check_rounded),
     const SidebarItem(label: 'تنظیمات سیستم', icon: Icons.settings_rounded),
-    const SidebarItem(
-      label: 'راهنما و پشتیبانی',
-      icon: Icons.support_agent_rounded,
-    ),
   ];
 
   @override
@@ -241,18 +235,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void _goToIndex(int index) {
     if (!mounted) return;
 
-    // تنظیمات و راهنما: صفحه جداگانه
+    // تنظیمات در صفحه جداگانه باز می‌شود.
     if (index == 8) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const SettingsScreen()),
-      );
-      return;
-    }
-    if (index == 9) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
       );
       return;
     }

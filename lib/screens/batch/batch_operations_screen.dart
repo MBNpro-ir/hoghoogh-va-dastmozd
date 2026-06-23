@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
@@ -18,6 +18,8 @@ import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
+import '../salary/salary_calculation_screen.dart';
+import 'employee_batch_entry_view.dart';
 
 class BatchOperationsScreen extends StatefulWidget {
   const BatchOperationsScreen({super.key});
@@ -26,7 +28,98 @@ class BatchOperationsScreen extends StatefulWidget {
   State<BatchOperationsScreen> createState() => _BatchOperationsScreenState();
 }
 
-class _BatchOperationsScreenState extends State<BatchOperationsScreen> {
+class _BatchOperationsScreenState extends State<BatchOperationsScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  int _dataRevision = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  bool get _isDesktop => const {
+    TargetPlatform.windows,
+    TargetPlatform.linux,
+    TargetPlatform.macOS,
+  }.contains(defaultTargetPlatform);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isDesktop) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.desktop_windows_rounded, size: 64),
+              SizedBox(height: 16),
+              Text(
+                'بخش عملیات دسته‌ای هنوز برای گوشی آماده نشده است.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'لطفا از نسخه کامپیوتر استفاده کنید.',
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('عملیات دسته‌ای'),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          tabs: const [
+            Tab(
+              icon: Icon(Icons.group_add_rounded),
+              text: 'ورود دسته‌ای کارکنان',
+            ),
+            Tab(icon: Icon(Icons.calculate_rounded), text: 'محاسبه دستی حقوق'),
+            Tab(icon: Icon(Icons.print_rounded), text: 'محاسبه و چاپ دسته‌ای'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          EmployeeBatchEntryView(
+            onSaved: () => setState(() => _dataRevision++),
+          ),
+          SalaryCalculationScreen(
+            key: ValueKey('manual-salary-$_dataRevision'),
+            embedded: true,
+          ),
+          _BatchPayslipView(key: ValueKey('batch-payslip-$_dataRevision')),
+        ],
+      ),
+    );
+  }
+}
+
+class _BatchPayslipView extends StatefulWidget {
+  const _BatchPayslipView({super.key});
+
+  @override
+  State<_BatchPayslipView> createState() => _BatchPayslipViewState();
+}
+
+class _BatchPayslipViewState extends State<_BatchPayslipView> {
   final _employeeService = EmployeeService();
   final _salaryService = SalaryService();
   final _settingsService = SettingsService();
@@ -421,28 +514,29 @@ class _BatchOperationsScreenState extends State<BatchOperationsScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('عملیات دسته‌ای'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'بازخوانی',
-            onPressed: _load,
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _employees.isEmpty
-          ? const Center(child: Text('هنوز کارمندی ثبت نشده است'))
-          : Column(
-              children: [
-                _periodCard(scheme),
-                _actionsCard(scheme),
-                Expanded(child: _employeesList(scheme)),
-              ],
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_employees.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('هنوز کارمندی ثبت نشده است'),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('بازخوانی'),
             ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [
+        _periodCard(scheme),
+        _actionsCard(scheme),
+        Expanded(child: _employeesList(scheme)),
+      ],
     );
   }
 
@@ -544,6 +638,11 @@ class _BatchOperationsScreenState extends State<BatchOperationsScreen> {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final buttons = [
+                OutlinedButton.icon(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('بازخوانی'),
+                ),
                 OutlinedButton.icon(
                   onPressed: _selectAll,
                   icon: const Icon(Icons.select_all_rounded),
