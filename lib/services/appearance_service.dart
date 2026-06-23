@@ -9,6 +9,9 @@ class AccessibilitySettings {
   /// ضریب مقیاس فونت (0.85 تا 1.5)
   final double textScale;
 
+  /// ضریب مقیاس کل رابط کاربری (0.8 تا 1.3)
+  final double uiScale;
+
   /// حالت کنتراست بالا
   final bool highContrast;
 
@@ -29,6 +32,7 @@ class AccessibilitySettings {
 
   const AccessibilitySettings({
     this.textScale = 1.0,
+    this.uiScale = 1.0,
     this.highContrast = false,
     this.reduceMotion = false,
     this.screenReaderHints = true,
@@ -39,6 +43,7 @@ class AccessibilitySettings {
 
   AccessibilitySettings copyWith({
     double? textScale,
+    double? uiScale,
     bool? highContrast,
     bool? reduceMotion,
     bool? screenReaderHints,
@@ -47,6 +52,7 @@ class AccessibilitySettings {
     bool? emojiLabels,
   }) => AccessibilitySettings(
     textScale: textScale ?? this.textScale,
+    uiScale: uiScale ?? this.uiScale,
     highContrast: highContrast ?? this.highContrast,
     reduceMotion: reduceMotion ?? this.reduceMotion,
     screenReaderHints: screenReaderHints ?? this.screenReaderHints,
@@ -57,6 +63,7 @@ class AccessibilitySettings {
 
   Map<String, dynamic> toJson() => {
     'textScale': textScale,
+    'uiScale': uiScale,
     'highContrast': highContrast,
     'reduceMotion': reduceMotion,
     'screenReaderHints': screenReaderHints,
@@ -68,6 +75,9 @@ class AccessibilitySettings {
   factory AccessibilitySettings.fromJson(Map<String, dynamic> json) =>
       AccessibilitySettings(
         textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
+        uiScale: ((json['uiScale'] as num?)?.toDouble() ?? 1.0)
+            .clamp(0.8, 1.3)
+            .toDouble(),
         highContrast: json['highContrast'] as bool? ?? false,
         reduceMotion: json['reduceMotion'] as bool? ?? false,
         screenReaderHints: json['screenReaderHints'] as bool? ?? true,
@@ -117,6 +127,9 @@ class AppearanceService {
       );
       return AccessibilitySettings(
         textScale: double.tryParse(map['ts'] ?? '1.0') ?? 1.0,
+        uiScale: (double.tryParse(map['us'] ?? '1.0') ?? 1.0)
+            .clamp(0.8, 1.3)
+            .toDouble(),
         highContrast: (map['hc'] ?? '0') == '1',
         reduceMotion: (map['rm'] ?? '0') == '1',
         screenReaderHints: (map['sr'] ?? '1') == '1',
@@ -132,7 +145,7 @@ class AppearanceService {
   Future<void> saveAccessibility(AccessibilitySettings s) async {
     final prefs = await SharedPreferences.getInstance();
     final raw =
-        'ts=${s.textScale};hc=${s.highContrast ? 1 : 0};'
+        'ts=${s.textScale};us=${s.uiScale};hc=${s.highContrast ? 1 : 0};'
         'rm=${s.reduceMotion ? 1 : 0};sr=${s.screenReaderHints ? 1 : 0};'
         'lc=${s.largeControls ? 1 : 0};es=${s.extraSpacing ? 1 : 0};'
         'el=${s.emojiLabels ? 1 : 0}';

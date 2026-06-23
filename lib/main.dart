@@ -19,6 +19,7 @@ import 'services/window_close_service.dart';
 import 'utils/constants.dart';
 import 'utils/responsive.dart';
 import 'widgets/windows_window_frame.dart';
+import 'widgets/app_viewport_scale.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -142,6 +143,9 @@ class PayrollApp extends StatelessWidget {
                   textDirection: TextDirection.rtl,
                   child: child!,
                 );
+                final framedChild = Platform.isWindows
+                    ? WindowsWindowFrame(child: directedChild)
+                    : directedChild;
                 return MediaQuery(
                   data: mq.copyWith(
                     textScaler: TextScaler.linear(
@@ -149,9 +153,10 @@ class PayrollApp extends StatelessWidget {
                     ),
                     disableAnimations: themeController.reduceMotion,
                   ),
-                  child: Platform.isWindows
-                      ? WindowsWindowFrame(child: directedChild)
-                      : directedChild,
+                  child: AppViewportScale(
+                    scale: themeController.uiScale,
+                    child: framedChild,
+                  ),
                 );
               },
               home: const BootScreen(),

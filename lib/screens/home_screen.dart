@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/company_profile.dart';
 import '../providers/theme_controller.dart';
@@ -29,11 +31,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const _sidebarCollapsedKey = 'hvm_sidebar_collapsed_v1';
+
   int _index = 0;
   final PageController _pageController = PageController();
   final _companyService = CompanyService();
   final _sync = SyncService();
   CompanyProfile? _currentCompany;
+  bool _sidebarCollapsed = false;
 
   List<Widget> get _pages => [
     DashboardView(
@@ -72,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _sync.dataVersion.addListener(_onSyncedDataChanged);
     _loadCompanies();
+    unawaited(_loadSidebarState());
     unawaited(_startSync());
   }
 
@@ -88,17 +94,26 @@ class _HomeScreenState extends State<HomeScreen> {
     final scheme = Theme.of(context).colorScheme;
 
     if (responsive.showsSidebar) {
+      final canCollapse = Platform.isWindows;
+      final reduceMotion = MediaQuery.of(context).disableAnimations;
+      final sidebarWidth = canCollapse && _sidebarCollapsed
+          ? 84.0
+          : responsive.sidebarWidth;
       // -------- دسکتاپ / تبلت: سایدبار دائمی --------
       return Scaffold(
         body: Row(
           textDirection: TextDirection.rtl,
           children: [
-            SizedBox(
-              width: responsive.sidebarWidth,
+            AnimatedContainer(
+              width: sidebarWidth,
+              duration: reduceMotion ? Duration.zero : AppDurations.medium,
+              curve: AppCurves.smoothInOut,
               child: AppSidebar(
                 currentIndex: _index,
                 onSelect: (i) => _goToIndex(i),
                 items: _items,
+                collapsed: canCollapse && _sidebarCollapsed,
+                onToggleCollapsed: canCollapse ? _toggleSidebar : null,
                 header: _SidebarHeader(
                   companyName: _currentCompany?.name,
                   canManageCompanies: false,
@@ -223,6 +238,22 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _loadSidebarState() async {
+    if (!Platform.isWindows) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _sidebarCollapsed = prefs.getBool(_sidebarCollapsedKey) ?? false;
+    });
+  }
+
+  Future<void> _toggleSidebar() async {
+    final collapsed = !_sidebarCollapsed;
+    setState(() => _sidebarCollapsed = collapsed);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_sidebarCollapsedKey, collapsed);
+  }
+
   Future<void> _startSync() async {
     try {
       await _sync.ensureServerHydrated();
@@ -327,54 +358,89 @@ class _SidebarHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-      child: Column(
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: scheme.primaryContainer,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Icon(
-              Icons.account_balance_rounded,
-              size: 32,
-              color: scheme.onPrimaryContainer,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            companyName ?? 'سیستم حقوق و دستمزد',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'Vazirmatn',
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: scheme.primary,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'سال مالی ۱۴۰۵',
-            style: TextStyle(
-              fontFamily: 'Vazirmatn',
-              fontSize: 11,
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (canManageCompanies)
-            OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-              label: const Text('تعویض شرکت'),
-            ),
-        ],
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scheme = Theme.of(context).colorScheme;
+        final compact = constraints.maxWidth < 200;
+        return AnimatedSize(
+          duration: AppDurations.medium,
+          curve: AppCurves.smoothInOut,
+          alignment: Alignment.topCenter,
+          child: compact
+              ? Padding(
+                  key: const ValueKey('compact-header'),
+                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+                  child: Tooltip(
+                    message: companyName ?? 'سیستم حقوق و دستمزد',
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: scheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        Icons.account_balance_rounded,
+                        size: 27,
+                        color: scheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                )
+              : Padding(
+                  key: const ValueKey('expanded-header'),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: scheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(
+                          Icons.account_balance_rounded,
+                          size: 32,
+                          color: scheme.onPrimaryContainer,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        companyName ?? 'سیستم حقوق و دستمزد',
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'Vazirmatn',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.primary,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'سال مالی ۱۴۰۵',
+                        style: TextStyle(
+                          fontFamily: 'Vazirmatn',
+                          fontSize: 11,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (canManageCompanies) ...[
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: () {},
+                          icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                          label: const Text('تعویض شرکت'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+        );
+      },
     );
   }
 }
@@ -383,25 +449,92 @@ class _SidebarHeader extends StatelessWidget {
 class _SidebarFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Divider(color: scheme.outlineVariant, height: 1),
-          const SizedBox(height: 12),
-          _ThemeSwitcher(),
-          const SizedBox(height: 8),
-          Text(
-            'نسخه ${AppConstants.appVersion}',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontFamily: 'Vazirmatn',
-              fontSize: 11,
-              color: scheme.onSurfaceVariant,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scheme = Theme.of(context).colorScheme;
+        final compact = constraints.maxWidth < 200;
+        return AnimatedSize(
+          duration: AppDurations.medium,
+          curve: AppCurves.smoothInOut,
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: EdgeInsets.all(compact ? 8 : 12),
+            child: Column(
+              children: [
+                Divider(color: scheme.outlineVariant, height: 1),
+                SizedBox(height: compact ? 8 : 12),
+                if (compact) const _CompactThemeButton() else _ThemeSwitcher(),
+                SizedBox(height: compact ? 6 : 8),
+                Tooltip(
+                  message: 'نسخه ${AppConstants.appVersion}',
+                  child: Text(
+                    compact
+                        ? AppConstants.appVersion.split(' ').first
+                        : 'نسخه ${AppConstants.appVersion}',
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: compact ? 9 : 11,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        );
+      },
+    );
+  }
+}
+
+class _CompactThemeButton extends StatelessWidget {
+  const _CompactThemeButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final controller = context.watch<ThemeController>();
+    final icon = switch (controller.themeMode) {
+      ThemeMode.system => Icons.brightness_auto_rounded,
+      ThemeMode.light => Icons.light_mode_rounded,
+      ThemeMode.dark => Icons.dark_mode_rounded,
+    };
+    final label = switch (controller.themeMode) {
+      ThemeMode.system => 'تم سیستم',
+      ThemeMode.light => 'تم روشن',
+      ThemeMode.dark => 'تم تاریک',
+    };
+    return Tooltip(
+      message: '$label؛ برای تغییر کلیک کنید',
+      child: Material(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            final next = switch (controller.themeMode) {
+              ThemeMode.system => ThemeMode.light,
+              ThemeMode.light => ThemeMode.dark,
+              ThemeMode.dark => ThemeMode.system,
+            };
+            controller.setThemeMode(next);
+          },
+          child: SizedBox(
+            width: 48,
+            height: 42,
+            child: AnimatedSwitcher(
+              duration: AppDurations.micro,
+              child: Icon(
+                icon,
+                key: ValueKey(controller.themeMode),
+                size: 20,
+                color: scheme.onPrimaryContainer,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

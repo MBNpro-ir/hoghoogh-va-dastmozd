@@ -165,6 +165,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     if (_workplaceCtrl.text.trim().isEmpty) {
       _workplaceCtrl.text = _settings!.companyName;
     }
+    if (widget.employee != null) {
+      _selectedRate = _inferSalaryRate(widget.employee!, _settings!);
+    }
     if (widget.employee == null) {
       final nextCode = await _service.getNextPersonnelCode();
       _personnelCodeCtrl.text = nextCode.toString();
@@ -185,6 +188,15 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         .toStringAsFixed(2)
         .replaceFirst(RegExp(r'\.?0+$'), '');
     return PersianNumberFormatter.toPersian(formatted);
+  }
+
+  double _inferSalaryRate(Employee employee, AppSettings settings) {
+    if (employee.dailyWage1404 <= 0) return settings.salaryRateA;
+    final inferred =
+        (employee.dailyWage1405 - settings.fixedRial) / employee.dailyWage1404;
+    final distanceA = (inferred - settings.salaryRateA).abs();
+    final distanceB = (inferred - settings.salaryRateB).abs();
+    return distanceA <= distanceB ? settings.salaryRateA : settings.salaryRateB;
   }
 
   List<DropdownMenuItem<double>> _salaryRateItems() {

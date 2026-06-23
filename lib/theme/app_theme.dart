@@ -449,6 +449,7 @@ class AppTheme {
           return scheme.surfaceContainerHighest;
         }),
       ),
+      sliderTheme: _expressiveSliderTheme(scheme),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return scheme.primary;
@@ -750,11 +751,7 @@ class AppTheme {
           return scheme.surfaceContainerHighest;
         }),
       ),
-      sliderTheme: SliderThemeData(
-        activeTrackColor: scheme.primary,
-        inactiveTrackColor: scheme.surfaceContainerHighest,
-        thumbColor: scheme.primary,
-      ),
+      sliderTheme: _expressiveSliderTheme(scheme),
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: scheme.primary,
         linearTrackColor: scheme.surfaceContainer,
@@ -810,6 +807,28 @@ class AppTheme {
     return highContrast ? _highContrast(theme) : theme;
   }
 
+  static SliderThemeData _expressiveSliderTheme(ColorScheme scheme) =>
+      SliderThemeData(
+        activeTrackColor: scheme.primary,
+        inactiveTrackColor: scheme.secondaryContainer,
+        thumbColor: scheme.primary,
+        activeTickMarkColor: scheme.onPrimary,
+        inactiveTickMarkColor: scheme.onSecondaryContainer,
+        overlayColor: scheme.primary.withValues(alpha: 0.10),
+        trackHeight: 16,
+        trackGap: 6,
+        trackShape: const GappedSliderTrackShape(),
+        thumbShape: const HandleThumbShape(),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 24),
+        thumbSize: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.pressed) ||
+              states.contains(WidgetState.focused)) {
+            return const Size(2, 44);
+          }
+          return const Size(4, 44);
+        }),
+      );
+
   // -------- مقیاس تایپوگرافی (DESIGN.md) --------
   static ThemeData _highContrast(ThemeData theme) {
     final dark = theme.brightness == Brightness.dark;
@@ -829,6 +848,7 @@ class AppTheme {
     final borderColor = scheme.outlineVariant;
     return theme.copyWith(
       colorScheme: scheme,
+      sliderTheme: _expressiveSliderTheme(scheme),
       scaffoldBackgroundColor: scheme.surface,
       dividerTheme: DividerThemeData(color: borderColor, thickness: 1),
       cardTheme: theme.cardTheme.copyWith(

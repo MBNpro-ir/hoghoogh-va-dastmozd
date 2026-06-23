@@ -108,6 +108,7 @@ class ThemeController extends ChangeNotifier {
   bool get largeControls => _accessibility.largeControls;
   bool get extraSpacing => _accessibility.extraSpacing;
   double get textScale => _accessibility.textScale;
+  double get uiScale => _accessibility.uiScale;
 
   Future<void> initialize() async {
     _themeMode = await _service.loadThemeMode();
@@ -168,6 +169,7 @@ class ThemeController extends ChangeNotifier {
 
   Future<void> updateAccessibility({
     double? textScale,
+    double? uiScale,
     bool? highContrast,
     bool? reduceMotion,
     bool? screenReaderHints,
@@ -177,6 +179,7 @@ class ThemeController extends ChangeNotifier {
   }) async {
     final updated = _accessibility.copyWith(
       textScale: textScale,
+      uiScale: uiScale,
       highContrast: highContrast,
       reduceMotion: reduceMotion,
       screenReaderHints: screenReaderHints,

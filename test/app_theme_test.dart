@@ -3,6 +3,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:payroll_app/theme/app_theme.dart';
 
 void main() {
+  test('sliders use the Material 3 Expressive appearance', () {
+    final slider = AppTheme.lightTheme().sliderTheme;
+
+    expect(slider.trackShape, isA<GappedSliderTrackShape>());
+    expect(slider.thumbShape, isA<HandleThumbShape>());
+    expect(slider.trackHeight, 16);
+    expect(slider.trackGap, 6);
+    expect(slider.thumbSize?.resolve(<WidgetState>{}), const Size(4, 44));
+    expect(
+      slider.thumbSize?.resolve(<WidgetState>{WidgetState.pressed}),
+      const Size(2, 44),
+    );
+  });
+
   test('light and dark themes interpolate without text style assertions', () {
     final light = AppTheme.lightTheme();
     final dark = AppTheme.darkTheme();

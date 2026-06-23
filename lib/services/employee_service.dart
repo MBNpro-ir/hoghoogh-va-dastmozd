@@ -56,7 +56,10 @@ class EmployeeService {
     return id;
   }
 
-  Future<List<int>> insertMany(List<Employee> employees) async {
+  Future<List<int>> insertMany(
+    List<Employee> employees, {
+    bool sync = true,
+  }) async {
     if (employees.isEmpty) return const [];
     final db = await _db.database;
     final existingRows = await db.query(
@@ -91,11 +94,11 @@ class EmployeeService {
       }
       return insertedIds;
     });
-    await _sync.syncNow(silent: true);
+    if (sync) await _sync.syncNow(silent: true);
     return ids;
   }
 
-  Future<int> update(Employee employee) async {
+  Future<int> update(Employee employee, {bool sync = true}) async {
     final db = await _db.database;
     final result = await db.update(
       'employees',
@@ -105,12 +108,12 @@ class EmployeeService {
     );
     if (employee.id != null) {
       await _sync.markUpsert('employees', employee.id!, schedule: false);
-      await _sync.syncNow(silent: true);
+      if (sync) await _sync.syncNow(silent: true);
     }
     return result;
   }
 
-  Future<int> delete(int id) async {
+  Future<int> delete(int id, {bool sync = true}) async {
     final db = await _db.database;
     final salaryRows = await db.query(
       'salary_records',
@@ -149,8 +152,23 @@ class EmployeeService {
       }
     }
     final result = await _sync.markDelete('employees', id, schedule: false);
-    await _sync.syncNow(silent: true);
+    if (sync) await _sync.syncNow(silent: true);
     return result;
+  }
+
+  Future<void> applyBatchChanges({
+    required List<Employee> newEmployees,
+    required List<Employee> updatedEmployees,
+    required Set<int> deletedIds,
+  }) async {
+    for (final id in deletedIds) {
+      await delete(id, sync: false);
+    }
+    for (final employee in updatedEmployees) {
+      await update(employee, sync: false);
+    }
+    await insertMany(newEmployees, sync: false);
+    await _sync.syncNow(silent: true);
   }
 
   Future<int> getNextPersonnelCode() async {

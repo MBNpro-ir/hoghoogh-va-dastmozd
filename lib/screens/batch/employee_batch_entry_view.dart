@@ -1,14 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/employee_reference_data.dart';
+import '../../models/app_settings.dart';
 import '../../models/employee.dart';
 import '../../services/employee_service.dart';
+import '../../services/salary_calculator.dart';
+import '../../services/settings_service.dart';
 import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/constants.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/seniority_helper.dart';
 
-enum _EmployeeGridSection { identity, job, payroll, supplemental }
+enum _EmployeeGridSection {
+  identity,
+  job,
+  payroll,
+  monthlyBenefits,
+  supplemental,
+}
+
+enum _EmployeeEntryMode { manageExisting, createNew }
 
 class EmployeeBatchEntryView extends StatefulWidget {
   final VoidCallback? onSaved;
@@ -21,20 +36,25 @@ class EmployeeBatchEntryView extends StatefulWidget {
 
 class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
   final _employeeService = EmployeeService();
+  final _settingsService = SettingsService();
   final _sync = SyncService();
   final _horizontalScroll = ScrollController();
   final _verticalScroll = ScrollController();
-  final List<_EmployeeDraft> _drafts = [];
+  final List<EmployeeBatchDraft> _drafts = [];
+  final Set<int> _deletedEmployeeIds = {};
 
   List<Employee> _existingEmployees = const [];
+  AppSettings? _settings;
+  _EmployeeEntryMode? _mode;
   _EmployeeGridSection _section = _EmployeeGridSection.identity;
+  int _databaseNextPersonnelCode = 1;
+  int _nextPersonnelCode = 1;
   bool _loading = true;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _addRows(6, notify: false);
     _loadExisting();
   }
 
@@ -48,30 +68,98 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
     super.dispose();
   }
 
-  Future<void> _loadExisting() async {
+  Future<void> _loadExisting({bool pullLatest = true}) async {
+    if (pullLatest) await _sync.pullLatest(silent: true);
+    final settings = await _settingsService.getCurrentSettings();
     final employees = await _employeeService.getAll();
+    final nextPersonnelCode = await _employeeService.getNextPersonnelCode();
     if (!mounted) return;
     setState(() {
+      _settings = settings;
       _existingEmployees = employees;
+      _databaseNextPersonnelCode = nextPersonnelCode;
+      _nextPersonnelCode = nextPersonnelCode;
       _loading = false;
     });
   }
 
-  void _addRows(int count, {bool notify = true}) {
-    void add() {
-      _drafts.addAll(List.generate(count, (_) => _EmployeeDraft()));
+  void _selectMode(_EmployeeEntryMode mode) {
+    for (final draft in _drafts) {
+      draft.dispose();
     }
+    _drafts.clear();
+    _deletedEmployeeIds.clear();
+    _nextPersonnelCode = _databaseNextPersonnelCode;
+    if (mode == _EmployeeEntryMode.manageExisting) {
+      _drafts.addAll(
+        _existingEmployees.map(
+          (employee) => EmployeeBatchDraft.fromEmployee(
+            employee: employee,
+            settings: _settings!,
+          ),
+        ),
+      );
+      if (_drafts.isEmpty) _appendRows(1);
+    } else {
+      _appendRows(6);
+    }
+    setState(() => _mode = mode);
+  }
+
+  EmployeeBatchDraft _createDraft() {
+    final settings = _settings!;
+    return EmployeeBatchDraft(
+      settings: settings,
+      personnelCode: _nextPersonnelCode++,
+    );
+  }
+
+  void _appendRows(int count) {
+    _drafts.addAll(List.generate(count, (_) => _createDraft()));
+  }
+
+  void _addRows(int count, {bool notify = true}) {
+    if (_settings == null) return;
 
     if (notify) {
-      setState(add);
+      setState(() => _appendRows(count));
     } else {
-      add();
+      _appendRows(count);
     }
   }
 
-  void _removeRow(int index) {
-    if (_drafts.length == 1) {
-      _drafts.first.clear();
+  Future<void> _removeRow(int index) async {
+    final draft = _drafts[index];
+    if (draft.isExisting) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('حذف کارمند'),
+          content: Text(
+            'آیا از حذف «${draft.fullName}» مطمئن هستید؟\n'
+            'وام‌ها، مساعده‌ها و فیش‌های حقوق این کارمند نیز حذف خواهند شد.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('انصراف'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('آماده حذف'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      _deletedEmployeeIds.add(draft.employeeId!);
+    }
+    if (_drafts.length == 1 && _mode == _EmployeeEntryMode.createNew) {
+      _nextPersonnelCode = _databaseNextPersonnelCode;
+      _drafts.first.reset(
+        settings: _settings!,
+        personnelCode: _nextPersonnelCode++,
+      );
       setState(() {});
       return;
     }
@@ -80,33 +168,52 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
     setState(() {});
   }
 
-  void _clearGrid() {
-    for (final draft in _drafts) {
-      draft.dispose();
-    }
-    _drafts
-      ..clear()
-      ..addAll(List.generate(6, (_) => _EmployeeDraft()));
-    setState(() {});
+  void _resetGrid() => _selectMode(_mode!);
+
+  void _copyRow(int index) {
+    final copy = _drafts[index].copyAsNew(
+      settings: _settings!,
+      personnelCode: _nextPersonnelCode++,
+    );
+    setState(() => _drafts.insert(index + 1, copy));
   }
 
   Future<void> _save() async {
     if (_saving) return;
-    final existingCodes = _existingEmployees
+    final representedIds = _drafts
+        .map((draft) => draft.employeeId)
+        .whereType<int>()
+        .toSet();
+    final externalEmployees = _existingEmployees.where((employee) {
+      final id = employee.id;
+      return id == null ||
+          (!representedIds.contains(id) && !_deletedEmployeeIds.contains(id));
+    }).toList();
+    final existingCodes = externalEmployees
         .map((employee) => employee.personnelCode)
         .toSet();
-    final existingNationalIds = _existingEmployees
-        .map((employee) => _EmployeeDraft._digits(employee.nationalId))
+    final existingNationalIds = externalEmployees
+        .map((employee) => EmployeeBatchDraft.digits(employee.nationalId))
         .where((value) => value.isNotEmpty)
         .toSet();
     final seenCodes = <int>{};
     final seenNationalIds = <String>{};
-    final employees = <Employee>[];
+    for (final draft in _drafts.where(
+      (draft) => draft.isExisting && !draft.touched,
+    )) {
+      final code = EmployeeBatchDraft.parseInt(draft.personnelCode.text);
+      if (code != null) seenCodes.add(code);
+      final national = EmployeeBatchDraft.digits(draft.nationalId.text);
+      if (national.isNotEmpty) seenNationalIds.add(national);
+    }
+
+    final newEmployees = <Employee>[];
+    final updatedEmployees = <Employee>[];
     var invalidRows = 0;
 
     for (final draft in _drafts) {
       draft.errors = [];
-      if (!draft.hasData) continue;
+      if (!draft.touched) continue;
       draft.errors = draft.validate(
         existingCodes: existingCodes,
         existingNationalIds: existingNationalIds,
@@ -114,15 +221,27 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
         seenNationalIds: seenNationalIds,
       );
       if (draft.errors.isEmpty) {
-        employees.add(draft.toEmployee());
+        if (draft.isExisting) {
+          updatedEmployees.add(draft.toEmployee());
+        } else {
+          newEmployees.add(draft.toEmployee());
+        }
       } else {
         invalidRows++;
       }
     }
     setState(() {});
 
-    if (employees.isEmpty && invalidRows == 0) {
-      _message('حداقل یک ردیف کارمند وارد کنید', isError: true);
+    if (newEmployees.isEmpty &&
+        updatedEmployees.isEmpty &&
+        _deletedEmployeeIds.isEmpty &&
+        invalidRows == 0) {
+      _message(
+        _mode == _EmployeeEntryMode.manageExisting
+            ? 'تغییری برای ذخیره وجود ندارد'
+            : 'حداقل یک ردیف کارمند وارد کنید',
+        isError: true,
+      );
       return;
     }
     if (invalidRows > 0) {
@@ -135,18 +254,28 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
 
     setState(() => _saving = true);
     try {
-      await _employeeService.insertMany(employees);
-      await _loadExisting();
+      final deletedCount = _deletedEmployeeIds.length;
+      await _employeeService.applyBatchChanges(
+        newEmployees: newEmployees,
+        updatedEmployees: updatedEmployees,
+        deletedIds: _deletedEmployeeIds,
+      );
+      await _loadExisting(pullLatest: false);
       if (!mounted) return;
       final snapshot = _sync.status.value;
       final synced =
           snapshot.pendingCount == 0 && snapshot.phase == SyncPhase.synced;
-      _clearGrid();
+      final changes = <String>[
+        if (newEmployees.isNotEmpty) '${newEmployees.length} ثبت',
+        if (updatedEmployees.isNotEmpty) '${updatedEmployees.length} ویرایش',
+        if (deletedCount > 0) '$deletedCount حذف',
+      ];
+      _resetGrid();
       widget.onSaved?.call();
       _message(
         synced
-            ? '${employees.length} کارمند ثبت و با سرور همگام شد'
-            : '${employees.length} کارمند ثبت شد؛ همگام‌سازی با سرور در پس‌زمینه ادامه دارد',
+            ? '${changes.join('، ')} انجام و با سرور همگام شد'
+            : '${changes.join('، ')} انجام شد؛ همگام‌سازی با سرور در پس‌زمینه ادامه دارد',
       );
     } catch (error) {
       final message = error is ArgumentError
@@ -172,6 +301,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     final scheme = Theme.of(context).colorScheme;
+    if (_mode == null) return _modePicker(scheme);
     final invalidCount = _drafts
         .where((draft) => draft.errors.isNotEmpty)
         .length;
@@ -197,12 +327,104 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
     );
   }
 
+  Widget _modePicker(ColorScheme scheme) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'ورود دسته‌ای کارکنان',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: _modeCard(
+                      scheme: scheme,
+                      icon: Icons.manage_accounts_rounded,
+                      title: 'نمایش و ویرایش اطلاعات قبلی',
+                      subtitle: 'مشاهده، ویرایش، کپی، حذف و افزودن کارکنان',
+                      onTap: () =>
+                          _selectMode(_EmployeeEntryMode.manageExisting),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _modeCard(
+                      scheme: scheme,
+                      icon: Icons.person_add_alt_1_rounded,
+                      title: 'ثبت اطلاعات جدید',
+                      subtitle: 'جدول خالی برای ثبت کارکنان جدید',
+                      onTap: () => _selectMode(_EmployeeEntryMode.createNew),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _modeCard({
+    required ColorScheme scheme,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Icon(icon, size: 48, color: scheme.primary),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _toolbar(ColorScheme scheme, int filledCount, int invalidCount) {
+    final managing = _mode == _EmployeeEntryMode.manageExisting;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
+            IconButton(
+              tooltip: 'تغییر حالت',
+              onPressed: _saving ? null : () => setState(() => _mode = null),
+              icon: const Icon(Icons.arrow_forward_rounded),
+            ),
             Icon(Icons.table_view_rounded, color: scheme.primary),
             const SizedBox(width: 10),
             Expanded(
@@ -210,13 +432,16 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'ثبت ستونی کارکنان',
+                    managing
+                        ? 'نمایش و ویرایش اطلاعات کارکنان'
+                        : 'ثبت ستونی کارکنان جدید',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   Text(
-                    'ردیف پرشده: $filledCount'
+                    '${managing ? 'تعداد کارکنان: ${_drafts.where((draft) => draft.isExisting).length}' : 'ردیف پرشده: $filledCount'}'
+                    '${_deletedEmployeeIds.isNotEmpty ? '  |  آماده حذف: ${_deletedEmployeeIds.length}' : ''}'
                     '${invalidCount > 0 ? '  |  نیازمند اصلاح: $invalidCount' : ''}',
                     style: TextStyle(color: scheme.onSurfaceVariant),
                   ),
@@ -230,15 +455,17 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
             ),
             const SizedBox(width: 8),
             OutlinedButton.icon(
-              onPressed: _saving ? null : _clearGrid,
-              icon: const Icon(Icons.clear_all_rounded),
-              label: const Text('پاک کردن'),
+              onPressed: _saving ? null : _resetGrid,
+              icon: Icon(
+                managing ? Icons.restart_alt_rounded : Icons.clear_all_rounded,
+              ),
+              label: Text(managing ? 'بازنشانی تغییرات' : 'پاک کردن'),
             ),
             const SizedBox(width: 8),
             FilledButton.icon(
               onPressed: _saving ? null : _save,
               icon: const Icon(Icons.cloud_upload_rounded),
-              label: const Text('ثبت و همگام‌سازی'),
+              label: Text(managing ? 'ذخیره تغییرات' : 'ثبت و همگام‌سازی'),
             ),
           ],
         ),
@@ -264,7 +491,12 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           ButtonSegment(
             value: _EmployeeGridSection.payroll,
             icon: Icon(Icons.payments_rounded),
-            label: Text('حقوق و مزایا'),
+            label: Text('حقوق و مزایای روزانه'),
+          ),
+          ButtonSegment(
+            value: _EmployeeGridSection.monthlyBenefits,
+            icon: Icon(Icons.calendar_month_rounded),
+            label: Text('مزایای ماهانه'),
           ),
           ButtonSegment(
             value: _EmployeeGridSection.supplemental,
@@ -341,7 +573,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
                       horizontalMargin: 12,
                       columns: [
                         const DataColumn(
-                          label: SizedBox(width: 88, child: Text('ردیف')),
+                          label: SizedBox(width: 124, child: Text('ردیف')),
                         ),
                         for (final column in columns)
                           DataColumn(
@@ -373,7 +605,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
 
   DataRow _dataRow(
     int index,
-    _EmployeeDraft draft,
+    EmployeeBatchDraft draft,
     List<_EmployeeGridColumn> columns,
     ColorScheme scheme,
   ) {
@@ -386,7 +618,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
       cells: [
         DataCell(
           SizedBox(
-            width: 88,
+            width: 124,
             child: Row(
               children: [
                 Text('${index + 1}'),
@@ -401,8 +633,24 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
                   ),
                 const Spacer(),
                 IconButton(
+                  tooltip: 'کپی ردیف',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 30,
+                    height: 34,
+                  ),
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.content_copy_rounded, size: 17),
+                  onPressed: _saving ? null : () => _copyRow(index),
+                ),
+                IconButton(
                   tooltip: 'حذف ردیف',
                   visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 30,
+                    height: 34,
+                  ),
+                  padding: EdgeInsets.zero,
                   icon: const Icon(Icons.close_rounded, size: 18),
                   onPressed: _saving ? null : () => _removeRow(index),
                 ),
@@ -416,6 +664,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
   }
 
   List<_EmployeeGridColumn> _columnsForSection() {
+    final settings = _settings!;
     return switch (_section) {
       _EmployeeGridSection.identity => [
         _textColumn('کد پرسنلی *', 110, (d) => d.personnelCode, numeric: true),
@@ -431,20 +680,29 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           EmployeeReferenceData.genders,
           (d, value) => d.gender = value,
         ),
-        _textColumn('تاریخ تولد', 130, (d) => d.birthDate, hint: '1400/01/01'),
+        _dateColumn('تاریخ تولد', 130, (d) => d.birthDate),
         _textColumn('محل تولد', 150, (d) => d.birthPlace),
       ],
       _EmployeeGridSection.job => [
         _textColumn('تلفن', 140, (d) => d.phone, numeric: true),
         _textColumn('محل خدمت', 180, (d) => d.workplace),
         _textColumn('کد شغل', 120, (d) => d.jobCode),
-        _textColumn('عنوان شغل', 190, (d) => d.jobTitle),
-        _textColumn('سمت', 160, (d) => d.position),
         _textColumn(
+          'عنوان شغل',
+          190,
+          (d) => d.jobTitle,
+          onChanged: (draft, value) {
+            if (draft.position.text.trim().isEmpty) {
+              draft.position.text = value;
+            }
+          },
+        ),
+        _textColumn('سمت', 160, (d) => d.position),
+        _dateColumn(
           'تاریخ شروع *',
           130,
           (d) => d.startDate,
-          hint: '1405/01/01',
+          onChanged: (draft, _) => draft.syncExperienceAndSeniority(settings),
         ),
         _choiceColumn(
           'نوع استخدام',
@@ -459,33 +717,34 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           (d) => d.isActive,
           (d, value) => d.isActive = value,
         ),
-        _textColumn('تاریخ ترک کار', 130, (d) => d.endDate, hint: '1405/12/29'),
+        _dateColumn('تاریخ ترک کار', 130, (d) => d.endDate),
         _boolColumn(
           'دارای سابقه',
           120,
           (d) => d.hasPriorExperience,
-          (d, value) => d.hasPriorExperience = value,
+          _setPriorExperience,
         ),
-        _boolColumn(
-          'متاهل',
-          90,
-          (d) => d.isMarried,
-          (d, value) => d.isMarried = value,
-        ),
-        _textColumn('تعداد فرزند', 110, (d) => d.childrenCount, numeric: true),
+        _boolColumn('متاهل', 90, (d) => d.isMarried, (draft, value) {
+          draft.isMarried = value;
+          draft.autoCalculate(settings);
+        }),
+        _childrenCounterColumn(settings),
       ],
       _EmployeeGridSection.payroll => [
         _textColumn(
-          'دستمزد روزانه ۱۴۰۴',
+          'دستمزد روزانه ۱۴۰۴ *',
           160,
           (d) => d.dailyWage1404,
           numeric: true,
+          onChanged: (draft, _) => draft.autoCalculate(settings),
         ),
+        _rateColumn(settings),
         _textColumn(
           'دستمزد روزانه ۱۴۰۵',
           160,
           (d) => d.dailyWage1405,
           numeric: true,
+          onChanged: (draft, _) => draft.syncBaseSalary(),
         ),
         _textColumn(
           'حقوق پایه ۳۰ روز',
@@ -498,39 +757,58 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           150,
           (d) => d.dailyHousing,
           numeric: true,
-          hint: '1000000',
+          onChanged: (draft, _) => draft.syncMonthlyFromDaily(
+            draft.dailyHousing,
+            draft.monthlyHousing,
+          ),
         ),
         _textColumn(
           'خواروبار روزانه',
           160,
           (d) => d.dailyFood,
           numeric: true,
-          hint: '733333',
+          onChanged: (draft, _) =>
+              draft.syncMonthlyFromDaily(draft.dailyFood, draft.monthlyFood),
         ),
         _textColumn(
           'حق تاهل روزانه',
           160,
           (d) => d.dailyMarriage,
           numeric: true,
+          onChanged: (draft, _) => draft.syncMonthlyFromDaily(
+            draft.dailyMarriage,
+            draft.monthlyMarriage,
+          ),
         ),
         _textColumn(
           'حق فرزند روزانه',
           170,
           (d) => d.dailyChildAllowance,
           numeric: true,
-          hint: '554185',
+          onChanged: (draft, _) => draft.syncMonthlyFromDaily(
+            draft.dailyChildAllowance,
+            draft.monthlyChildAllowance,
+          ),
         ),
         _textColumn(
           'سنوات روزانه',
           150,
           (d) => d.dailySeniority,
           numeric: true,
+          onChanged: (draft, _) => draft.syncMonthlyFromDaily(
+            draft.dailySeniority,
+            draft.monthlySeniority,
+          ),
         ),
         _textColumn(
           'سایر مزایای روزانه',
           170,
           (d) => d.otherBenefitsDaily,
           numeric: true,
+          onChanged: (draft, _) => draft.syncMonthlyFromDaily(
+            draft.otherBenefitsDaily,
+            draft.monthlyOtherBenefits,
+          ),
         ),
         _textColumn(
           'ساعت مزایای ساعتی',
@@ -545,9 +823,55 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           numeric: true,
         ),
       ],
+      _EmployeeGridSection.monthlyBenefits => [
+        _monthlyBenefitColumn(
+          'حق مسکن ماهانه',
+          (d) => d.monthlyHousing,
+          (d) => d.dailyHousing,
+        ),
+        _monthlyBenefitColumn(
+          'حق خواروبار ماهانه',
+          (d) => d.monthlyFood,
+          (d) => d.dailyFood,
+        ),
+        _monthlyBenefitColumn(
+          'حق تاهل ماهانه',
+          (d) => d.monthlyMarriage,
+          (d) => d.dailyMarriage,
+        ),
+        _monthlyBenefitColumn(
+          'حق فرزند ماهانه',
+          (d) => d.monthlyChildAllowance,
+          (d) => d.dailyChildAllowance,
+        ),
+        _monthlyBenefitColumn(
+          'پایه سنوات ماهانه',
+          (d) => d.monthlySeniority,
+          (d) => d.dailySeniority,
+        ),
+        _monthlyBenefitColumn(
+          'سایر مزایا ماهانه',
+          (d) => d.monthlyOtherBenefits,
+          (d) => d.otherBenefitsDaily,
+        ),
+      ],
       _EmployeeGridSection.supplemental => [
-        _textColumn('نام بانک', 170, (d) => d.bankName),
-        _textColumn('نوع حساب', 150, (d) => d.bankAccountType),
+        _choiceColumn(
+          'نام بانک',
+          190,
+          (d) => d.bankName,
+          EmployeeReferenceData.iranianBanks,
+          (d, value) => d.bankName = value,
+          optional: true,
+        ),
+        _choiceColumn(
+          'نوع حساب',
+          170,
+          (d) => d.bankAccountType,
+          EmployeeReferenceData.bankAccountTypes,
+          (d, value) => d.bankAccountType = value,
+          optional: true,
+        ),
         _textColumn(
           'شماره حساب',
           170,
@@ -556,7 +880,14 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
         ),
         _textColumn('شماره کارت', 180, (d) => d.cardNumber, numeric: true),
         _textColumn('شماره بیمه', 150, (d) => d.insuranceNumber, numeric: true),
-        _textColumn('تحصیلات', 150, (d) => d.education),
+        _choiceColumn(
+          'تحصیلات',
+          170,
+          (d) => d.education,
+          EmployeeReferenceData.educations,
+          (d, value) => d.education = value,
+          optional: true,
+        ),
         _textColumn('آدرس', 240, (d) => d.address),
         _boolColumn(
           'سخت و زیان‌آور',
@@ -573,9 +904,11 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
   _EmployeeGridColumn _textColumn(
     String label,
     double width,
-    TextEditingController Function(_EmployeeDraft) controller, {
+    TextEditingController Function(EmployeeBatchDraft) controller, {
     bool numeric = false,
+    bool date = false,
     String? hint,
+    void Function(EmployeeBatchDraft, String)? onChanged,
   }) {
     return _EmployeeGridColumn(
       label: label,
@@ -584,9 +917,17 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
         width: width,
         child: TextField(
           controller: controller(draft),
-          keyboardType: numeric ? TextInputType.number : TextInputType.text,
-          textDirection: numeric ? TextDirection.ltr : TextDirection.rtl,
-          textAlign: numeric ? TextAlign.left : TextAlign.right,
+          enabled: !_saving,
+          keyboardType: date
+              ? TextInputType.datetime
+              : numeric
+              ? TextInputType.number
+              : TextInputType.text,
+          textDirection: numeric || date
+              ? TextDirection.ltr
+              : TextDirection.rtl,
+          textAlign: numeric || date ? TextAlign.left : TextAlign.right,
+          inputFormatters: date ? const [_PersianDateInputFormatter()] : null,
           textInputAction: TextInputAction.next,
           decoration: InputDecoration(
             hintText: hint,
@@ -596,65 +937,278 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
               vertical: 12,
             ),
           ),
+          onChanged: (value) {
+            draft.markTouched();
+            onChanged?.call(draft, value);
+            if (mounted) setState(() {});
+          },
           onSubmitted: (_) => FocusScope.of(context).nextFocus(),
         ),
       ),
     );
   }
 
+  _EmployeeGridColumn _dateColumn(
+    String label,
+    double width,
+    TextEditingController Function(EmployeeBatchDraft) controller, {
+    void Function(EmployeeBatchDraft, String)? onChanged,
+  }) {
+    return _textColumn(
+      label,
+      width,
+      controller,
+      date: true,
+      hint: '۱۴۰۵/۰۱/۰۱',
+      onChanged: onChanged,
+    );
+  }
+
   _EmployeeGridColumn _choiceColumn(
     String label,
     double width,
-    String Function(_EmployeeDraft) value,
+    String Function(EmployeeBatchDraft) value,
     List<String> items,
-    void Function(_EmployeeDraft, String) onChanged,
-  ) {
+    void Function(EmployeeBatchDraft, String) onChanged, {
+    bool optional = false,
+  }) {
     return _EmployeeGridColumn(
       label: label,
       width: width,
-      builder: (draft) => SizedBox(
-        width: width,
-        child: DropdownButtonFormField<String>(
-          key: ValueKey('${identityHashCode(draft)}-$label'),
-          initialValue: value(draft),
-          isExpanded: true,
-          decoration: const InputDecoration(isDense: true),
-          items: items
-              .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-              .toList(),
-          onChanged: (next) {
-            if (next != null) onChanged(draft, next);
-          },
-        ),
-      ),
+      builder: (draft) {
+        final current = value(draft);
+        return SizedBox(
+          width: width,
+          child: DropdownButtonFormField<String>(
+            key: ValueKey('${identityHashCode(draft)}-$label'),
+            initialValue: current.isEmpty ? null : current,
+            isExpanded: true,
+            decoration: const InputDecoration(isDense: true),
+            items: [
+              if (optional)
+                const DropdownMenuItem(value: '', child: Text('انتخاب نشده')),
+              ...items.map(
+                (item) => DropdownMenuItem(value: item, child: Text(item)),
+              ),
+            ],
+            onChanged: _saving
+                ? null
+                : (next) {
+                    if (next == null) return;
+                    draft.markTouched();
+                    onChanged(draft, next);
+                    if (mounted) setState(() {});
+                  },
+          ),
+        );
+      },
     );
   }
 
   _EmployeeGridColumn _boolColumn(
     String label,
     double width,
-    bool Function(_EmployeeDraft) value,
-    void Function(_EmployeeDraft, bool) onChanged,
+    bool Function(EmployeeBatchDraft) value,
+    FutureOr<void> Function(EmployeeBatchDraft, bool) onChanged,
   ) {
     return _EmployeeGridColumn(
       label: label,
       width: width,
       builder: (draft) => SizedBox(
         width: width,
-        child: DropdownButtonFormField<bool>(
-          key: ValueKey('${identityHashCode(draft)}-$label'),
-          initialValue: value(draft),
-          isExpanded: true,
-          decoration: const InputDecoration(isDense: true),
-          items: const [
-            DropdownMenuItem(value: true, child: Text('بله')),
-            DropdownMenuItem(value: false, child: Text('خیر')),
-          ],
-          onChanged: (next) {
-            if (next != null) onChanged(draft, next);
-          },
+        child: Center(
+          child: Tooltip(
+            message: label,
+            child: Checkbox(
+              value: value(draft),
+              onChanged: _saving
+                  ? null
+                  : (next) async {
+                      if (next == null) return;
+                      draft.markTouched();
+                      await onChanged(draft, next);
+                      if (mounted) setState(() {});
+                    },
+            ),
+          ),
         ),
       ),
+    );
+  }
+
+  _EmployeeGridColumn _monthlyBenefitColumn(
+    String label,
+    TextEditingController Function(EmployeeBatchDraft) monthly,
+    TextEditingController Function(EmployeeBatchDraft) daily,
+  ) {
+    return _textColumn(
+      label,
+      180,
+      monthly,
+      numeric: true,
+      onChanged: (draft, _) =>
+          draft.syncDailyFromMonthly(monthly(draft), daily(draft)),
+    );
+  }
+
+  _EmployeeGridColumn _rateColumn(AppSettings settings) {
+    final items = <double, String>{
+      settings.salaryRateA: 'کارگری',
+      settings.salaryRateB: 'سایر',
+    };
+    return _EmployeeGridColumn(
+      label: 'ضریب افزایش ۱۴۰۵',
+      width: 150,
+      builder: (draft) => SizedBox(
+        width: 150,
+        child: DropdownButtonFormField<double>(
+          key: ValueKey('${identityHashCode(draft)}-salary-rate'),
+          initialValue: draft.selectedRate,
+          isExpanded: true,
+          decoration: const InputDecoration(isDense: true),
+          items: items.entries
+              .map(
+                (entry) => DropdownMenuItem(
+                  value: entry.key,
+                  child: Text(
+                    '${_formatSalaryRate(entry.key)} (${entry.value})',
+                  ),
+                ),
+              )
+              .toList(),
+          onChanged: _saving
+              ? null
+              : (value) {
+                  if (value == null) return;
+                  draft
+                    ..markTouched()
+                    ..selectedRate = value
+                    ..autoCalculate(settings);
+                  setState(() {});
+                },
+        ),
+      ),
+    );
+  }
+
+  _EmployeeGridColumn _childrenCounterColumn(AppSettings settings) {
+    return _EmployeeGridColumn(
+      label: 'تعداد فرزند',
+      width: 142,
+      builder: (draft) => SizedBox(
+        width: 142,
+        child: Row(
+          children: [
+            _counterButton(
+              icon: Icons.remove_rounded,
+              enabled: !_saving && draft.childrenCountValue > 0,
+              onPressed: () {
+                draft
+                  ..markTouched()
+                  ..setChildrenCount(draft.childrenCountValue - 1)
+                  ..autoCalculate(settings);
+                setState(() {});
+              },
+            ),
+            Expanded(
+              child: TextField(
+                controller: draft.childrenCount,
+                enabled: !_saving,
+                keyboardType: TextInputType.number,
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.center,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: 12),
+                ),
+                onChanged: (_) {
+                  draft
+                    ..markTouched()
+                    ..autoCalculate(settings);
+                  setState(() {});
+                },
+              ),
+            ),
+            _counterButton(
+              icon: Icons.add_rounded,
+              enabled: !_saving,
+              onPressed: () {
+                draft
+                  ..markTouched()
+                  ..setChildrenCount(draft.childrenCountValue + 1)
+                  ..autoCalculate(settings);
+                setState(() {});
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _counterButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 32, height: 36),
+      padding: EdgeInsets.zero,
+      onPressed: enabled ? onPressed : null,
+      icon: Icon(icon, size: 18),
+    );
+  }
+
+  String _formatSalaryRate(double value) {
+    final formatted = value
+        .toStringAsFixed(2)
+        .replaceFirst(RegExp(r'\.?0+$'), '');
+    return PersianNumberFormatter.toPersian(formatted);
+  }
+
+  Future<void> _setPriorExperience(EmployeeBatchDraft draft, bool value) async {
+    final settings = _settings!;
+    final expected = SeniorityHelper.hasAtLeastFourYears(
+      draft.startDateEnglish,
+    );
+    var confirmed = true;
+    if (value != expected) {
+      confirmed =
+          await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('تغییر دستی سابقه'),
+              content: Text(
+                expected
+                    ? 'این شخص بیش از ۴ سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را غیر فعال کنید؟'
+                    : 'این شخص کمتر از ۴ سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را فعال کنید؟',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('انصراف'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('تایید'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+    }
+    if (!confirmed) return;
+    draft.hasPriorExperience = value;
+    draft.setDailyAndMonthly(
+      draft.dailySeniority,
+      draft.monthlySeniority,
+      value
+          ? SeniorityHelper.calculateDailySeniority(
+              startDate: draft.startDateEnglish,
+              settings: settings,
+            )
+          : 0,
     );
   }
 }
@@ -662,7 +1216,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
 class _EmployeeGridColumn {
   final String label;
   final double width;
-  final Widget Function(_EmployeeDraft draft) builder;
+  final Widget Function(EmployeeBatchDraft draft) builder;
 
   const _EmployeeGridColumn({
     required this.label,
@@ -671,7 +1225,116 @@ class _EmployeeGridColumn {
   });
 }
 
-class _EmployeeDraft {
+class _PersianDateInputFormatter extends TextInputFormatter {
+  const _PersianDateInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final normalized = PersianNumberFormatter.toPersian(
+      PersianNumberFormatter.toEnglish(newValue.text),
+    ).replaceAll('-', '/');
+    final text = normalized.replaceAll(RegExp(r'[^۰-۹/]'), '');
+    final offset = newValue.selection.baseOffset.clamp(0, text.length);
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: offset),
+    );
+  }
+}
+
+class EmployeeBatchDraft {
+  EmployeeBatchDraft({
+    required AppSettings settings,
+    required int personnelCode,
+  }) {
+    reset(settings: settings, personnelCode: personnelCode);
+  }
+
+  EmployeeBatchDraft.fromEmployee({
+    required Employee employee,
+    required AppSettings settings,
+  }) {
+    employeeId = employee.id;
+    personnelCode.text = employee.personnelCode.toString();
+    firstName.text = employee.firstName;
+    lastName.text = employee.lastName;
+    nationalId.text = PersianNumberFormatter.toPersian(employee.nationalId);
+    fatherName.text = employee.fatherName;
+    birthCertificateNumber.text = PersianNumberFormatter.toPersian(
+      employee.birthCertificateNumber,
+    );
+    workplace.text = employee.workplace;
+    bankAccountNumber.text = PersianNumberFormatter.toPersian(
+      employee.bankAccountNumber,
+    );
+    jobCode.text = PersianNumberFormatter.toPersian(employee.jobCode);
+    jobTitle.text = employee.jobTitle;
+    birthDate.text = PersianNumberFormatter.toPersian(employee.birthDate);
+    birthPlace.text = employee.birthPlace;
+    phone.text = PersianNumberFormatter.toPersian(employee.phone);
+    childrenCount.text = PersianNumberFormatter.toPersian(
+      employee.childrenCount.toString(),
+    );
+    lastYearSeniority.text = formatNumber(employee.lastYearSeniority);
+    baseSalary30Days.text = formatNumber(employee.baseSalary30Days);
+    dailyWage1405.text = formatNumber(employee.dailyWage1405);
+    dailyWage1404.text = formatNumber(employee.dailyWage1404);
+    dailyHousing.text = formatNumber(employee.dailyHousing);
+    dailyFood.text = formatNumber(employee.dailyFood);
+    dailyMarriage.text = formatNumber(employee.dailyMarriage);
+    dailyChildAllowance.text = formatNumber(employee.dailyChildAllowance);
+    dailySeniority.text = formatNumber(employee.dailySeniority);
+    otherBenefitsDaily.text = formatNumber(employee.otherBenefitsDaily);
+    hourlyBenefits.text = formatNumber(employee.hourlyBenefits);
+    startDate.text = PersianNumberFormatter.toPersian(employee.startDate);
+    endDate.text = PersianNumberFormatter.toPersian(employee.endDate);
+    cardNumber.text = PersianNumberFormatter.toPersian(employee.cardNumber);
+    insuranceNumber.text = PersianNumberFormatter.toPersian(
+      employee.insuranceNumber,
+    );
+    position.text = employee.position;
+    address.text = employee.address;
+    payslipFooterNote.text = employee.payslipFooterNote;
+    notes.text = employee.notes ?? '';
+
+    gender = EmployeeReferenceData.genders.contains(employee.gender)
+        ? employee.gender
+        : EmployeeReferenceData.genders.first;
+    employmentType =
+        EmployeeReferenceData.employmentTypes.contains(employee.employmentType)
+        ? employee.employmentType
+        : EmployeeReferenceData.employmentTypes.first;
+    bankName = EmployeeReferenceData.iranianBanks.contains(employee.bankName)
+        ? employee.bankName
+        : '';
+    bankAccountType =
+        EmployeeReferenceData.bankAccountTypes.contains(
+          employee.bankAccountType,
+        )
+        ? employee.bankAccountType
+        : '';
+    education = EmployeeReferenceData.educations.contains(employee.education)
+        ? employee.education
+        : '';
+    selectedRate = inferSalaryRate(employee, settings);
+    hasPriorExperience = employee.hasPriorExperience;
+    isMarried = employee.isMarried;
+    isActive = employee.isActive;
+    hardAndHarmfulJob = employee.hardAndHarmfulJob;
+    syncMonthlyFromDaily(dailyHousing, monthlyHousing);
+    syncMonthlyFromDaily(dailyFood, monthlyFood);
+    syncMonthlyFromDaily(dailyMarriage, monthlyMarriage);
+    syncMonthlyFromDaily(dailyChildAllowance, monthlyChildAllowance);
+    syncMonthlyFromDaily(dailySeniority, monthlySeniority);
+    syncMonthlyFromDaily(otherBenefitsDaily, monthlyOtherBenefits);
+    touched = false;
+  }
+
+  int? employeeId;
+
   final personnelCode = TextEditingController();
   final firstName = TextEditingController();
   final lastName = TextEditingController();
@@ -679,8 +1342,6 @@ class _EmployeeDraft {
   final fatherName = TextEditingController();
   final birthCertificateNumber = TextEditingController();
   final workplace = TextEditingController();
-  final bankName = TextEditingController();
-  final bankAccountType = TextEditingController();
   final bankAccountNumber = TextEditingController();
   final jobCode = TextEditingController();
   final jobTitle = TextEditingController();
@@ -699,11 +1360,16 @@ class _EmployeeDraft {
   final dailySeniority = TextEditingController();
   final otherBenefitsDaily = TextEditingController();
   final hourlyBenefits = TextEditingController();
+  final monthlyHousing = TextEditingController();
+  final monthlyFood = TextEditingController();
+  final monthlyMarriage = TextEditingController();
+  final monthlyChildAllowance = TextEditingController();
+  final monthlySeniority = TextEditingController();
+  final monthlyOtherBenefits = TextEditingController();
   final startDate = TextEditingController();
   final endDate = TextEditingController();
   final cardNumber = TextEditingController();
   final insuranceNumber = TextEditingController();
-  final education = TextEditingController();
   final position = TextEditingController();
   final address = TextEditingController();
   final payslipFooterNote = TextEditingController();
@@ -711,10 +1377,15 @@ class _EmployeeDraft {
 
   String gender = EmployeeReferenceData.genders.first;
   String employmentType = EmployeeReferenceData.employmentTypes.first;
-  bool hasPriorExperience = true;
+  String bankName = '';
+  String bankAccountType = '';
+  String education = '';
+  double selectedRate = AppConstants.salaryRateA;
+  bool hasPriorExperience = false;
   bool isMarried = false;
   bool isActive = true;
   bool hardAndHarmfulJob = false;
+  bool touched = false;
   List<String> errors = [];
 
   List<TextEditingController> get _controllers => [
@@ -725,8 +1396,6 @@ class _EmployeeDraft {
     fatherName,
     birthCertificateNumber,
     workplace,
-    bankName,
-    bankAccountType,
     bankAccountNumber,
     jobCode,
     jobTitle,
@@ -745,19 +1414,176 @@ class _EmployeeDraft {
     dailySeniority,
     otherBenefitsDaily,
     hourlyBenefits,
+    monthlyHousing,
+    monthlyFood,
+    monthlyMarriage,
+    monthlyChildAllowance,
+    monthlySeniority,
+    monthlyOtherBenefits,
     startDate,
     endDate,
     cardNumber,
     insuranceNumber,
-    education,
     position,
     address,
     payslipFooterNote,
     notes,
   ];
 
-  bool get hasData =>
-      _controllers.any((controller) => controller.text.trim().isNotEmpty);
+  bool get hasData => touched;
+
+  bool get isExisting => employeeId != null;
+
+  String get fullName => '${firstName.text} ${lastName.text}'.trim();
+
+  int get childrenCountValue => parseInt(childrenCount.text) ?? 0;
+
+  String get startDateEnglish => textOf(startDate);
+
+  void markTouched() => touched = true;
+
+  void reset({required AppSettings settings, required int personnelCode}) {
+    for (final controller in _controllers) {
+      controller.clear();
+    }
+    gender = EmployeeReferenceData.genders.first;
+    employmentType = EmployeeReferenceData.employmentTypes.first;
+    bankName = '';
+    bankAccountType = '';
+    education = '';
+    selectedRate = settings.salaryRateA;
+    hasPriorExperience = false;
+    isMarried = false;
+    isActive = true;
+    hardAndHarmfulJob = false;
+    errors = [];
+    employeeId = null;
+
+    this.personnelCode.text = personnelCode.toString();
+    workplace.text = settings.companyName;
+    startDate.text = PersianNumberFormatter.toPersian('1405/01/01');
+    childrenCount.text = '۰';
+    lastYearSeniority.text = formatNumber(0);
+    otherBenefitsDaily.text = formatNumber(0);
+    hourlyBenefits.text = formatNumber(0);
+    dailyWage1404.text = formatNumber(AppConstants.defaultDailyWage1404);
+    syncExperienceAndSeniority(settings);
+    autoCalculate(settings);
+    touched = false;
+  }
+
+  EmployeeBatchDraft copyAsNew({
+    required AppSettings settings,
+    required int personnelCode,
+  }) {
+    final copy = EmployeeBatchDraft.fromEmployee(
+      employee: toEmployee(),
+      settings: settings,
+    );
+    copy
+      ..employeeId = null
+      ..personnelCode.text = personnelCode.toString()
+      ..errors = []
+      ..touched = true;
+    return copy;
+  }
+
+  void autoCalculate(AppSettings settings) {
+    final wage1404 = parseNumber(dailyWage1404.text) ?? 0;
+    final wage1405 = SalaryCalculator.calculateDailyWage1405(
+      dailyWage1404: wage1404,
+      rate: selectedRate,
+      fixedRial: settings.fixedRial,
+    );
+    dailyWage1405.text = formatNumber(wage1405);
+    baseSalary30Days.text = formatNumber(
+      wage1405 * AppConstants.standardMonthDays,
+    );
+    setDailyAndMonthly(
+      dailyHousing,
+      monthlyHousing,
+      settings.monthlyHousing / AppConstants.standardMonthDays,
+    );
+    setDailyAndMonthly(
+      dailyFood,
+      monthlyFood,
+      settings.monthlyFood / AppConstants.standardMonthDays,
+    );
+    setDailyAndMonthly(
+      dailyChildAllowance,
+      monthlyChildAllowance,
+      settings.monthlyChild / AppConstants.standardMonthDays,
+    );
+    if (hasPriorExperience && (parseNumber(dailySeniority.text) ?? 0) == 0) {
+      setDailyAndMonthly(
+        dailySeniority,
+        monthlySeniority,
+        settings.dailySeniority,
+      );
+    } else {
+      syncMonthlyFromDaily(dailySeniority, monthlySeniority);
+    }
+    setDailyAndMonthly(
+      dailyMarriage,
+      monthlyMarriage,
+      isMarried ? settings.monthlyMarriage / AppConstants.standardMonthDays : 0,
+    );
+    syncMonthlyFromDaily(otherBenefitsDaily, monthlyOtherBenefits);
+  }
+
+  void syncExperienceAndSeniority(AppSettings settings) {
+    final hasFourYears = SeniorityHelper.hasAtLeastFourYears(startDateEnglish);
+    hasPriorExperience = hasFourYears;
+    setDailyAndMonthly(
+      dailySeniority,
+      monthlySeniority,
+      hasFourYears
+          ? SeniorityHelper.calculateDailySeniority(
+              startDate: startDateEnglish,
+              settings: settings,
+            )
+          : 0,
+    );
+  }
+
+  void syncBaseSalary() {
+    baseSalary30Days.text = formatNumber(
+      (parseNumber(dailyWage1405.text) ?? 0) * AppConstants.standardMonthDays,
+    );
+  }
+
+  void syncMonthlyFromDaily(
+    TextEditingController daily,
+    TextEditingController monthly,
+  ) {
+    monthly.text = formatNumber(
+      (parseNumber(daily.text) ?? 0) * AppConstants.standardMonthDays,
+    );
+  }
+
+  void syncDailyFromMonthly(
+    TextEditingController monthly,
+    TextEditingController daily,
+  ) {
+    daily.text = formatNumber(
+      (parseNumber(monthly.text) ?? 0) / AppConstants.standardMonthDays,
+    );
+  }
+
+  void setDailyAndMonthly(
+    TextEditingController daily,
+    TextEditingController monthly,
+    double value,
+  ) {
+    daily.text = formatNumber(value);
+    monthly.text = formatNumber(value * AppConstants.standardMonthDays);
+  }
+
+  void setChildrenCount(int value) {
+    childrenCount.text = PersianNumberFormatter.toPersian(
+      value.clamp(0, 99).toString(),
+    );
+  }
 
   List<String> validate({
     required Set<int> existingCodes,
@@ -766,7 +1592,7 @@ class _EmployeeDraft {
     required Set<String> seenNationalIds,
   }) {
     final result = <String>[];
-    final code = _int(personnelCode.text);
+    final code = parseInt(personnelCode.text);
     if (code == null || code <= 0) {
       result.add('کد پرسنلی نامعتبر است');
     } else if (existingCodes.contains(code) || !seenCodes.add(code)) {
@@ -775,7 +1601,7 @@ class _EmployeeDraft {
     if (firstName.text.trim().isEmpty) result.add('نام الزامی است');
     if (lastName.text.trim().isEmpty) result.add('نام خانوادگی الزامی است');
 
-    final national = _digits(nationalId.text);
+    final national = digits(nationalId.text);
     if (national.length != 10) {
       result.add('کد ملی باید ۱۰ رقم باشد');
     } else if (existingNationalIds.contains(national) ||
@@ -783,20 +1609,23 @@ class _EmployeeDraft {
       result.add('کد ملی تکراری است');
     }
 
-    final start = _text(startDate);
+    final start = textOf(startDate);
     if (SeniorityHelper.parseStartDate(start) == null) {
       result.add('تاریخ شروع به کار نامعتبر است');
     }
-    final birth = _text(birthDate);
+    final birth = textOf(birthDate);
     if (birth.isNotEmpty && SeniorityHelper.parseStartDate(birth) == null) {
       result.add('تاریخ تولد نامعتبر است');
     }
-    final end = _text(endDate);
+    final end = textOf(endDate);
     if (end.isNotEmpty && SeniorityHelper.parseStartDate(end) == null) {
       result.add('تاریخ ترک کار نامعتبر است');
     }
-    if (!isActive && _text(endDate).isEmpty) {
+    if (!isActive && textOf(endDate).isEmpty) {
       result.add('برای کارمند غیرفعال تاریخ ترک کار الزامی است');
+    }
+    if (dailyWage1404.text.trim().isEmpty) {
+      result.add('دستمزد روزانه ۱۴۰۴ الزامی است');
     }
 
     for (final field in <(String, TextEditingController)>[
@@ -812,9 +1641,15 @@ class _EmployeeDraft {
       ('سنوات', dailySeniority),
       ('سایر مزایا', otherBenefitsDaily),
       ('مزایای ساعتی', hourlyBenefits),
+      ('مسکن ماهانه', monthlyHousing),
+      ('خواروبار ماهانه', monthlyFood),
+      ('حق تاهل ماهانه', monthlyMarriage),
+      ('حق فرزند ماهانه', monthlyChildAllowance),
+      ('سنوات ماهانه', monthlySeniority),
+      ('سایر مزایا ماهانه', monthlyOtherBenefits),
     ]) {
       if (field.$2.text.trim().isEmpty) continue;
-      final value = _number(field.$2.text);
+      final value = parseNumber(field.$2.text);
       if (value == null) {
         result.add('${field.$1} عدد معتبری نیست');
       } else if (value < 0) {
@@ -825,42 +1660,43 @@ class _EmployeeDraft {
   }
 
   Employee toEmployee() => Employee(
-    personnelCode: _int(personnelCode.text)!,
+    id: employeeId,
+    personnelCode: parseInt(personnelCode.text)!,
     firstName: firstName.text.trim(),
     lastName: lastName.text.trim(),
-    nationalId: _digits(nationalId.text),
+    nationalId: digits(nationalId.text),
     fatherName: fatherName.text.trim(),
-    birthCertificateNumber: _digits(birthCertificateNumber.text),
+    birthCertificateNumber: digits(birthCertificateNumber.text),
     gender: gender,
     workplace: workplace.text.trim(),
-    bankName: bankName.text.trim(),
-    bankAccountType: bankAccountType.text.trim(),
-    bankAccountNumber: _digits(bankAccountNumber.text),
-    jobCode: _text(jobCode),
+    bankName: bankName,
+    bankAccountType: bankAccountType,
+    bankAccountNumber: digits(bankAccountNumber.text),
+    jobCode: textOf(jobCode),
     jobTitle: jobTitle.text.trim(),
-    birthDate: _text(birthDate),
+    birthDate: textOf(birthDate),
     birthPlace: birthPlace.text.trim(),
-    phone: _digits(phone.text),
+    phone: digits(phone.text),
     hasPriorExperience: hasPriorExperience,
     isMarried: isMarried,
-    childrenCount: _int(childrenCount.text) ?? 0,
-    lastYearSeniority: _number(lastYearSeniority.text) ?? 0,
-    baseSalary30Days: _number(baseSalary30Days.text) ?? 0,
-    dailyWage1405: _number(dailyWage1405.text) ?? 0,
-    dailyWage1404: _number(dailyWage1404.text) ?? 0,
-    dailyHousing: _number(dailyHousing.text) ?? 1000000,
-    dailyFood: _number(dailyFood.text) ?? 733333,
-    dailyMarriage: _number(dailyMarriage.text) ?? 0,
-    dailyChildAllowance: _number(dailyChildAllowance.text) ?? 554185,
-    dailySeniority: _number(dailySeniority.text) ?? 0,
-    otherBenefitsDaily: _number(otherBenefitsDaily.text) ?? 0,
-    hourlyBenefits: _number(hourlyBenefits.text) ?? 0,
-    startDate: _text(startDate),
+    childrenCount: parseInt(childrenCount.text) ?? 0,
+    lastYearSeniority: parseNumber(lastYearSeniority.text) ?? 0,
+    baseSalary30Days: parseNumber(baseSalary30Days.text) ?? 0,
+    dailyWage1405: parseNumber(dailyWage1405.text) ?? 0,
+    dailyWage1404: parseNumber(dailyWage1404.text) ?? 0,
+    dailyHousing: parseNumber(dailyHousing.text) ?? 0,
+    dailyFood: parseNumber(dailyFood.text) ?? 0,
+    dailyMarriage: parseNumber(dailyMarriage.text) ?? 0,
+    dailyChildAllowance: parseNumber(dailyChildAllowance.text) ?? 0,
+    dailySeniority: parseNumber(dailySeniority.text) ?? 0,
+    otherBenefitsDaily: parseNumber(otherBenefitsDaily.text) ?? 0,
+    hourlyBenefits: parseNumber(hourlyBenefits.text) ?? 0,
+    startDate: textOf(startDate),
     isActive: isActive,
-    endDate: _text(endDate),
-    cardNumber: _digits(cardNumber.text),
-    insuranceNumber: _digits(insuranceNumber.text),
-    education: education.text.trim(),
+    endDate: textOf(endDate),
+    cardNumber: digits(cardNumber.text),
+    insuranceNumber: digits(insuranceNumber.text),
+    education: education,
     position: position.text.trim(),
     employmentType: employmentType,
     address: address.text.trim(),
@@ -869,45 +1705,44 @@ class _EmployeeDraft {
     notes: notes.text.trim().isEmpty ? null : notes.text.trim(),
   );
 
-  void clear() {
-    for (final controller in _controllers) {
-      controller.clear();
-    }
-    gender = EmployeeReferenceData.genders.first;
-    employmentType = EmployeeReferenceData.employmentTypes.first;
-    hasPriorExperience = true;
-    isMarried = false;
-    isActive = true;
-    hardAndHarmfulJob = false;
-    errors = [];
-  }
-
   void dispose() {
     for (final controller in _controllers) {
       controller.dispose();
     }
   }
 
-  static String _text(TextEditingController controller) =>
+  static String textOf(TextEditingController controller) =>
       PersianNumberFormatter.toEnglish(controller.text.trim());
 
-  static String _digits(String value) =>
+  static String digits(String value) =>
       PersianNumberFormatter.toEnglish(value).replaceAll(RegExp(r'[^0-9]'), '');
 
   static String _normalizedNumber(String value) =>
       PersianNumberFormatter.toEnglish(
         value,
-      ).replaceAll('٬', '').replaceAll(',', '').trim();
+      ).replaceAll('٬', '').replaceAll(',', '').replaceAll('،', '').trim();
 
-  static int? _int(String value) {
+  static int? parseInt(String value) {
     final normalized = _normalizedNumber(value);
     if (normalized.isEmpty) return null;
     return int.tryParse(normalized);
   }
 
-  static double? _number(String value) {
+  static double? parseNumber(String value) {
     final normalized = _normalizedNumber(value);
     if (normalized.isEmpty) return null;
     return double.tryParse(normalized);
+  }
+
+  static String formatNumber(num value) =>
+      PersianNumberFormatter.formatNumber(value);
+
+  static double inferSalaryRate(Employee employee, AppSettings settings) {
+    if (employee.dailyWage1404 <= 0) return settings.salaryRateA;
+    final inferred =
+        (employee.dailyWage1405 - settings.fixedRial) / employee.dailyWage1404;
+    final distanceA = (inferred - settings.salaryRateA).abs();
+    final distanceB = (inferred - settings.salaryRateB).abs();
+    return distanceA <= distanceB ? settings.salaryRateA : settings.salaryRateB;
   }
 }

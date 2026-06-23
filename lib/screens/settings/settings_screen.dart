@@ -1307,32 +1307,13 @@ class _AccessibilitySection extends StatelessWidget {
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: scheme.tertiaryContainer,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    'جدید',
-                    style: TextStyle(
-                      fontFamily: 'Vazirmatn',
-                      fontSize: 10,
-                      color: scheme.onTertiaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.only(right: 56),
               child: Text(
-                'تنظیمات دسترسی‌پذیری برای راحتی استفاده همه کاربران، شامل تنظیم اندازه متن، کنتراست و کاهش انیمیشن‌ها.',
+                'تنظیمات دسترسی‌پذیری برای راحتی استفاده همه کاربران، شامل اندازه متن و رابط، کنتراست و کاهش انیمیشن‌ها.',
                 style: TextStyle(
                   fontFamily: 'Vazirmatn',
                   fontSize: 12,
@@ -1347,6 +1328,10 @@ class _AccessibilitySection extends StatelessWidget {
             _TextScaleTile(
               value: a.textScale,
               onChanged: (v) => controller.updateAccessibility(textScale: v),
+            ),
+            _InterfaceScaleTile(
+              value: a.uiScale,
+              onChanged: (v) => controller.updateAccessibility(uiScale: v),
             ),
             _SwitchTile(
               icon: Icons.contrast_rounded,
@@ -1487,7 +1472,8 @@ class _TextScaleTile extends StatelessWidget {
                   min: 0.85,
                   max: 1.5,
                   divisions: 13,
-                  label: '${(value * 100).round()}٪',
+                  label:
+                      '${PersianNumberFormatter.toPersian((value * 100).round().toString())}٪',
                   onChanged: onChanged,
                 ),
               ),
@@ -1499,6 +1485,122 @@ class _TextScaleTile extends StatelessWidget {
                   color: scheme.onSurface,
                 ),
               ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InterfaceScaleTile extends StatefulWidget {
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _InterfaceScaleTile({required this.value, required this.onChanged});
+
+  @override
+  State<_InterfaceScaleTile> createState() => _InterfaceScaleTileState();
+}
+
+class _InterfaceScaleTileState extends State<_InterfaceScaleTile> {
+  late double _value = widget.value.clamp(0.8, 1.3).toDouble();
+
+  @override
+  void didUpdateWidget(covariant _InterfaceScaleTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _value = widget.value.clamp(0.8, 1.3).toDouble();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final percentage = (_value * 100).round();
+    final persianPercentage = PersianNumberFormatter.toPersian(
+      percentage.toString(),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            textDirection: TextDirection.rtl,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: scheme.secondary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.aspect_ratio_rounded,
+                  color: scheme.secondary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'اندازه رابط برنامه',
+                      style: TextStyle(
+                        fontFamily: 'Vazirmatn',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'مقیاس همه اجزای برنامه ($persianPercentage٪)',
+                      style: TextStyle(
+                        fontFamily: 'Vazirmatn',
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '$persianPercentage٪',
+                style: TextStyle(
+                  fontFamily: 'Vazirmatn',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.secondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            textDirection: TextDirection.rtl,
+            children: [
+              Icon(
+                Icons.crop_free_rounded,
+                size: 16,
+                color: scheme.onSurfaceVariant,
+              ),
+              Expanded(
+                child: Slider(
+                  value: _value,
+                  min: 0.8,
+                  max: 1.3,
+                  divisions: 10,
+                  label: '$persianPercentage٪',
+                  onChanged: (value) => setState(() => _value = value),
+                  onChangeEnd: widget.onChanged,
+                ),
+              ),
+              Icon(Icons.crop_free_rounded, size: 26, color: scheme.onSurface),
             ],
           ),
         ],
@@ -1618,25 +1720,6 @@ class _SecuritySection extends StatelessWidget {
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: scheme.onSurface,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: scheme.tertiaryContainer,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    'جدید',
-                    style: TextStyle(
-                      fontFamily: 'Vazirmatn',
-                      fontSize: 10,
-                      color: scheme.onTertiaryContainer,
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -1914,25 +1997,6 @@ class _ColorSection extends StatelessWidget {
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: scheme.onSurface,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: scheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    'جدید',
-                    style: TextStyle(
-                      fontFamily: 'Vazirmatn',
-                      fontSize: 10,
-                      color: scheme.onPrimaryContainer,
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
