@@ -185,30 +185,17 @@ class _HomeScreenState extends State<HomeScreen> {
               tooltip: 'تغییر تم',
               onPressed: () => _cycleTheme(context),
             ),
+            if (Platform.isAndroid) const MobileSyncStatusButton(),
           ],
         ),
-        body: Column(
-          children: [
-            const SyncStatusBanner(),
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const BouncingScrollPhysics(),
-                reverse: false, // RTL: swipe چپ به راست = صفحه بعد
-                onPageChanged: (i) => setState(() => _index = i),
+        body: Platform.isAndroid
+            ? _buildMobilePager(enablePullToRefresh: true)
+            : Column(
                 children: [
-                  for (var i = 0; i < _pages.length; i++)
-                    KeyedSubtree(
-                      key: ValueKey(
-                        'mobile-${homePageStateKey(i, _sync.dataVersion.value)}',
-                      ),
-                      child: _pages[i],
-                    ),
+                  const SyncStatusBanner(),
+                  Expanded(child: _buildMobilePager()),
                 ],
               ),
-            ),
-          ],
-        ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _index < 4 ? _index : 0,
           onDestinationSelected: (i) => _goToIndex(i),
@@ -242,6 +229,37 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
     child: _pages[_index],
   );
+
+  Widget _buildMobilePager({bool enablePullToRefresh = false}) {
+    return PageView(
+      controller: _pageController,
+      physics: const BouncingScrollPhysics(),
+      reverse: false,
+      onPageChanged: (i) => setState(() => _index = i),
+      children: [
+        for (var i = 0; i < _pages.length; i++)
+          _buildMobilePage(i, enablePullToRefresh: enablePullToRefresh),
+      ],
+    );
+  }
+
+  Widget _buildMobilePage(int index, {required bool enablePullToRefresh}) {
+    final page = KeyedSubtree(
+      key: ValueKey(
+        'mobile-${homePageStateKey(index, _sync.dataVersion.value)}',
+      ),
+      child: _pages[index],
+    );
+    if (!enablePullToRefresh) return page;
+    return RefreshIndicator(
+      notificationPredicate: (notification) =>
+          notification.metrics.axis == Axis.vertical,
+      onRefresh: _refreshMobile,
+      child: page,
+    );
+  }
+
+  Future<void> _refreshMobile() => _sync.syncNow();
 
   void _onSyncedDataChanged() {
     unawaited(_loadCompanies());

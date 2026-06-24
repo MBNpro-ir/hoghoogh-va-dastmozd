@@ -4,6 +4,7 @@ import 'package:shamsi_date/shamsi_date.dart';
 import '../../models/employee.dart';
 import '../../models/salary_record.dart';
 import '../../services/dashboard_service.dart';
+import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/animations.dart';
 import '../../utils/persian_date_helper.dart';
@@ -67,7 +68,10 @@ class _DashboardViewState extends State<DashboardView> {
     return Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _load,
+          onRefresh: () async {
+            await SyncService().syncNow();
+            await _load();
+          },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
@@ -641,7 +645,6 @@ class _KpiGrid extends StatelessWidget {
         primary: const Color(0xFF2E7D32),
         secondary: const Color(0xFF66BB6A),
         trend: 'ریال',
-        suffix: 'ریال',
       ),
       _KpiData(
         title: 'میانگین حقوق',
@@ -651,7 +654,6 @@ class _KpiGrid extends StatelessWidget {
         primary: const Color(0xFFEF6C00),
         secondary: const Color(0xFFFF9800),
         trend: 'ریال',
-        suffix: 'ریال',
       ),
       _KpiData(
         title: 'وام‌های فعال',
@@ -674,26 +676,25 @@ class _KpiGrid extends StatelessWidget {
         primary: const Color(0xFF004E58),
         secondary: const Color(0xFF006874),
         trend: 'ریال',
-        suffix: 'ریال',
       ),
     ];
 
     return LayoutBuilder(
       builder: (context, c) {
-        final columns = c.maxWidth >= 1200
+        final columns = r.isMobileSize
+            ? 2
+            : c.maxWidth >= 1200
             ? 6
             : c.maxWidth >= 900
             ? 3
-            : c.maxWidth >= 520
-            ? 2
-            : 1;
+            : 2;
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: kpis.length,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: columns,
-            mainAxisExtent: r.isMobileSize ? 158 : 156,
+            mainAxisExtent: r.isMobileSize ? 120 : 142,
             crossAxisSpacing: r.cardGap,
             mainAxisSpacing: r.cardGap,
           ),
@@ -718,9 +719,8 @@ class _KpiData {
   final IconData icon;
   final Color primary;
   final Color secondary;
-  final String trend;
+  final String? trend;
   final bool isInt;
-  final String? suffix;
   const _KpiData({
     required this.title,
     required this.value,
@@ -728,9 +728,8 @@ class _KpiData {
     required this.icon,
     required this.primary,
     required this.secondary,
-    required this.trend,
+    this.trend,
     this.isInt = false,
-    this.suffix,
   });
 }
 
@@ -783,8 +782,7 @@ class _KpiCardState extends State<_KpiCard> {
           elevated: _hovered,
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               textDirection: TextDirection.rtl,
@@ -830,61 +828,68 @@ class _KpiCardState extends State<_KpiCard> {
                 ),
               ],
             ),
-            SizedBox(height: isMobile ? 6 : 10),
+            const Spacer(),
             if (_visible)
-              CountUpText(
-                value: widget.data.value,
-                formatter: widget.data.formatter,
-                textAlign: TextAlign.start,
-                style: TextStyle(
-                  fontFamily: 'Vazirmatn',
-                  fontSize: isMobile ? 16 : 20,
-                  fontWeight: FontWeight.w800,
-                  color: scheme.onSurface,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: CountUpText(
+                    value: widget.data.value,
+                    formatter: widget.data.formatter,
+                    textAlign: TextAlign.left,
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: isMobile ? 16 : 20,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
                 ),
               )
             else
-              SizedBox(
-                height: isMobile ? 22 : 28,
-                width: 80,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: scheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  height: isMobile ? 22 : 28,
+                  width: 80,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
                   ),
                 ),
               ),
-            if (widget.data.suffix != null) ...[
-              const SizedBox(height: 1),
-              Text(
-                widget.data.suffix!,
-                style: TextStyle(
-                  fontFamily: 'Vazirmatn',
-                  fontSize: 10,
-                  color: scheme.onSurfaceVariant,
+            if (widget.data.trend != null) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: widget.data.primary.withValues(
+                      alpha: isDark ? 0.18 : 0.10,
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    widget.data.trend!,
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: widget.data.primary,
+                    ),
+                  ),
                 ),
               ),
             ],
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: widget.data.primary.withValues(
-                  alpha: isDark ? 0.18 : 0.10,
-                ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                widget.data.trend,
-                style: TextStyle(
-                  fontFamily: 'Vazirmatn',
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: widget.data.primary,
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -1410,11 +1415,17 @@ class _BottomSection extends StatelessWidget {
         if (e.id != null) e.id!: e,
     };
 
-    final topCard = _TopEarnersCard(data: data, employeesMap: employeesMap);
-    final loanCard = _LoanSummaryCard(data: data);
-    final recentCard = _RecentRecordsCard(
+    Widget topCard({required bool fillHeight}) => _TopEarnersCard(
       data: data,
       employeesMap: employeesMap,
+      fillHeight: fillHeight,
+    );
+    Widget loanCard({required bool fillHeight}) =>
+        _LoanSummaryCard(data: data, fillHeight: fillHeight);
+    Widget recentCard({required bool fillHeight}) => _RecentRecordsCard(
+      data: data,
+      employeesMap: employeesMap,
+      fillHeight: fillHeight,
     );
 
     return LayoutBuilder(
@@ -1424,24 +1435,46 @@ class _BottomSection extends StatelessWidget {
         if (stackCards) {
           return Column(
             children: [
-              topCard,
+              topCard(fillHeight: false),
               SizedBox(height: r.cardGap),
-              loanCard,
+              loanCard(fillHeight: false),
               SizedBox(height: r.cardGap),
-              recentCard,
+              recentCard(fillHeight: false),
             ],
           );
         }
-        return Row(
-          textDirection: TextDirection.rtl,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(flex: 5, child: topCard),
-            SizedBox(width: r.cardGap),
-            Expanded(flex: 4, child: loanCard),
-            SizedBox(width: r.cardGap),
-            Expanded(flex: 6, child: recentCard),
-          ],
+        final topHeight =
+            90.0 +
+            (data.topEarners.length * 28) +
+            ((data.topEarners.length - 1).clamp(0, 4) * 13);
+        final recentHeight =
+            96.0 +
+            (data.recentRecords.length * 44) +
+            ((data.recentRecords.length - 1).clamp(0, 4) * 9);
+        final loanHeight = data.activeLoans.isEmpty ? 170.0 : 246.0;
+        final contentHeight = [
+          topHeight,
+          loanHeight,
+          recentHeight,
+        ].reduce((current, next) => current > next ? current : next);
+        final textScale = MediaQuery.textScalerOf(
+          context,
+        ).scale(1).clamp(1.0, 1.5);
+        final desktopHeight = (contentHeight * textScale).clamp(246.0, 520.0);
+
+        return SizedBox(
+          height: desktopHeight,
+          child: Row(
+            textDirection: TextDirection.rtl,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 5, child: topCard(fillHeight: true)),
+              SizedBox(width: r.cardGap),
+              Expanded(flex: 4, child: loanCard(fillHeight: true)),
+              SizedBox(width: r.cardGap),
+              Expanded(flex: 6, child: recentCard(fillHeight: true)),
+            ],
+          ),
         );
       },
     );
@@ -1451,7 +1484,12 @@ class _BottomSection extends StatelessWidget {
 class _TopEarnersCard extends StatelessWidget {
   final DashboardSnapshot data;
   final Map<int, Employee> employeesMap;
-  const _TopEarnersCard({required this.data, required this.employeesMap});
+  final bool fillHeight;
+  const _TopEarnersCard({
+    required this.data,
+    required this.employeesMap,
+    required this.fillHeight,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1462,10 +1500,14 @@ class _TopEarnersCard extends StatelessWidget {
       subtitle: data.targetLabel,
       icon: Icons.workspace_premium_rounded,
       iconColor: const Color(0xFFEF6C00),
+      fillHeight: fillHeight,
       child: data.topEarners.isEmpty
           ? _emptyState('داده‌ای برای نمایش نیست', scheme)
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: fillHeight
+                  ? MainAxisAlignment.spaceBetween
+                  : MainAxisAlignment.start,
               children: [
                 for (var i = 0; i < data.topEarners.length; i++) ...[
                   _TopEarnerRow(
@@ -1618,7 +1660,8 @@ class _TopEarnerRow extends StatelessWidget {
 
 class _LoanSummaryCard extends StatelessWidget {
   final DashboardSnapshot data;
-  const _LoanSummaryCard({required this.data});
+  final bool fillHeight;
+  const _LoanSummaryCard({required this.data, required this.fillHeight});
 
   @override
   Widget build(BuildContext context) {
@@ -1629,10 +1672,14 @@ class _LoanSummaryCard extends StatelessWidget {
           '${PersianNumberFormatter.toPersian(data.activeLoans.length.toString())} وام فعال',
       icon: Icons.account_balance_rounded,
       iconColor: const Color(0xFF7B1FA2),
+      fillHeight: fillHeight,
       child: data.activeLoans.isEmpty
           ? _emptyState('وام فعالی ثبت نشده', scheme)
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: fillHeight
+                  ? MainAxisAlignment.spaceBetween
+                  : MainAxisAlignment.start,
               children: [
                 _loanStat(
                   context: context,
@@ -1814,7 +1861,12 @@ class _LoanSummaryCard extends StatelessWidget {
 class _RecentRecordsCard extends StatelessWidget {
   final DashboardSnapshot data;
   final Map<int, Employee> employeesMap;
-  const _RecentRecordsCard({required this.data, required this.employeesMap});
+  final bool fillHeight;
+  const _RecentRecordsCard({
+    required this.data,
+    required this.employeesMap,
+    required this.fillHeight,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1824,10 +1876,14 @@ class _RecentRecordsCard extends StatelessWidget {
       subtitle: data.targetLabel,
       icon: Icons.history_rounded,
       iconColor: const Color(0xFF004394),
+      fillHeight: fillHeight,
       child: data.recentRecords.isEmpty
           ? _emptyState('فیشی صادر نشده', scheme)
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: fillHeight
+                  ? MainAxisAlignment.spaceBetween
+                  : MainAxisAlignment.start,
               children: [
                 for (var i = 0; i < data.recentRecords.length; i++) ...[
                   _RecentRow(
@@ -1971,12 +2027,14 @@ class _PanelCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final Widget child;
+  final bool fillHeight;
   const _PanelCard({
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.iconColor,
     required this.child,
+    this.fillHeight = false,
   });
 
   @override
@@ -1987,7 +2045,7 @@ class _PanelCard extends StatelessWidget {
       decoration: _dashboardCardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: fillHeight ? MainAxisSize.max : MainAxisSize.min,
         children: [
           Row(
             textDirection: TextDirection.rtl,
@@ -2029,7 +2087,7 @@ class _PanelCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          child,
+          if (fillHeight) Expanded(child: child) else child,
         ],
       ),
     );

@@ -4,6 +4,7 @@ import '../../models/employee.dart';
 import '../../models/loan.dart';
 import '../../services/employee_service.dart';
 import '../../services/loan_service.dart';
+import '../../services/table_sort_preferences.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/period_filter_helper.dart';
 import '../../utils/persian_number_formatter.dart';
@@ -20,6 +21,10 @@ class LoansListScreen extends StatefulWidget {
 }
 
 class _LoansListScreenState extends State<LoansListScreen> {
+  static const _sortPreferenceKey = 'loans_v2';
+  static const _defaultSortColumnIndex = 1;
+  static const _defaultSortAscending = true;
+
   final _loanService = LoanService();
   final _employeeService = EmployeeService();
   final _searchController = TextEditingController();
@@ -31,13 +36,42 @@ class _LoansListScreenState extends State<LoansListScreen> {
   String _filter = '';
   int? _filterYear;
   int? _filterMonth;
-  int _sortColumnIndex = 0;
-  bool _sortAscending = true;
+  int _sortColumnIndex = _defaultSortColumnIndex;
+  bool _sortAscending = _defaultSortAscending;
 
   @override
   void initState() {
     super.initState();
+    final cachedSort = TableSortPreferences.cached(
+      _sortPreferenceKey,
+      defaultColumnIndex: _defaultSortColumnIndex,
+      defaultAscending: _defaultSortAscending,
+    );
+    _sortColumnIndex = cachedSort.columnIndex;
+    _sortAscending = cachedSort.ascending;
+    _restoreSortState();
     _load();
+  }
+
+  Future<void> _restoreSortState() async {
+    final sort = await TableSortPreferences.load(
+      _sortPreferenceKey,
+      defaultColumnIndex: _defaultSortColumnIndex,
+      defaultAscending: _defaultSortAscending,
+    );
+    if (!mounted) return;
+    setState(() {
+      _sortColumnIndex = sort.columnIndex;
+      _sortAscending = sort.ascending;
+    });
+  }
+
+  void _saveSortState() {
+    TableSortPreferences.save(
+      _sortPreferenceKey,
+      columnIndex: _sortColumnIndex,
+      ascending: _sortAscending,
+    );
   }
 
   @override
@@ -217,17 +251,20 @@ class _LoansListScreenState extends State<LoansListScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final compactShell = MediaQuery.sizeOf(context).width < 720;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('مدیریت وام و اقساط'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _load,
-            tooltip: 'بازخوانی',
-          ),
-        ],
-      ),
+      appBar: compactShell
+          ? null
+          : AppBar(
+              title: const Text('مدیریت وام و اقساط'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: _load,
+                  tooltip: 'بازخوانی',
+                ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'loans-new-fab',
         onPressed: () => _openForm(),
@@ -288,21 +325,35 @@ class _LoansListScreenState extends State<LoansListScreen> {
       sortColumnIndex: _sortColumnIndex,
       sortAscending: _sortAscending,
       accentColor: scheme.primary,
-      onSortColumnChanged: (index) => setState(() {
-        if (_sortColumnIndex == index) {
-          _sortAscending = !_sortAscending;
-        } else {
-          _sortColumnIndex = index;
-          _sortAscending = true;
-        }
-      }),
-      onSortDirectionChanged: (ascending) =>
-          setState(() => _sortAscending = ascending),
+      onSortColumnChanged: (index) {
+        setState(() {
+          if (_sortColumnIndex == index) {
+            _sortAscending = !_sortAscending;
+          } else {
+            _sortColumnIndex = index;
+            _sortAscending = true;
+          }
+        });
+        _saveSortState();
+      },
+      onSortDirectionChanged: (ascending) {
+        setState(() => _sortAscending = ascending);
+        _saveSortState();
+      },
       mobileCardBuilder: (context, loan, index) => _loanCard(loan, scheme),
     );
   }
 
   List<ResponsiveTableColumn<Loan>> _columns(ColorScheme scheme) => [
+    ResponsiveTableColumn(
+      label: 'ردیف',
+      sortValue: (loan) => _filtered.indexOf(loan),
+      cellBuilder: (loan) => Text(
+        PersianNumberFormatter.toPersian(
+          (_filtered.indexOf(loan) + 1).toString(),
+        ),
+      ),
+    ),
     ResponsiveTableColumn(
       label: 'کارمند',
       sortValue: (loan) => _employeesMap[loan.employeeId]?.fullName ?? '',

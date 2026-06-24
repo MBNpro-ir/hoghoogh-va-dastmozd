@@ -784,7 +784,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     final isWide = responsive.isExpanded;
 
     return Scaffold(
-      appBar: widget.embedded
+      appBar:
+          widget.embedded ||
+              (!responsive.showsSidebar && !Navigator.canPop(context))
           ? null
           : AppBar(
               title: Text(

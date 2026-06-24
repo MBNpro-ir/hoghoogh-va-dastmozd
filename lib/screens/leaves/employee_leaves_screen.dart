@@ -4,6 +4,7 @@ import '../../models/employee.dart';
 import '../../models/employee_leave.dart';
 import '../../services/employee_leave_service.dart';
 import '../../services/employee_service.dart';
+import '../../services/table_sort_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/period_filter_helper.dart';
@@ -20,6 +21,10 @@ class EmployeeLeavesScreen extends StatefulWidget {
 }
 
 class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
+  static const _sortPreferenceKey = 'employee_leaves_v2';
+  static const _defaultSortColumnIndex = 3;
+  static const _defaultSortAscending = false;
+
   final _leaveService = EmployeeLeaveService();
   final _employeeService = EmployeeService();
   final _searchController = TextEditingController();
@@ -31,13 +36,42 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
   String _filter = '';
   int? _filterYear;
   int? _filterMonth;
-  int _sortColumnIndex = 2;
-  bool _sortAscending = false;
+  int _sortColumnIndex = _defaultSortColumnIndex;
+  bool _sortAscending = _defaultSortAscending;
 
   @override
   void initState() {
     super.initState();
+    final cachedSort = TableSortPreferences.cached(
+      _sortPreferenceKey,
+      defaultColumnIndex: _defaultSortColumnIndex,
+      defaultAscending: _defaultSortAscending,
+    );
+    _sortColumnIndex = cachedSort.columnIndex;
+    _sortAscending = cachedSort.ascending;
+    _restoreSortState();
     _load();
+  }
+
+  Future<void> _restoreSortState() async {
+    final sort = await TableSortPreferences.load(
+      _sortPreferenceKey,
+      defaultColumnIndex: _defaultSortColumnIndex,
+      defaultAscending: _defaultSortAscending,
+    );
+    if (!mounted) return;
+    setState(() {
+      _sortColumnIndex = sort.columnIndex;
+      _sortAscending = sort.ascending;
+    });
+  }
+
+  void _saveSortState() {
+    TableSortPreferences.save(
+      _sortPreferenceKey,
+      columnIndex: _sortColumnIndex,
+      ascending: _sortAscending,
+    );
   }
 
   @override
@@ -170,17 +204,20 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final compactShell = MediaQuery.sizeOf(context).width < 720;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('مرخصی کارکنان'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'بازخوانی',
-            onPressed: _load,
-          ),
-        ],
-      ),
+      appBar: compactShell
+          ? null
+          : AppBar(
+              title: const Text('مرخصی کارکنان'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  tooltip: 'بازخوانی',
+                  onPressed: _load,
+                ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'leaves-new-fab',
         onPressed: () => _openForm(),
@@ -198,13 +235,16 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
             onSearchChanged: (value) => setState(() => _filter = value),
             searchHint: 'جستجو بر اساس نام، کد پرسنلی، تاریخ یا توضیحات...',
           ),
-          _summary(scheme),
+          if (!compactShell) _summary(scheme),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _filtered.isEmpty
                 ? const _EmptyLeaves()
-                : _buildTable(scheme),
+                : _buildTable(
+                    scheme,
+                    mobileHeader: compactShell ? _summary(scheme) : null,
+                  ),
           ),
         ],
       ),
@@ -275,7 +315,7 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
     );
   }
 
-  Widget _buildTable(ColorScheme scheme) {
+  Widget _buildTable(ColorScheme scheme, {Widget? mobileHeader}) {
     final columns = _columns(scheme);
     final items = sortResponsiveItems(
       _filtered,
@@ -289,26 +329,41 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
       sortColumnIndex: _sortColumnIndex,
       sortAscending: _sortAscending,
       accentColor: AppTheme.warningColor,
-      onSortColumnChanged: (index) => setState(() {
-        if (_sortColumnIndex == index) {
-          _sortAscending = !_sortAscending;
-        } else {
-          _sortColumnIndex = index;
-          _sortAscending = true;
-        }
-      }),
-      onSortDirectionChanged: (ascending) =>
-          setState(() => _sortAscending = ascending),
+      mobileHeader: mobileHeader,
+      onSortColumnChanged: (index) {
+        setState(() {
+          if (_sortColumnIndex == index) {
+            _sortAscending = !_sortAscending;
+          } else {
+            _sortColumnIndex = index;
+            _sortAscending = true;
+          }
+        });
+        _saveSortState();
+      },
+      onSortDirectionChanged: (ascending) {
+        setState(() => _sortAscending = ascending);
+        _saveSortState();
+      },
       mobileCardBuilder: (context, leave, index) => _leaveCard(leave, scheme),
     );
   }
 
   List<ResponsiveTableColumn<EmployeeLeave>> _columns(ColorScheme scheme) => [
     ResponsiveTableColumn(
+      label: 'ردیف',
+      sortValue: (leave) => _filtered.indexOf(leave),
+      cellBuilder: (leave) => Text(
+        PersianNumberFormatter.toPersian(
+          (_filtered.indexOf(leave) + 1).toString(),
+        ),
+      ),
+    ),
+    ResponsiveTableColumn(
       label: 'کارمند',
       sortValue: (leave) => _employeesMap[leave.employeeId]?.fullName ?? '',
       cellBuilder: (leave) =>
-          Text(_employeesMap[leave.employeeId]?.fullName ?? '—'),
+          Text(_employeeLabel(_employeesMap[leave.employeeId])),
     ),
     ResponsiveTableColumn(
       label: 'نوع',
@@ -353,6 +408,14 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
     ),
   ];
 
+  String _employeeLabel(Employee? employee, {String fallback = '—'}) {
+    if (employee == null) return fallback;
+    final code = PersianNumberFormatter.toPersian(
+      employee.personnelCode.toString(),
+    );
+    return '${employee.fullName} ($code)';
+  }
+
   Widget _actions(EmployeeLeave leave, ColorScheme scheme) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -391,7 +454,7 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
               : Icons.beach_access_rounded,
         ),
       ),
-      title: employee?.fullName ?? 'کارمند نامشخص',
+      title: _employeeLabel(employee, fallback: 'کارمند نامشخص'),
       subtitle:
           '${PersianNumberFormatter.toPersian(leave.fromDate)} تا ${PersianNumberFormatter.toPersian(leave.toDate)}',
       trailing: _statusPill(leave, scheme),

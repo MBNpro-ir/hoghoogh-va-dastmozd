@@ -6,13 +6,14 @@ import '../../models/salary_record.dart';
 import '../../services/employee_service.dart';
 import '../../services/salary_service.dart';
 import '../../services/settings_service.dart';
+import '../../services/table_sort_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/period_filter_helper.dart';
 import '../../widgets/currency_text.dart';
-import '../../widgets/mouse_wheel_picker.dart';
+import '../../widgets/period_filter_bar.dart';
 import '../../widgets/responsive_data_view.dart';
 import 'salary_calculation_screen.dart';
 import 'payslip_screen.dart';
@@ -25,9 +26,15 @@ class SalaryRecordsScreen extends StatefulWidget {
 }
 
 class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
+  static const _sortPreferenceKey = 'salary_records';
+  static const _defaultSortColumnIndex = 3;
+  static const _defaultSortAscending = false;
+
   final _salaryService = SalaryService();
   final _employeeService = EmployeeService();
   final _settingsService = SettingsService();
+  final _searchController = TextEditingController();
+  final _searchUndoController = UndoHistoryController();
 
   List<SalaryRecord> _records = [];
   Map<int, Employee> _employeesMap = {};
@@ -36,14 +43,51 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
 
   int? _filterYear;
   int? _filterMonth;
+  String _filter = '';
   List<(int, int)> _availableMonths = [];
-  int _sortColumnIndex = 3;
-  bool _sortAscending = false;
+  int _sortColumnIndex = _defaultSortColumnIndex;
+  bool _sortAscending = _defaultSortAscending;
 
   @override
   void initState() {
     super.initState();
+    final cachedSort = TableSortPreferences.cached(
+      _sortPreferenceKey,
+      defaultColumnIndex: _defaultSortColumnIndex,
+      defaultAscending: _defaultSortAscending,
+    );
+    _sortColumnIndex = cachedSort.columnIndex;
+    _sortAscending = cachedSort.ascending;
+    _restoreSortState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchUndoController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _restoreSortState() async {
+    final sort = await TableSortPreferences.load(
+      _sortPreferenceKey,
+      defaultColumnIndex: _defaultSortColumnIndex,
+      defaultAscending: _defaultSortAscending,
+    );
+    if (!mounted) return;
+    setState(() {
+      _sortColumnIndex = sort.columnIndex;
+      _sortAscending = sort.ascending;
+    });
+  }
+
+  void _saveSortState() {
+    TableSortPreferences.save(
+      _sortPreferenceKey,
+      columnIndex: _sortColumnIndex,
+      ascending: _sortAscending,
+    );
   }
 
   Future<void> _load() async {
@@ -80,7 +124,25 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       ? (_filterYear!, _filterMonth!)
       : null;
 
-  List<(int, int)?> get _periodOptions => [null, ..._availableMonths];
+  List<SalaryRecord> get _filteredRecords {
+    final filter = _filter.trim();
+    if (filter.isEmpty) return _records;
+
+    final englishFilter = PersianNumberFormatter.toEnglish(filter);
+    return _records.where((record) {
+      final employeeName = _employeeNameForRecord(record);
+      final employeeCode = _employeeCodeForRecord(record)?.toString() ?? '';
+      final periodLabel =
+          '${PersianDateHelper.monthName(record.month)} ${record.year}';
+      final numericPeriod = '${record.year}/${record.month}';
+      return employeeName.contains(filter) ||
+          employeeCode.contains(englishFilter) ||
+          PersianNumberFormatter.toEnglish(
+            periodLabel,
+          ).contains(englishFilter) ||
+          numericPeriod.contains(englishFilter);
+    }).toList();
+  }
 
   Future<void> _onPeriodChanged((int, int)? value) async {
     setState(() {
@@ -162,27 +224,37 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final compactShell = MediaQuery.sizeOf(context).width < 720;
+    final filteredRecords = _filteredRecords;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('فیش‌های حقوق ثبت‌شده'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _load,
-            tooltip: 'بازخوانی',
-          ),
-        ],
-      ),
+      appBar: compactShell
+          ? null
+          : AppBar(
+              title: const Text('فیش‌های حقوق ثبت‌شده'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: _load,
+                  tooltip: 'بازخوانی',
+                ),
+              ],
+            ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
                 _buildFilter(),
-                if (_records.isNotEmpty) _buildSummary(),
+                if (filteredRecords.isNotEmpty && !compactShell)
+                  _buildSummary(filteredRecords),
                 Expanded(
-                  child: _records.isEmpty
+                  child: filteredRecords.isEmpty
                       ? const _EmptyRecords()
-                      : _buildTable(),
+                      : _buildTable(
+                          filteredRecords,
+                          mobileHeader: compactShell
+                              ? _buildSummary(filteredRecords)
+                              : null,
+                        ),
                 ),
               ],
             ),
@@ -190,125 +262,23 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
   }
 
   Widget _buildFilter() {
-    final scheme = Theme.of(context).colorScheme;
-    final isMobile = MediaQuery.sizeOf(context).width < 600;
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: isMobile
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.filter_alt_rounded,
-                          color: scheme.primary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'فیلتر دوره',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    MouseWheelPicker<(int, int)?>(
-                      value: _selectedPeriod,
-                      options: _periodOptions,
-                      onChanged: _onPeriodChanged,
-                      child: DropdownButtonFormField<(int, int)?>(
-                        key: ValueKey('records-period-$_selectedPeriod'),
-                        initialValue: _selectedPeriod,
-                        decoration: const InputDecoration(
-                          labelText: 'دوره',
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 12,
-                          ),
-                        ),
-                        items: [
-                          const DropdownMenuItem<(int, int)?>(
-                            value: null,
-                            child: Text('همه دوره‌ها'),
-                          ),
-                          ..._availableMonths.map(
-                            (ym) => DropdownMenuItem(
-                              value: ym,
-                              child: Text(
-                                '${PersianDateHelper.monthName(ym.$2)} ${PersianNumberFormatter.toPersian(ym.$1.toString())}',
-                              ),
-                            ),
-                          ),
-                        ],
-                        onChanged: _onPeriodChanged,
-                      ),
-                    ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Icon(Icons.filter_alt_rounded, color: scheme.primary),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'فیلتر دوره: ',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: MouseWheelPicker<(int, int)?>(
-                        value: _selectedPeriod,
-                        options: _periodOptions,
-                        onChanged: _onPeriodChanged,
-                        child: DropdownButtonFormField<(int, int)?>(
-                          key: ValueKey('records-period-$_selectedPeriod'),
-                          initialValue: _selectedPeriod,
-                          decoration: const InputDecoration(
-                            labelText: 'دوره',
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                          ),
-                          items: [
-                            const DropdownMenuItem<(int, int)?>(
-                              value: null,
-                              child: Text('همه دوره‌ها'),
-                            ),
-                            ..._availableMonths.map(
-                              (ym) => DropdownMenuItem(
-                                value: ym,
-                                child: Text(
-                                  '${PersianDateHelper.monthName(ym.$2)} ${PersianNumberFormatter.toPersian(ym.$1.toString())}',
-                                ),
-                              ),
-                            ),
-                          ],
-                          onChanged: _onPeriodChanged,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
+    return PeriodFilterBar(
+      selectedPeriod: _selectedPeriod,
+      availablePeriods: _availableMonths,
+      onPeriodChanged: _onPeriodChanged,
+      searchController: _searchController,
+      searchUndoController: _searchUndoController,
+      onSearchChanged: (value) => setState(() => _filter = value),
+      searchHint: 'جستجو بر اساس نام، کد پرسنلی یا دوره...',
     );
   }
 
-  Widget _buildSummary() {
+  Widget _buildSummary(List<SalaryRecord> records) {
     final scheme = Theme.of(context).colorScheme;
-    final isMobile = MediaQuery.sizeOf(context).width < 600;
+    final isMobile = MediaQuery.sizeOf(context).width < 720;
     double totalEarnings = 0, totalDeductions = 0, totalNet = 0;
     double totalInsurance = 0, totalTax = 0;
-    for (final r in _records) {
+    for (final r in records) {
       totalEarnings += r.totalEarnings;
       totalDeductions += r.totalDeductions;
       totalNet += r.finalPayment;
@@ -319,7 +289,7 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     final cards = [
       _summaryCard(
         'تعداد فیش',
-        PersianNumberFormatter.toPersian(_records.length.toString()),
+        PersianNumberFormatter.toPersian(records.length.toString()),
         scheme.primary,
         isMobile,
       ),
@@ -358,7 +328,12 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     if (isMobile) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Wrap(spacing: 8, runSpacing: 8, children: cards),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: cards,
+        ),
       );
     }
 
@@ -402,11 +377,11 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     );
   }
 
-  Widget _buildTable() {
+  Widget _buildTable(List<SalaryRecord> records, {Widget? mobileHeader}) {
     final scheme = Theme.of(context).colorScheme;
     final columns = _columns(scheme);
     final items = sortResponsiveItems(
-      _records,
+      records,
       columns,
       _sortColumnIndex,
       _sortAscending,
@@ -417,16 +392,22 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       sortColumnIndex: _sortColumnIndex,
       sortAscending: _sortAscending,
       accentColor: scheme.secondary,
-      onSortColumnChanged: (index) => setState(() {
-        if (_sortColumnIndex == index) {
-          _sortAscending = !_sortAscending;
-        } else {
-          _sortColumnIndex = index;
-          _sortAscending = true;
-        }
-      }),
-      onSortDirectionChanged: (ascending) =>
-          setState(() => _sortAscending = ascending),
+      mobileHeader: mobileHeader,
+      onSortColumnChanged: (index) {
+        setState(() {
+          if (_sortColumnIndex == index) {
+            _sortAscending = !_sortAscending;
+          } else {
+            _sortColumnIndex = index;
+            _sortAscending = true;
+          }
+        });
+        _saveSortState();
+      },
+      onSortDirectionChanged: (ascending) {
+        setState(() => _sortAscending = ascending);
+        _saveSortState();
+      },
       mobileCardBuilder: (context, record, index) =>
           _recordCard(record, index, scheme),
     );

@@ -1,3 +1,5 @@
+import 'package:sqflite/sqflite.dart';
+
 import '../database/database_helper.dart';
 import '../models/employee_leave.dart';
 import '../utils/business_validation.dart';
@@ -74,6 +76,7 @@ class EmployeeLeaveService {
   Future<int> insert(EmployeeLeave leave) async {
     BusinessValidation.leave(leave);
     final db = await _db.database;
+    await _ensureNotDuplicate(db, leave);
     final id = await db.insert('leaves', leave.toMap()..remove('id'));
     await _sync.markUpsert('leaves', id, schedule: false);
     await _sync.syncNow(silent: true, throwOnServerError: true);
@@ -86,6 +89,7 @@ class EmployeeLeaveService {
     }
     BusinessValidation.leave(leave);
     final db = await _db.database;
+    await _ensureNotDuplicate(db, leave);
     final result = await db.update(
       'leaves',
       leave.toMap()..remove('id'),
@@ -106,5 +110,37 @@ class EmployeeLeaveService {
     final result = await _sync.markDelete('leaves', id, schedule: false);
     await _sync.syncNow(silent: true, throwOnServerError: true);
     return result;
+  }
+
+  Future<void> _ensureNotDuplicate(Database db, EmployeeLeave leave) async {
+    final where = StringBuffer('''
+      employee_id = ?
+      AND from_date = ?
+      AND to_date = ?
+      AND type = ?
+      AND deleted_at IS NULL
+    ''');
+    final args = <Object?>[
+      leave.employeeId,
+      leave.fromDate,
+      leave.toDate,
+      leave.normalizedType,
+    ];
+    if (leave.id != null) {
+      where.write(' AND id <> ?');
+      args.add(leave.id);
+    }
+    final duplicate = await db.query(
+      'leaves',
+      columns: ['id'],
+      where: where.toString(),
+      whereArgs: args,
+      limit: 1,
+    );
+    if (duplicate.isNotEmpty) {
+      throw const BusinessValidationException(
+        'برای این کارمند، نوع و بازه زمانی یک مرخصی یکسان قبلاً ثبت شده است.',
+      );
+    }
   }
 }

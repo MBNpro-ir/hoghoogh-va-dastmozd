@@ -887,6 +887,25 @@ class SyncService {
         whereArgs: [payload['employee_id'], payload['year'], payload['month']],
         limit: 1,
       );
+    } else if (table == 'leaves') {
+      rows = await db.query(
+        table,
+        columns: ['id', 'sync_state', 'notes', 'server_updated_at'],
+        where: '''
+          employee_id = ?
+          AND from_date = ?
+          AND to_date = ?
+          AND type = ?
+          AND deleted_at IS NULL
+        ''',
+        whereArgs: [
+          payload['employee_id'],
+          payload['from_date'],
+          payload['to_date'],
+          payload['type'],
+        ],
+        limit: 1,
+      );
     } else if (table == 'app_settings') {
       rows = await db.query(
         table,
@@ -901,6 +920,11 @@ class SyncService {
     if (rows.isEmpty) return null;
     final state = rows.first['sync_state']?.toString();
     if (state == 'pending' || state == 'deleting') {
+      final isLegacyLeave =
+          table == 'leaves' &&
+          rows.first['notes']?.toString().startsWith('انتقال خودکار') == true &&
+          payload['notes']?.toString().startsWith('انتقال خودکار') == true;
+      if (isLegacyLeave) return rows.first['id'] as int?;
       throw ApiException(_localConflictMessage(table), 409);
     }
     return rows.first['id'] as int?;
@@ -1055,6 +1079,8 @@ class SyncService {
         'برای این کارمند و این ماه قبلا فیش حقوقی ثبت شده است. اطلاعات را تازه کنید و دوباره بررسی کنید.',
       'duplicate_salary_draft' =>
         'پیش‌نویس این کارمند و ماه همزمان در دستگاه دیگری تغییر کرده است. اطلاعات را تازه کنید.',
+      'duplicate_leave' =>
+        'برای این کارمند، نوع و بازه زمانی یک مرخصی یکسان قبلاً ثبت شده است. اطلاعات را تازه کنید.',
       'stale_update' =>
         'این بخش همزمان توسط کاربر دیگری تغییر کرده است. اگر می‌خواهید تغییرات خودتان را اعمال کنید، از کاربر دیگر بخواهید برنامه را ببندد، اطلاعات را تازه کنید و دوباره ذخیره کنید.',
       'invalid_prior_experience' =>

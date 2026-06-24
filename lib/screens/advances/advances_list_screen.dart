@@ -4,6 +4,7 @@ import '../../models/advance_payment.dart';
 import '../../models/employee.dart';
 import '../../services/advance_service.dart';
 import '../../services/employee_service.dart';
+import '../../services/table_sort_preferences.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/period_filter_helper.dart';
 import '../../utils/persian_number_formatter.dart';
@@ -20,6 +21,10 @@ class AdvancesListScreen extends StatefulWidget {
 }
 
 class _AdvancesListScreenState extends State<AdvancesListScreen> {
+  static const _sortPreferenceKey = 'advances_v2';
+  static const _defaultSortColumnIndex = 2;
+  static const _defaultSortAscending = false;
+
   final _advanceService = AdvanceService();
   final _employeeService = EmployeeService();
   final _searchController = TextEditingController();
@@ -31,13 +36,42 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
   String _filter = '';
   int? _filterYear;
   int? _filterMonth;
-  int _sortColumnIndex = 1;
-  bool _sortAscending = false;
+  int _sortColumnIndex = _defaultSortColumnIndex;
+  bool _sortAscending = _defaultSortAscending;
 
   @override
   void initState() {
     super.initState();
+    final cachedSort = TableSortPreferences.cached(
+      _sortPreferenceKey,
+      defaultColumnIndex: _defaultSortColumnIndex,
+      defaultAscending: _defaultSortAscending,
+    );
+    _sortColumnIndex = cachedSort.columnIndex;
+    _sortAscending = cachedSort.ascending;
+    _restoreSortState();
     _load();
+  }
+
+  Future<void> _restoreSortState() async {
+    final sort = await TableSortPreferences.load(
+      _sortPreferenceKey,
+      defaultColumnIndex: _defaultSortColumnIndex,
+      defaultAscending: _defaultSortAscending,
+    );
+    if (!mounted) return;
+    setState(() {
+      _sortColumnIndex = sort.columnIndex;
+      _sortAscending = sort.ascending;
+    });
+  }
+
+  void _saveSortState() {
+    TableSortPreferences.save(
+      _sortPreferenceKey,
+      columnIndex: _sortColumnIndex,
+      ascending: _sortAscending,
+    );
   }
 
   @override
@@ -160,17 +194,20 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final compactShell = MediaQuery.sizeOf(context).width < 720;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('مساعده کارکنان'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'بازخوانی',
-            onPressed: _load,
-          ),
-        ],
-      ),
+      appBar: compactShell
+          ? null
+          : AppBar(
+              title: const Text('مساعده کارکنان'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  tooltip: 'بازخوانی',
+                  onPressed: _load,
+                ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'advances-new-fab',
         onPressed: () => _openForm(),
@@ -214,16 +251,21 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
       sortColumnIndex: _sortColumnIndex,
       sortAscending: _sortAscending,
       accentColor: scheme.tertiary,
-      onSortColumnChanged: (index) => setState(() {
-        if (_sortColumnIndex == index) {
-          _sortAscending = !_sortAscending;
-        } else {
-          _sortColumnIndex = index;
-          _sortAscending = true;
-        }
-      }),
-      onSortDirectionChanged: (ascending) =>
-          setState(() => _sortAscending = ascending),
+      onSortColumnChanged: (index) {
+        setState(() {
+          if (_sortColumnIndex == index) {
+            _sortAscending = !_sortAscending;
+          } else {
+            _sortColumnIndex = index;
+            _sortAscending = true;
+          }
+        });
+        _saveSortState();
+      },
+      onSortDirectionChanged: (ascending) {
+        setState(() => _sortAscending = ascending);
+        _saveSortState();
+      },
       mobileCardBuilder: (context, advance, index) =>
           _advanceCard(advance, scheme),
     );
@@ -231,11 +273,20 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
 
   List<ResponsiveTableColumn<AdvancePayment>> _columns(ColorScheme scheme) => [
     ResponsiveTableColumn(
+      label: 'ردیف',
+      sortValue: (advance) => _filtered.indexOf(advance),
+      cellBuilder: (advance) => Text(
+        PersianNumberFormatter.toPersian(
+          (_filtered.indexOf(advance) + 1).toString(),
+        ),
+      ),
+    ),
+    ResponsiveTableColumn(
       label: 'کارمند',
       sortValue: (advance) => _employeesMap[advance.employeeId]?.fullName ?? '',
       cellBuilder: (advance) {
         final employee = _employeesMap[advance.employeeId];
-        return Text(employee?.fullName ?? '—');
+        return Text(_employeeLabel(employee));
       },
     ),
     ResponsiveTableColumn(
@@ -265,6 +316,14 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
     ),
   ];
 
+  String _employeeLabel(Employee? employee, {String fallback = '—'}) {
+    if (employee == null) return fallback;
+    final code = PersianNumberFormatter.toPersian(
+      employee.personnelCode.toString(),
+    );
+    return '${employee.fullName} ($code)';
+  }
+
   Widget _actions(AdvancePayment advance, ColorScheme scheme) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -291,7 +350,7 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
         foregroundColor: scheme.onTertiaryContainer,
         child: const Icon(Icons.payments_rounded),
       ),
-      title: employee?.fullName ?? 'کارمند نامشخص',
+      title: _employeeLabel(employee, fallback: 'کارمند نامشخص'),
       subtitle:
           'تاریخ ${PersianNumberFormatter.toPersian(advance.paymentDate)}',
       metrics: [

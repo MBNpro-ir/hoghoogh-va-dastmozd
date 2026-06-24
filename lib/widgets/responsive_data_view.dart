@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'mobile_collapsible_panel.dart';
 
 class ResponsiveTableColumn<T> {
   final String label;
@@ -26,6 +27,7 @@ class ResponsiveDataView<T> extends StatelessWidget {
   final ValueChanged<int> onSortColumnChanged;
   final ValueChanged<bool> onSortDirectionChanged;
   final Color? accentColor;
+  final Widget? mobileHeader;
 
   const ResponsiveDataView({
     super.key,
@@ -37,6 +39,7 @@ class ResponsiveDataView<T> extends StatelessWidget {
     required this.onSortColumnChanged,
     required this.onSortDirectionChanged,
     this.accentColor,
+    this.mobileHeader,
   });
 
   @override
@@ -55,6 +58,7 @@ class ResponsiveDataView<T> extends StatelessWidget {
                 onDirectionChanged: onSortDirectionChanged,
                 accentColor: accentColor,
               ),
+              ?mobileHeader,
               Expanded(
                 child: ListView.separated(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
@@ -349,18 +353,13 @@ class _MobileSortStrip<T> extends StatelessWidget {
     final color = accentColor ?? scheme.primary;
     final chipBackground = scheme.surfaceContainerLowest;
     final chipSelected = color.withValues(alpha: 0.16);
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
+    return MobileCollapsiblePanel(
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      title: 'مرتب‌سازی',
+      icon: Icons.sort_rounded,
+      accentColor: color,
       child: Row(
         children: [
-          Icon(Icons.sort_rounded, color: color, size: 20),
-          const SizedBox(width: 8),
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,

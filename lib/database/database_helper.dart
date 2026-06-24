@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 13;
+  static const int _dbVersion = 14;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -246,6 +246,7 @@ class DatabaseHelper {
       'CREATE INDEX idx_salary_year_month ON salary_records(year, month);',
     );
     await _createSyncIndexes(db);
+    await _createLeavesNaturalKeyIndex(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -502,6 +503,10 @@ class DatabaseHelper {
       );
       await _createSyncIndexes(db);
     }
+    if (oldVersion < 14) {
+      await _deduplicateLeaves(db);
+      await _createLeavesNaturalKeyIndex(db);
+    }
   }
 
   Future<void> _createSalaryDraftsTable(Database db) async {
@@ -600,6 +605,46 @@ class DatabaseHelper {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_leaves_from_date ON leaves(from_date);',
     );
+  }
+
+  Future<void> _deduplicateLeaves(Database db) async {
+    await db.execute('''
+      DELETE FROM leaves
+      WHERE id IN (
+        SELECT id
+        FROM (
+          SELECT
+            id,
+            ROW_NUMBER() OVER (
+              PARTITION BY employee_id, from_date, to_date, type
+              ORDER BY
+                CASE WHEN server_updated_at IS NOT NULL THEN 0 ELSE 1 END,
+                CASE WHEN sync_state = 'synced' THEN 0 ELSE 1 END,
+                id DESC
+            ) AS duplicate_rank
+          FROM leaves
+          WHERE deleted_at IS NULL
+        ) ranked
+        WHERE duplicate_rank > 1
+      );
+    ''');
+    await db.update(
+      'leaves',
+      {'sync_state': 'pending'},
+      where: '''
+        deleted_at IS NULL
+        AND server_updated_at IS NULL
+        AND sync_state = 'synced'
+      ''',
+    );
+  }
+
+  Future<void> _createLeavesNaturalKeyIndex(Database db) async {
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_leaves_employee_period_type_active_unique
+      ON leaves(employee_id, from_date, to_date, type)
+      WHERE deleted_at IS NULL;
+    ''');
   }
 
   Future<void> _migrateSalaryRecordLeaves(Database db) async {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../utils/period_filter_helper.dart';
+import 'mobile_collapsible_panel.dart';
 import 'mouse_wheel_picker.dart';
 
 class PeriodFilterBar extends StatelessWidget {
@@ -33,17 +34,39 @@ class PeriodFilterBar extends StatelessWidget {
         ? selectedPeriod
         : null;
 
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Card(
-        child: Padding(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final period = _periodDropdown(selected, periods);
+        final search = _searchField();
+        if (constraints.maxWidth < 720) {
+          return MobileCollapsiblePanel(
+            title: 'فیلتر و جستجو',
+            icon: Icons.filter_alt_rounded,
+            margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                period,
+                const SizedBox(height: 10),
+                search,
+                if (trailing != null) ...[
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: trailing!,
+                  ),
+                ],
+              ],
+            ),
+          );
+        }
+
+        return Padding(
           padding: const EdgeInsets.all(12),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final period = _periodDropdown(selected, periods);
-              final search = _searchField();
-              final header = Row(
-                mainAxisSize: MainAxisSize.min,
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
                 children: [
                   Icon(Icons.filter_alt_rounded, color: scheme.primary),
                   const SizedBox(width: 8),
@@ -51,32 +74,6 @@ class PeriodFilterBar extends StatelessWidget {
                     'فیلتر دوره',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
-                ],
-              );
-
-              if (constraints.maxWidth < 720) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    header,
-                    const SizedBox(height: 10),
-                    period,
-                    const SizedBox(height: 10),
-                    search,
-                    if (trailing != null) ...[
-                      const SizedBox(height: 10),
-                      Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: trailing!,
-                      ),
-                    ],
-                  ],
-                );
-              }
-
-              return Row(
-                children: [
-                  header,
                   const SizedBox(width: 16),
                   SizedBox(width: 230, child: period),
                   const SizedBox(width: 12),
@@ -86,11 +83,11 @@ class PeriodFilterBar extends StatelessWidget {
                     trailing!,
                   ],
                 ],
-              );
-            },
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

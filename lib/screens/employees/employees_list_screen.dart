@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import '../../models/employee.dart';
 import '../../services/employee_service.dart';
 import '../../services/sync_service.dart';
+import '../../services/table_sort_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/mobile_collapsible_panel.dart';
 import '../../widgets/responsive_data_view.dart';
 import 'employee_form_screen.dart';
 
@@ -18,18 +20,51 @@ class EmployeesListScreen extends StatefulWidget {
 }
 
 class _EmployeesListScreenState extends State<EmployeesListScreen> {
+  static const _sortPreferenceKey = 'employees';
+  static const _defaultSortColumnIndex = 0;
+  static const _defaultSortAscending = true;
+
   final _service = EmployeeService();
   final _sync = SyncService();
   List<Employee> _employees = [];
   String _filter = '';
   bool _loading = true;
-  int _sortColumnIndex = 0;
-  bool _sortAscending = true;
+  int _sortColumnIndex = _defaultSortColumnIndex;
+  bool _sortAscending = _defaultSortAscending;
 
   @override
   void initState() {
     super.initState();
+    final cachedSort = TableSortPreferences.cached(
+      _sortPreferenceKey,
+      defaultColumnIndex: _defaultSortColumnIndex,
+      defaultAscending: _defaultSortAscending,
+    );
+    _sortColumnIndex = cachedSort.columnIndex;
+    _sortAscending = cachedSort.ascending;
+    _restoreSortState();
     _load();
+  }
+
+  Future<void> _restoreSortState() async {
+    final sort = await TableSortPreferences.load(
+      _sortPreferenceKey,
+      defaultColumnIndex: _defaultSortColumnIndex,
+      defaultAscending: _defaultSortAscending,
+    );
+    if (!mounted) return;
+    setState(() {
+      _sortColumnIndex = sort.columnIndex;
+      _sortAscending = sort.ascending;
+    });
+  }
+
+  void _saveSortState() {
+    TableSortPreferences.save(
+      _sortPreferenceKey,
+      columnIndex: _sortColumnIndex,
+      ascending: _sortAscending,
+    );
   }
 
   Future<void> _load() async {
@@ -116,17 +151,20 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final compactShell = MediaQuery.sizeOf(context).width < 720;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('مدیریت کارمندان'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: _load,
-            tooltip: 'بازخوانی',
-          ),
-        ],
-      ),
+      appBar: compactShell
+          ? null
+          : AppBar(
+              title: const Text('مدیریت کارمندان'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: _load,
+                  tooltip: 'بازخوانی',
+                ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'employees-new-fab',
         onPressed: () => _openForm(),
@@ -135,58 +173,68 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    onChanged: (v) => setState(() => _filter = v),
-                    decoration: const InputDecoration(
-                      hintText: 'جستجو بر اساس نام، کد ملی یا کد پرسنلی...',
-                      prefixIcon: Icon(Icons.search_rounded),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primaryContainer.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.people_rounded,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'تعداد: ${PersianNumberFormatter.toPersian(_filteredEmployees.length.toString())} نفر',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _buildFilterArea(compactShell),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _filteredEmployees.isEmpty
                 ? const _EmptyState()
                 : _buildTable(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterArea(bool compact) {
+    final search = TextField(
+      onChanged: (v) => setState(() => _filter = v),
+      decoration: const InputDecoration(
+        hintText: 'جستجو بر اساس نام، کد ملی یا کد پرسنلی...',
+        prefixIcon: Icon(Icons.search_rounded),
+      ),
+    );
+    final count = _buildEmployeeCount();
+
+    if (compact) {
+      return MobileCollapsiblePanel(
+        title: 'جستجو و فیلتر',
+        icon: Icons.search_rounded,
+        margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+        child: search,
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        children: [
+          Expanded(child: search),
+          const SizedBox(width: 12),
+          count,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmployeeCount() {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.people_rounded, color: scheme.primary, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            'تعداد: ${PersianNumberFormatter.toPersian(_filteredEmployees.length.toString())} نفر',
+            style: TextStyle(
+              color: scheme.primary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -208,16 +256,25 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
       sortColumnIndex: _sortColumnIndex,
       sortAscending: _sortAscending,
       accentColor: scheme.tertiary,
-      onSortColumnChanged: (index) => setState(() {
-        if (_sortColumnIndex == index) {
-          _sortAscending = !_sortAscending;
-        } else {
-          _sortColumnIndex = index;
-          _sortAscending = true;
-        }
-      }),
-      onSortDirectionChanged: (ascending) =>
-          setState(() => _sortAscending = ascending),
+      mobileHeader: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        child: Center(child: _buildEmployeeCount()),
+      ),
+      onSortColumnChanged: (index) {
+        setState(() {
+          if (_sortColumnIndex == index) {
+            _sortAscending = !_sortAscending;
+          } else {
+            _sortColumnIndex = index;
+            _sortAscending = true;
+          }
+        });
+        _saveSortState();
+      },
+      onSortDirectionChanged: (ascending) {
+        setState(() => _sortAscending = ascending);
+        _saveSortState();
+      },
       mobileCardBuilder: (context, e, index) => _employeeCard(e, scheme),
     );
   }
