@@ -156,9 +156,16 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Prepare release metadata
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', '' -replace '-alpha$', ''
+          "RELEASE_TITLE=🚀 HvM $version Alpha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Create pre-release
         uses: softprops/action-gh-release@v3
         with:
+          name: ${{ env.RELEASE_TITLE }}
           prerelease: true
           generate_release_notes: false
           body_path: RELEASE_NOTES.md
