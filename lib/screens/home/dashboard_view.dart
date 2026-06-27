@@ -13,6 +13,7 @@ import '../../utils/responsive.dart';
 import '../../widgets/app_sidebar.dart' show AppCurves;
 import '../../widgets/count_up_text.dart';
 import '../../widgets/dashboard_charts.dart';
+import '../../widgets/floating_nav_safe_area.dart';
 
 /// داشبورد اصلی برنامه - نسخه جدید
 class DashboardView extends StatefulWidget {
@@ -80,7 +81,7 @@ class _DashboardViewState extends State<DashboardView> {
               r.pagePadding,
               r.pagePadding,
               r.pagePadding,
-              96,
+              FloatingNavSafeArea.scrollBottomInset(context, minimum: 96),
             ),
             child: _loading
                 ? _LoadingSkeleton(r: r)

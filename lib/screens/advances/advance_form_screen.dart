@@ -7,6 +7,7 @@ import '../../services/employee_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/persian_date_helper.dart';
+import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/persian_date_picker.dart';
@@ -45,7 +46,9 @@ class _AdvanceFormScreenState extends State<AdvanceFormScreen> {
         advance?.paymentDate ?? PersianDateHelper.todayText(),
       ),
     );
-    _notesCtrl = TextEditingController(text: advance?.notes ?? '');
+    _notesCtrl = TextEditingController(
+      text: PersianNumberFormatter.toPersian(advance?.notes ?? ''),
+    );
     _init();
   }
 
@@ -249,6 +252,9 @@ class _AdvanceFormScreenState extends State<AdvanceFormScreen> {
                               controller: _dateCtrl,
                               readOnly: true,
                               onTap: _pickDate,
+                              inputFormatters: const [
+                                PersianDateInputFormatter(),
+                              ],
                               textDirection: TextDirection.ltr,
                               decoration: const InputDecoration(
                                 labelText: 'تاریخ پرداخت *',
@@ -279,6 +285,9 @@ class _AdvanceFormScreenState extends State<AdvanceFormScreen> {
                             TextFormField(
                               controller: _notesCtrl,
                               maxLines: 3,
+                              inputFormatters: const [
+                                PersianDigitsInputFormatter(),
+                              ],
                               decoration: const InputDecoration(
                                 labelText: 'توضیحات اختیاری',
                                 prefixIcon: Icon(Icons.notes_rounded),

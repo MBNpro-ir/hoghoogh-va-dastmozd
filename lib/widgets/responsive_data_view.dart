@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'floating_nav_safe_area.dart';
 import 'mobile_collapsible_panel.dart';
 
 class ResponsiveTableColumn<T> {
@@ -61,7 +62,13 @@ class ResponsiveDataView<T> extends StatelessWidget {
               ?mobileHeader,
               Expanded(
                 child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
+                  padding: FloatingNavSafeArea.scrollPadding(
+                    context,
+                    left: 12,
+                    top: 8,
+                    right: 12,
+                    minimumBottom: 88,
+                  ),
                   itemCount: items.length,
                   separatorBuilder: (_, index) => const SizedBox(height: 10),
                   itemBuilder: (context, index) =>

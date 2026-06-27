@@ -1,3 +1,5 @@
+import '../utils/persian_number_formatter.dart';
+
 class Employee {
   final int? id;
   final int personnelCode;
@@ -95,14 +97,19 @@ class Employee {
     this.notes,
   });
 
-  String get fullName => '$firstName $lastName'.trim();
+  String get fullName =>
+      PersianNumberFormatter.toPersian('$firstName $lastName'.trim());
 
   String get displayJob {
     if (jobTitle.trim().isNotEmpty && jobCode.trim().isNotEmpty) {
-      return '$jobTitle - $jobCode';
+      return PersianNumberFormatter.toPersian('$jobTitle - $jobCode');
     }
-    if (jobTitle.trim().isNotEmpty) return jobTitle;
-    if (position.trim().isNotEmpty) return position;
+    if (jobTitle.trim().isNotEmpty) {
+      return PersianNumberFormatter.toPersian(jobTitle);
+    }
+    if (position.trim().isNotEmpty) {
+      return PersianNumberFormatter.toPersian(position);
+    }
     return '';
   }
 

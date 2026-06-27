@@ -7,6 +7,7 @@ import '../../services/loan_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/persian_date_helper.dart';
+import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/currency_text.dart';
@@ -55,7 +56,9 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
         l?.startDate ?? PersianDateHelper.todayText(),
       ),
     );
-    _notesCtrl = TextEditingController(text: l?.notes ?? '');
+    _notesCtrl = TextEditingController(
+      text: PersianNumberFormatter.toPersian(l?.notes ?? ''),
+    );
     if (l != null) {
       _amount = l.amount;
       _installmentAmount = l.installmentAmount;
@@ -488,6 +491,9 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                               controller: _startDateCtrl,
                               readOnly: true,
                               onTap: _pickStartDate,
+                              inputFormatters: const [
+                                PersianDateInputFormatter(),
+                              ],
                               textDirection: TextDirection.ltr,
                               decoration: const InputDecoration(
                                 labelText: 'تاریخ شروع وام (شمسی) *',
@@ -511,6 +517,9 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                             TextFormField(
                               controller: _notesCtrl,
                               maxLines: 2,
+                              inputFormatters: const [
+                                PersianDigitsInputFormatter(),
+                              ],
                               decoration: const InputDecoration(
                                 labelText: 'توضیحات (اختیاری)',
                                 prefixIcon: Icon(Icons.notes_rounded),

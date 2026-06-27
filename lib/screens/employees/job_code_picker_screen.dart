@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../data/job_title_repository.dart';
+import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 
 class JobCodePickerScreen extends StatefulWidget {
@@ -29,7 +30,7 @@ class _JobCodePickerScreenState extends State<JobCodePickerScreen> {
       widget.initialCode?.trim(),
       widget.initialTitle?.trim(),
     ].whereType<String>().where((item) => item.isNotEmpty).join(' ');
-    _searchCtrl.text = initial;
+    _searchCtrl.text = PersianNumberFormatter.toPersian(initial);
     _load();
   }
 
@@ -73,6 +74,7 @@ class _JobCodePickerScreenState extends State<JobCodePickerScreen> {
               controller: _searchCtrl,
               autofocus: true,
               onChanged: _onSearchChanged,
+              inputFormatters: const [PersianDigitsInputFormatter()],
               decoration: const InputDecoration(
                 labelText: 'جستجو بر اساس عنوان یا کد شغل',
                 prefixIcon: Icon(Icons.search_rounded),

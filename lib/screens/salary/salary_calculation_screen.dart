@@ -19,11 +19,13 @@ import '../../services/salary_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/persian_date_helper.dart';
+import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/responsive.dart';
 import '../../utils/gradient_helpers.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/floating_nav_safe_area.dart';
 import '../../widgets/mouse_wheel_picker.dart';
 import '../../widgets/persian_number_field.dart';
 import 'payslip_screen.dart';
@@ -139,7 +141,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       }
       await _checkExistingRecord(notify: false);
     }
-    if (mounted) setState(() => _loading = false);
+    if (!mounted) return;
+    setState(() => _loading = false);
     _calculate(saveDraft: false);
   }
 
@@ -405,6 +408,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   }
 
   void _calculate({bool saveDraft = true}) {
+    if (!mounted) return;
     if (_selectedEmployee == null || _settings == null) {
       setState(() => _result = null);
       return;
@@ -1655,7 +1659,13 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: FloatingNavSafeArea.scrollPadding(
+        context,
+        left: 16,
+        top: 16,
+        right: 16,
+        minimumBottom: 16,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1881,6 +1891,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       controller: TextEditingController(
         text: PersianNumberFormatter.toPersian(value.toString()),
       )..selection = TextSelection.collapsed(offset: value.toString().length),
+      inputFormatters: const [PersianDigitsOnlyInputFormatter()],
       textDirection: TextDirection.ltr,
       decoration: InputDecoration(
         labelText: label,

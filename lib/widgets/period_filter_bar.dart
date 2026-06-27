@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../utils/persian_digit_input_formatter.dart';
 import '../utils/period_filter_helper.dart';
 import 'mobile_collapsible_panel.dart';
 import 'mouse_wheel_picker.dart';
@@ -129,6 +130,7 @@ class PeriodFilterBar extends StatelessWidget {
       key: const ValueKey('period-filter-search'),
       controller: searchController,
       undoController: searchUndoController,
+      inputFormatters: const [PersianDigitsInputFormatter()],
       onChanged: onSearchChanged,
       decoration: InputDecoration(
         hintText: searchHint,

@@ -219,6 +219,7 @@ class AppTheme {
       textTheme: _persianTextTheme(base.textTheme, scheme.onSurface),
       primaryTextTheme: _persianTextTheme(base.primaryTextTheme, Colors.white),
       iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+      iconButtonTheme: _expressiveIconButtonTheme(scheme),
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surface,
         foregroundColor: scheme.onSurface,
@@ -336,6 +337,8 @@ class AppTheme {
         thickness: 0.6,
         space: 1,
       ),
+      navigationBarTheme: _expressiveNavigationBarTheme(scheme),
+      segmentedButtonTheme: _expressiveSegmentedButtonTheme(scheme),
       cardTheme: CardThemeData(
         color: scheme.surfaceContainerLowest,
         surfaceTintColor: Colors.transparent,
@@ -367,6 +370,30 @@ class AppTheme {
         ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surfaceContainerHigh,
+        surfaceTintColor: Colors.transparent,
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+        ),
+        textStyle: TextStyle(
+          fontFamily: family,
+          fontSize: 14,
+          color: scheme.onSurface,
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: scheme.inverseSurface,
+          borderRadius: BorderRadius.circular(radiusSm),
+        ),
+        textStyle: TextStyle(
+          fontFamily: family,
+          fontSize: 12,
+          color: scheme.onInverseSurface,
+        ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surfaceContainerHigh,
@@ -432,6 +459,10 @@ class AppTheme {
                   color: scheme.onSurfaceVariant,
                 ),
       ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: scheme.primary,
+        linearTrackColor: scheme.surfaceContainer,
+      ),
       expansionTileTheme: ExpansionTileThemeData(
         backgroundColor: scheme.surfaceContainerLowest,
         collapsedBackgroundColor: scheme.surfaceContainerLowest,
@@ -439,16 +470,7 @@ class AppTheme {
         textColor: scheme.onSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
-      switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return scheme.onPrimary;
-          return scheme.outline;
-        }),
-        trackColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return scheme.primary;
-          return scheme.surfaceContainerHighest;
-        }),
-      ),
+      switchTheme: _expressiveSwitchTheme(scheme),
       sliderTheme: _expressiveSliderTheme(scheme),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith((states) {
@@ -543,6 +565,7 @@ class AppTheme {
         scheme.onPrimary,
       ),
       iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+      iconButtonTheme: _expressiveIconButtonTheme(scheme),
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surface,
         foregroundColor: scheme.onSurface,
@@ -670,6 +693,8 @@ class AppTheme {
         thickness: 0.6,
         space: 1,
       ),
+      navigationBarTheme: _expressiveNavigationBarTheme(scheme),
+      segmentedButtonTheme: _expressiveSegmentedButtonTheme(scheme),
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surfaceContainerHigh,
         surfaceTintColor: Colors.transparent,
@@ -741,16 +766,7 @@ class AppTheme {
         highlightElevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
-      switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return scheme.onPrimary;
-          return scheme.outline;
-        }),
-        trackColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return scheme.primary;
-          return scheme.surfaceContainerHighest;
-        }),
-      ),
+      switchTheme: _expressiveSwitchTheme(scheme),
       sliderTheme: _expressiveSliderTheme(scheme),
       progressIndicatorTheme: ProgressIndicatorThemeData(
         color: scheme.primary,
@@ -806,6 +822,135 @@ class AppTheme {
     );
     return highContrast ? _highContrast(theme) : theme;
   }
+
+  static IconButtonThemeData _expressiveIconButtonTheme(ColorScheme scheme) =>
+      IconButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.disabled)) {
+              return scheme.onSurface.withValues(alpha: 0.38);
+            }
+            if (states.contains(WidgetState.selected)) return scheme.primary;
+            return scheme.onSurfaceVariant;
+          }),
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return scheme.primary.withValues(alpha: 0.12);
+            }
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.focused)) {
+              return scheme.primary.withValues(alpha: 0.08);
+            }
+            return null;
+          }),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(radiusFull),
+            ),
+          ),
+        ),
+      );
+
+  static NavigationBarThemeData _expressiveNavigationBarTheme(
+    ColorScheme scheme,
+  ) => NavigationBarThemeData(
+    height: 76,
+    elevation: 0,
+    backgroundColor: scheme.surfaceContainerHigh,
+    indicatorColor: scheme.primaryContainer,
+    indicatorShape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radiusFull),
+    ),
+    labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+    iconTheme: WidgetStateProperty.resolveWith((states) {
+      final selected = states.contains(WidgetState.selected);
+      return IconThemeData(
+        size: selected ? 25 : 23,
+        color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+      );
+    }),
+    labelTextStyle: WidgetStateProperty.resolveWith((states) {
+      final selected = states.contains(WidgetState.selected);
+      return TextStyle(
+        fontFamily: AppConstants.fontFamily,
+        fontSize: 11,
+        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+        color: selected ? scheme.primary : scheme.onSurfaceVariant,
+      );
+    }),
+  );
+
+  static SegmentedButtonThemeData _expressiveSegmentedButtonTheme(
+    ColorScheme scheme,
+  ) => SegmentedButtonThemeData(
+    style: ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return scheme.primaryContainer;
+        }
+        return scheme.surfaceContainerLow;
+      }),
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return scheme.onPrimaryContainer;
+        }
+        return scheme.onSurfaceVariant;
+      }),
+      overlayColor: WidgetStatePropertyAll(
+        scheme.primary.withValues(alpha: 0.08),
+      ),
+      side: WidgetStateProperty.resolveWith((states) {
+        return BorderSide(
+          color: states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.outlineVariant,
+          width: states.contains(WidgetState.selected) ? 1.4 : 1,
+        );
+      }),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusFull)),
+      ),
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
+      textStyle: const WidgetStatePropertyAll(
+        TextStyle(
+          fontFamily: AppConstants.fontFamily,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    ),
+  );
+
+  static SwitchThemeData _expressiveSwitchTheme(ColorScheme scheme) =>
+      SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return scheme.onSurface.withValues(alpha: 0.38);
+          }
+          if (states.contains(WidgetState.selected)) return scheme.onPrimary;
+          return scheme.outline;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return scheme.onSurface.withValues(alpha: 0.12);
+          }
+          if (states.contains(WidgetState.selected)) return scheme.primary;
+          return scheme.surfaceContainerHighest;
+        }),
+        trackOutlineColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return Colors.transparent;
+          return scheme.outline.withValues(alpha: 0.55);
+        }),
+        overlayColor: WidgetStatePropertyAll(
+          scheme.primary.withValues(alpha: 0.10),
+        ),
+        thumbIcon: WidgetStateProperty.resolveWith((states) {
+          if (!states.contains(WidgetState.selected)) return null;
+          return Icon(Icons.check_rounded, color: scheme.primary, size: 14);
+        }),
+      );
 
   static SliderThemeData _expressiveSliderTheme(ColorScheme scheme) =>
       SliderThemeData(
@@ -968,21 +1113,21 @@ class AppTheme {
         fontSize: 14,
         fontWeight: FontWeight.w600,
         height: 1.2,
-        letterSpacing: 0.1,
+        letterSpacing: 0,
       ),
       labelMedium: style(
         base.labelMedium,
         fontSize: 12,
         fontWeight: FontWeight.w500,
         height: 1.2,
-        letterSpacing: 0.3,
+        letterSpacing: 0,
       ),
       labelSmall: style(
         base.labelSmall,
         fontSize: 11,
         fontWeight: FontWeight.w500,
         height: 1.2,
-        letterSpacing: 0.5,
+        letterSpacing: 0,
       ),
     );
   }

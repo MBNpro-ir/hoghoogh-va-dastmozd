@@ -9,6 +9,7 @@ import '../../utils/app_error_message.dart';
 import '../../utils/period_filter_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/floating_nav_safe_area.dart';
 import '../../widgets/period_filter_bar.dart';
 import '../../widgets/responsive_data_view.dart';
 import 'loan_form_screen.dart';
@@ -265,11 +266,14 @@ class _LoansListScreenState extends State<LoansListScreen> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'loans-new-fab',
-        onPressed: () => _openForm(),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('وام جدید'),
+      floatingActionButton: FloatingNavSafeArea.padFloatingActionButton(
+        context,
+        FloatingActionButton.extended(
+          heroTag: 'loans-new-fab',
+          onPressed: () => _openForm(),
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('وام جدید'),
+        ),
       ),
       body: Column(
         children: [

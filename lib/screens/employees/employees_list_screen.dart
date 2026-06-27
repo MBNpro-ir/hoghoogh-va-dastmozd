@@ -6,8 +6,10 @@ import '../../services/sync_service.dart';
 import '../../services/table_sort_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_error_message.dart';
+import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/floating_nav_safe_area.dart';
 import '../../widgets/mobile_collapsible_panel.dart';
 import '../../widgets/responsive_data_view.dart';
 import 'employee_form_screen.dart';
@@ -80,15 +82,19 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
 
   List<Employee> get _filteredEmployees {
     if (_filter.trim().isEmpty) return _employees;
-    final f = PersianNumberFormatter.toEnglish(_filter.trim());
+    final rawFilter = _filter.trim();
+    final englishFilter = PersianNumberFormatter.toEnglish(rawFilter);
+    final persianFilter = PersianNumberFormatter.toPersian(rawFilter);
+    bool containsVisible(String value) =>
+        PersianNumberFormatter.toPersian(value).contains(persianFilter);
     return _employees.where((e) {
-      return e.firstName.contains(_filter) ||
-          e.lastName.contains(_filter) ||
-          e.fatherName.contains(_filter) ||
-          e.jobTitle.contains(_filter) ||
-          e.position.contains(_filter) ||
-          e.nationalId.contains(f) ||
-          e.personnelCode.toString().contains(f);
+      return containsVisible(e.firstName) ||
+          containsVisible(e.lastName) ||
+          containsVisible(e.fatherName) ||
+          containsVisible(e.jobTitle) ||
+          containsVisible(e.position) ||
+          e.nationalId.contains(englishFilter) ||
+          e.personnelCode.toString().contains(englishFilter);
     }).toList();
   }
 
@@ -165,11 +171,14 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
                 ),
               ],
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'employees-new-fab',
-        onPressed: () => _openForm(),
-        icon: const Icon(Icons.person_add_rounded),
-        label: const Text('کارمند جدید'),
+      floatingActionButton: FloatingNavSafeArea.padFloatingActionButton(
+        context,
+        FloatingActionButton.extended(
+          heroTag: 'employees-new-fab',
+          onPressed: () => _openForm(),
+          icon: const Icon(Icons.person_add_rounded),
+          label: const Text('کارمند جدید'),
+        ),
       ),
       body: Column(
         children: [
@@ -189,6 +198,7 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
   Widget _buildFilterArea(bool compact) {
     final search = TextField(
       onChanged: (v) => setState(() => _filter = v),
+      inputFormatters: const [PersianDigitsInputFormatter()],
       decoration: const InputDecoration(
         hintText: 'جستجو بر اساس نام، کد ملی یا کد پرسنلی...',
         prefixIcon: Icon(Icons.search_rounded),
@@ -289,12 +299,12 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
     ResponsiveTableColumn(
       label: 'نام',
       sortValue: (e) => e.firstName,
-      cellBuilder: (e) => Text(e.firstName),
+      cellBuilder: (e) => Text(PersianNumberFormatter.toPersian(e.firstName)),
     ),
     ResponsiveTableColumn(
       label: 'نام خانوادگی',
       sortValue: (e) => e.lastName,
-      cellBuilder: (e) => Text(e.lastName),
+      cellBuilder: (e) => Text(PersianNumberFormatter.toPersian(e.lastName)),
     ),
     ResponsiveTableColumn(
       label: 'کد ملی',

@@ -12,6 +12,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/constants.dart';
 import '../../utils/persian_date_helper.dart';
+import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/seniority_helper.dart';
 import '../../widgets/persian_date_picker.dart';
@@ -91,42 +92,44 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     final e = widget.employee;
     final today = PersianDateHelper.todayText();
     _personnelCodeCtrl = TextEditingController(
-      text: e?.personnelCode.toString() ?? '',
+      text: e == null
+          ? ''
+          : PersianNumberFormatter.toPersian(e.personnelCode.toString()),
     );
-    _firstNameCtrl = TextEditingController(text: e?.firstName ?? '');
-    _lastNameCtrl = TextEditingController(text: e?.lastName ?? '');
-    _fatherNameCtrl = TextEditingController(text: e?.fatherName ?? '');
-    _nationalIdCtrl = TextEditingController(text: e?.nationalId ?? '');
+    _firstNameCtrl = TextEditingController(text: _visibleText(e?.firstName));
+    _lastNameCtrl = TextEditingController(text: _visibleText(e?.lastName));
+    _fatherNameCtrl = TextEditingController(text: _visibleText(e?.fatherName));
+    _nationalIdCtrl = TextEditingController(text: _visibleText(e?.nationalId));
     _birthCertificateCtrl = TextEditingController(
-      text: e?.birthCertificateNumber ?? '',
+      text: _visibleText(e?.birthCertificateNumber),
     );
     _birthDateCtrl = TextEditingController(
       text: PersianNumberFormatter.toPersian(e?.birthDate ?? ''),
     );
-    _birthPlaceCtrl = TextEditingController(text: e?.birthPlace ?? '');
-    _phoneCtrl = TextEditingController(text: e?.phone ?? '');
-    _workplaceCtrl = TextEditingController(text: e?.workplace ?? '');
+    _birthPlaceCtrl = TextEditingController(text: _visibleText(e?.birthPlace));
+    _phoneCtrl = TextEditingController(text: _visibleText(e?.phone));
+    _workplaceCtrl = TextEditingController(text: _visibleText(e?.workplace));
     _bankAccountNumberCtrl = TextEditingController(
-      text: e?.bankAccountNumber ?? '',
+      text: _visibleText(e?.bankAccountNumber),
     );
-    _jobCodeCtrl = TextEditingController(text: e?.jobCode ?? '');
-    _jobTitleCtrl = TextEditingController(text: e?.jobTitle ?? '');
+    _jobCodeCtrl = TextEditingController(text: _visibleText(e?.jobCode));
+    _jobTitleCtrl = TextEditingController(text: _visibleText(e?.jobTitle));
     _startDateCtrl = TextEditingController(
       text: PersianNumberFormatter.toPersian(e?.startDate ?? today),
     );
     _endDateCtrl = TextEditingController(
       text: PersianNumberFormatter.toPersian(e?.endDate ?? ''),
     );
-    _cardNumberCtrl = TextEditingController(text: e?.cardNumber ?? '');
+    _cardNumberCtrl = TextEditingController(text: _visibleText(e?.cardNumber));
     _insuranceNumberCtrl = TextEditingController(
-      text: e?.insuranceNumber ?? '',
+      text: _visibleText(e?.insuranceNumber),
     );
-    _positionCtrl = TextEditingController(text: e?.position ?? '');
-    _addressCtrl = TextEditingController(text: e?.address ?? '');
+    _positionCtrl = TextEditingController(text: _visibleText(e?.position));
+    _addressCtrl = TextEditingController(text: _visibleText(e?.address));
     _payslipFooterNoteCtrl = TextEditingController(
-      text: e?.payslipFooterNote ?? '',
+      text: _visibleText(e?.payslipFooterNote),
     );
-    _notesCtrl = TextEditingController(text: e?.notes ?? '');
+    _notesCtrl = TextEditingController(text: _visibleText(e?.notes));
 
     if (e != null) {
       _isActive = e.isActive;
@@ -161,20 +164,25 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     _init();
   }
 
+  String _visibleText(String? value) =>
+      PersianNumberFormatter.toPersian(value ?? '');
+
   Future<void> _init() async {
     if (widget.employee == null) {
       await _sync.pullLatest(silent: true);
     }
     _settings = await _settingsService.getCurrentSettings();
     if (_workplaceCtrl.text.trim().isEmpty) {
-      _workplaceCtrl.text = _settings!.companyName;
+      _workplaceCtrl.text = _visibleText(_settings!.companyName);
     }
     if (widget.employee != null) {
       _selectedRate = _inferSalaryRate(widget.employee!, _settings!);
     }
     if (widget.employee == null) {
       final nextCode = await _service.getNextPersonnelCode();
-      _personnelCodeCtrl.text = nextCode.toString();
+      _personnelCodeCtrl.text = PersianNumberFormatter.toPersian(
+        nextCode.toString(),
+      );
       _dailyWage1404 = AppConstants.defaultDailyWage1404;
       _autoCalculate1405(notify: false);
       _syncExperienceAndSeniorityFromDate(notify: false);
@@ -291,10 +299,10 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     );
     if (selected == null) return;
     setState(() {
-      _jobCodeCtrl.text = selected.code;
-      _jobTitleCtrl.text = selected.title;
+      _jobCodeCtrl.text = _visibleText(selected.code);
+      _jobTitleCtrl.text = _visibleText(selected.title);
       if (_positionCtrl.text.trim().isEmpty) {
-        _positionCtrl.text = selected.title;
+        _positionCtrl.text = _visibleText(selected.title);
       }
     });
   }
@@ -1348,6 +1356,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       controller: controller,
       maxLines: maxLines,
       maxLength: maxLength,
+      inputFormatters: const [PersianDigitsInputFormatter()],
       textDirection: ltr ? TextDirection.ltr : TextDirection.rtl,
       decoration: InputDecoration(
         labelText: label,
@@ -1369,6 +1378,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       controller: controller,
       readOnly: true,
       onTap: () => _pickDate(controller, syncStartDate: syncStartDate),
+      inputFormatters: const [PersianDateInputFormatter()],
       textDirection: TextDirection.ltr,
       decoration: InputDecoration(
         labelText: label,

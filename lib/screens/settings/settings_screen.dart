@@ -23,6 +23,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/animations.dart';
 import '../../utils/constants.dart';
+import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/gradient_helpers.dart';
 import '../../utils/responsive.dart';
@@ -98,7 +99,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _load() async {
     _settings = await _service.getCurrentSettings();
     _companyNameCtrl.removeListener(_checkChanges);
-    _companyNameCtrl.text = _settings!.companyName;
+    _companyNameCtrl.text = PersianNumberFormatter.toPersian(
+      _settings!.companyName,
+    );
     _companyNameCtrl.addListener(_checkChanges);
     _dailyWage = _settings!.dailyWage;
     _monthlyFood = _settings!.monthlyFood;
@@ -672,6 +675,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           TextFormField(
                             controller: _companyNameCtrl,
                             enabled: false,
+                            inputFormatters: const [
+                              PersianDigitsInputFormatter(),
+                            ],
                             decoration: const InputDecoration(
                               labelText: 'نام شرکت',
                               prefixIcon: Icon(Icons.apartment_rounded),
@@ -1423,214 +1429,256 @@ class _TextScaleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            textDirection: TextDirection.rtl,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: scheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.text_fields_rounded,
-                  color: scheme.primary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'اندازه متن',
-                      style: TextStyle(
-                        fontFamily: 'Vazirmatn',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: scheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'مقیاس متن در کل برنامه (${(value * 100).round()}٪)',
-                      style: TextStyle(
-                        fontFamily: 'Vazirmatn',
-                        fontSize: 12,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                '${PersianNumberFormatter.toPersian((value * 100).round().toString())}٪',
-                style: TextStyle(
-                  fontFamily: 'Vazirmatn',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            textDirection: TextDirection.rtl,
-            children: [
-              Text(
-                'A',
-                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-              ),
-              Expanded(
-                child: Slider(
-                  value: value,
-                  min: 0.85,
-                  max: 1.5,
-                  divisions: 13,
-                  label:
-                      '${PersianNumberFormatter.toPersian((value * 100).round().toString())}٪',
-                  onChanged: onChanged,
-                ),
-              ),
-              Text(
-                'A',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ],
+    return _ExpressiveScaleTile(
+      icon: Icons.text_fields_rounded,
+      title: 'اندازه متن',
+      subtitle: 'مقیاس متن در کل برنامه',
+      accent: scheme.primary,
+      value: value,
+      min: 0.85,
+      max: 1.5,
+      divisions: 13,
+      leadingIndicator: Text(
+        'A',
+        style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
       ),
+      trailingIndicator: Text(
+        'A',
+        style: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+          color: scheme.onSurface,
+        ),
+      ),
+      onChanged: onChanged,
     );
   }
 }
 
-class _InterfaceScaleTile extends StatefulWidget {
+class _InterfaceScaleTile extends StatelessWidget {
   final double value;
   final ValueChanged<double> onChanged;
 
   const _InterfaceScaleTile({required this.value, required this.onChanged});
 
   @override
-  State<_InterfaceScaleTile> createState() => _InterfaceScaleTileState();
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return _ExpressiveScaleTile(
+      icon: Icons.aspect_ratio_rounded,
+      title: 'اندازه رابط برنامه',
+      subtitle: 'مقیاس همه اجزای برنامه',
+      accent: scheme.secondary,
+      value: value.clamp(0.8, 1.3).toDouble(),
+      min: 0.8,
+      max: 1.3,
+      divisions: 10,
+      commitOnChangeEnd: true,
+      leadingIndicator: Icon(
+        Icons.crop_free_rounded,
+        size: 16,
+        color: scheme.onSurfaceVariant,
+      ),
+      trailingIndicator: Icon(
+        Icons.crop_free_rounded,
+        size: 26,
+        color: scheme.onSurface,
+      ),
+      onChanged: onChanged,
+    );
+  }
 }
 
-class _InterfaceScaleTileState extends State<_InterfaceScaleTile> {
-  late double _value = widget.value.clamp(0.8, 1.3).toDouble();
+class _ExpressiveScaleTile extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color accent;
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final Widget leadingIndicator;
+  final Widget trailingIndicator;
+  final bool commitOnChangeEnd;
+  final ValueChanged<double> onChanged;
+
+  const _ExpressiveScaleTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.leadingIndicator,
+    required this.trailingIndicator,
+    required this.onChanged,
+    this.commitOnChangeEnd = false,
+  });
 
   @override
-  void didUpdateWidget(covariant _InterfaceScaleTile oldWidget) {
+  State<_ExpressiveScaleTile> createState() => _ExpressiveScaleTileState();
+}
+
+class _ExpressiveScaleTileState extends State<_ExpressiveScaleTile> {
+  late double _value = widget.value;
+  bool _dragging = false;
+
+  @override
+  void didUpdateWidget(covariant _ExpressiveScaleTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value) {
-      _value = widget.value.clamp(0.8, 1.3).toDouble();
+    if (!_dragging && oldWidget.value != widget.value) {
+      _value = widget.value;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final percentage = (_value * 100).round();
-    final persianPercentage = PersianNumberFormatter.toPersian(
-      percentage.toString(),
-    );
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : AppDurations.short;
+    final percent = _formatPercent(_value);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            textDirection: TextDirection.rtl,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: AnimatedContainer(
+        duration: duration,
+        curve: AppAnimations.emphasizedDecelerate,
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            widget.accent.withValues(alpha: 0.045),
+            scheme.surfaceContainerLow,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: 0.55),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: scheme.secondary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.aspect_ratio_rounded,
-                  color: scheme.secondary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'اندازه رابط برنامه',
+              Row(
+                textDirection: TextDirection.rtl,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: widget.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(widget.icon, color: widget.accent, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: TextStyle(
+                            fontFamily: 'Vazirmatn',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.subtitle,
+                          style: TextStyle(
+                            fontFamily: 'Vazirmatn',
+                            fontSize: 12,
+                            color: scheme.onSurfaceVariant,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  AnimatedContainer(
+                    duration: duration,
+                    curve: AppAnimations.emphasizedDecelerate,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: widget.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$percent٪',
                       style: TextStyle(
                         fontFamily: 'Vazirmatn',
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: scheme.onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: widget.accent,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'مقیاس همه اجزای برنامه ($persianPercentage٪)',
-                      style: TextStyle(
-                        fontFamily: 'Vazirmatn',
-                        fontSize: 12,
-                        color: scheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Semantics(
+                label: widget.title,
+                value: '$percent درصد',
+                child: Row(
+                  textDirection: TextDirection.rtl,
+                  children: [
+                    SizedBox(
+                      width: 30,
+                      child: Center(child: widget.leadingIndicator),
+                    ),
+                    Expanded(
+                      child: Slider(
+                        value: _value,
+                        min: widget.min,
+                        max: widget.max,
+                        divisions: widget.divisions,
+                        label: '$percent٪',
+                        onChangeStart: (_) => setState(() {
+                          _dragging = true;
+                        }),
+                        onChanged: (value) {
+                          setState(() => _value = value);
+                          if (!widget.commitOnChangeEnd) {
+                            widget.onChanged(value);
+                          }
+                        },
+                        onChangeEnd: (value) {
+                          setState(() {
+                            _dragging = false;
+                            _value = value;
+                          });
+                          if (widget.commitOnChangeEnd) {
+                            widget.onChanged(value);
+                          }
+                        },
                       ),
+                    ),
+                    SizedBox(
+                      width: 30,
+                      child: Center(child: widget.trailingIndicator),
                     ),
                   ],
                 ),
               ),
-              Text(
-                '$persianPercentage٪',
-                style: TextStyle(
-                  fontFamily: 'Vazirmatn',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.secondary,
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 8),
-          Row(
-            textDirection: TextDirection.rtl,
-            children: [
-              Icon(
-                Icons.crop_free_rounded,
-                size: 16,
-                color: scheme.onSurfaceVariant,
-              ),
-              Expanded(
-                child: Slider(
-                  value: _value,
-                  min: 0.8,
-                  max: 1.3,
-                  divisions: 10,
-                  label: '$persianPercentage٪',
-                  onChanged: (value) => setState(() => _value = value),
-                  onChangeEnd: widget.onChanged,
-                ),
-              ),
-              Icon(Icons.crop_free_rounded, size: 26, color: scheme.onSurface),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
+
+  String _formatPercent(double value) =>
+      PersianNumberFormatter.toPersian((value * 100).round().toString());
 }
 
 class _SwitchTile extends StatelessWidget {
@@ -1639,52 +1687,129 @@ class _SwitchTile extends StatelessWidget {
   final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool enabled;
+  final Color? accent;
   const _SwitchTile({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.value,
     required this.onChanged,
+    this.enabled = true,
+    this.accent,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      secondary: Container(
-        width: 40,
-        height: 40,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: scheme.primary.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, color: scheme.primary, size: 20),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          fontFamily: 'Vazirmatn',
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: scheme.onSurface,
-        ),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 2),
-        child: Text(
-          subtitle,
-          style: TextStyle(
-            fontFamily: 'Vazirmatn',
-            fontSize: 12,
-            color: scheme.onSurfaceVariant,
-            height: 1.4,
+    final tileAccent = accent ?? scheme.primary;
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : AppDurations.short;
+    return MergeSemantics(
+      child: Semantics(
+        button: true,
+        toggled: value,
+        label: title,
+        hint: subtitle,
+        onTap: enabled ? () => onChanged(!value) : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(24),
+              onTap: enabled ? () => onChanged(!value) : null,
+              child: AnimatedContainer(
+                duration: duration,
+                curve: AppAnimations.emphasizedDecelerate,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: value
+                      ? Color.alphaBlend(
+                          tileAccent.withValues(alpha: 0.14),
+                          scheme.surfaceContainerHigh,
+                        )
+                      : scheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: value
+                        ? tileAccent.withValues(alpha: 0.45)
+                        : scheme.outlineVariant.withValues(alpha: 0.55),
+                  ),
+                ),
+                child: Row(
+                  textDirection: TextDirection.rtl,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: value
+                            ? tileAccent.withValues(alpha: 0.16)
+                            : scheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        icon,
+                        color: enabled
+                            ? (value ? tileAccent : scheme.onSurfaceVariant)
+                            : scheme.onSurface.withValues(alpha: 0.38),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: TextStyle(
+                              fontFamily: 'Vazirmatn',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: enabled
+                                  ? scheme.onSurface
+                                  : scheme.onSurface.withValues(alpha: 0.48),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: TextStyle(
+                              fontFamily: 'Vazirmatn',
+                              fontSize: 12,
+                              color: enabled
+                                  ? scheme.onSurfaceVariant
+                                  : scheme.onSurface.withValues(alpha: 0.38),
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ExcludeSemantics(
+                      child: IgnorePointer(
+                        child: Switch(
+                          value: value,
+                          onChanged: enabled ? onChanged : null,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
-      value: value,
-      onChanged: onChanged,
     );
   }
 }
@@ -2060,54 +2185,17 @@ class _ColorSection extends StatelessWidget {
             const SizedBox(height: 16),
             Divider(color: scheme.outlineVariant, height: 1),
             const SizedBox(height: 8),
-            // سوئیچ رنگ اتوماتیک
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              secondary: Container(
-                width: 40,
-                height: 40,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: scheme.tertiary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.phone_android_rounded,
-                  color: supportsDynamic
-                      ? scheme.tertiary
-                      : scheme.onSurfaceVariant,
-                  size: 20,
-                ),
-              ),
-              title: Text(
-                'دریافت رنگ اتوماتیک دستگاه',
-                style: TextStyle(
-                  fontFamily: 'Vazirmatn',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: supportsDynamic
-                      ? scheme.onSurface
-                      : scheme.onSurfaceVariant,
-                ),
-              ),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  supportsDynamic
-                      ? 'استفاده از رنگ پس‌زمینه دستگاه (اندروید ۱۲ و بالاتر)'
-                      : 'فقط در اندروید ۱۲ و بالاتر در دسترس است',
-                  style: TextStyle(
-                    fontFamily: 'Vazirmatn',
-                    fontSize: 12,
-                    color: scheme.onSurfaceVariant,
-                    height: 1.4,
-                  ),
-                ),
-              ),
+            _SwitchTile(
+              icon: Icons.phone_android_rounded,
+              title: 'دریافت رنگ اتوماتیک دستگاه',
+              subtitle: supportsDynamic
+                  ? 'استفاده از رنگ پس‌زمینه دستگاه (اندروید ۱۲ و بالاتر)'
+                  : 'فقط در اندروید ۱۲ و بالاتر در دسترس است',
               value: colorConfig.useDynamicColors && supportsDynamic,
-              onChanged: supportsDynamic
-                  ? (v) => controller.updateColorConfig(useDynamicColors: v)
-                  : null,
+              enabled: supportsDynamic,
+              accent: scheme.tertiary,
+              onChanged: (v) =>
+                  controller.updateColorConfig(useDynamicColors: v),
             ),
             if (!colorConfig.useDynamicColors) ...[
               const SizedBox(height: 16),
@@ -2160,93 +2248,27 @@ class _ThemeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _ThemeOption(
-          icon: Icons.brightness_auto_rounded,
-          label: 'سیستم',
-          isSelected: selected == ThemeMode.system,
-          onTap: () => onChanged(ThemeMode.system),
+    return SegmentedButton<ThemeMode>(
+      showSelectedIcon: false,
+      segments: const [
+        ButtonSegment(
+          value: ThemeMode.system,
+          icon: Icon(Icons.brightness_auto_rounded),
+          label: Text('سیستم'),
         ),
-        const SizedBox(width: 8),
-        _ThemeOption(
-          icon: Icons.light_mode_rounded,
-          label: 'روشن',
-          isSelected: selected == ThemeMode.light,
-          onTap: () => onChanged(ThemeMode.light),
+        ButtonSegment(
+          value: ThemeMode.light,
+          icon: Icon(Icons.light_mode_rounded),
+          label: Text('روشن'),
         ),
-        const SizedBox(width: 8),
-        _ThemeOption(
-          icon: Icons.dark_mode_rounded,
-          label: 'تاریک',
-          isSelected: selected == ThemeMode.dark,
-          onTap: () => onChanged(ThemeMode.dark),
+        ButtonSegment(
+          value: ThemeMode.dark,
+          icon: Icon(Icons.dark_mode_rounded),
+          label: Text('تاریک'),
         ),
       ],
-    );
-  }
-}
-
-// -------- آیتم تم --------
-class _ThemeOption extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _ThemeOption({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? scheme.primaryContainer
-                : scheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? scheme.primary : scheme.outlineVariant,
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: isSelected
-                    ? scheme.onPrimaryContainer
-                    : scheme.onSurfaceVariant,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'Vazirmatn',
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected
-                      ? scheme.onPrimaryContainer
-                      : scheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      selected: {selected},
+      onSelectionChanged: (selection) => onChanged(selection.first),
     );
   }
 }
@@ -2668,7 +2690,7 @@ class _AboutRow extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              value,
+              PersianNumberFormatter.toPersian(value),
               textAlign: TextAlign.left,
               style: TextStyle(
                 fontFamily: 'Vazirmatn',

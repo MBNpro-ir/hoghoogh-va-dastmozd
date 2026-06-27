@@ -7,6 +7,7 @@ import '../../services/employee_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/persian_date_helper.dart';
+import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/persian_date_picker.dart';
@@ -54,7 +55,9 @@ class _EmployeeLeaveFormScreenState extends State<EmployeeLeaveFormScreen> {
     _toDateCtrl = TextEditingController(
       text: PersianNumberFormatter.toPersian(leave?.toDate ?? initialDate),
     );
-    _notesCtrl = TextEditingController(text: leave?.notes ?? '');
+    _notesCtrl = TextEditingController(
+      text: PersianNumberFormatter.toPersian(leave?.notes ?? ''),
+    );
     _init();
   }
 
@@ -334,6 +337,9 @@ class _EmployeeLeaveFormScreenState extends State<EmployeeLeaveFormScreen> {
                             TextFormField(
                               controller: _notesCtrl,
                               maxLines: 3,
+                              inputFormatters: const [
+                                PersianDigitsInputFormatter(),
+                              ],
                               decoration: const InputDecoration(
                                 labelText: 'توضیحات اختیاری',
                                 prefixIcon: Icon(Icons.notes_rounded),
@@ -385,6 +391,7 @@ class _EmployeeLeaveFormScreenState extends State<EmployeeLeaveFormScreen> {
       controller: controller,
       readOnly: true,
       onTap: onTap,
+      inputFormatters: const [PersianDateInputFormatter()],
       textDirection: TextDirection.ltr,
       decoration: InputDecoration(
         labelText: label,

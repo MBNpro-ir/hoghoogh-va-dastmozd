@@ -24,7 +24,7 @@ void main() {
     final draft = EmployeeBatchDraft(settings: settings, personnelCode: 42);
     addTearDown(draft.dispose);
 
-    expect(draft.personnelCode.text, '42');
+    expect(draft.personnelCode.text, '۴۲');
     expect(draft.workplace.text, companyName);
     expect(draft.startDateEnglish, PersianDateHelper.todayText());
     expect(draft.selectedRate, settings.salaryRateA);
@@ -125,7 +125,7 @@ void main() {
     final copy = draft.copyAsNew(settings: settings, personnelCode: 25);
     addTearDown(copy.dispose);
     expect(copy.isExisting, isFalse);
-    expect(copy.personnelCode.text, '25');
+    expect(copy.personnelCode.text, '۲۵');
     expect(copy.fullName, draft.fullName);
     expect(copy.touched, isTrue);
     expect(copy.startDate.text, '۱۳۹۹/۰۲/۰۳');

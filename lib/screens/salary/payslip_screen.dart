@@ -1168,7 +1168,7 @@ class PayslipScreen extends StatelessWidget {
                       ),
                     ),
                     pw.Text(
-                      '${record.overtimeHours.toStringAsFixed(0)} ساعت',
+                      '${PersianNumberFormatter.toPersian(record.overtimeHours.toStringAsFixed(0))} ساعت',
                       style: pw.TextStyle(
                         fontSize: 13,
                         fontWeight: pw.FontWeight.bold,

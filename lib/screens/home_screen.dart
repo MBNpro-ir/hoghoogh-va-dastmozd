@@ -11,6 +11,7 @@ import '../services/company_service.dart';
 import '../services/sync_service.dart';
 import '../utils/constants.dart';
 import '../utils/responsive.dart';
+import '../widgets/android_expressive_nav_bar.dart';
 import '../widgets/app_sidebar.dart';
 import '../widgets/sync_status_banner.dart';
 import 'advances/advances_list_screen.dart';
@@ -76,6 +77,11 @@ class _HomeScreenState extends State<HomeScreen> {
     const SidebarItem(label: 'مساعده کارکنان', icon: Icons.payments_rounded),
     const SidebarItem(label: 'عملیات دسته‌ای', icon: Icons.fact_check_rounded),
     const SidebarItem(label: 'تنظیمات سیستم', icon: Icons.settings_rounded),
+  ];
+
+  List<AndroidExpressiveNavDestination> get _mobilePrimaryDestinations => [
+    for (final item in _items.take(4))
+      AndroidExpressiveNavDestination(icon: item.icon, label: item.label),
   ];
 
   @override
@@ -156,6 +162,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _goToIndex(0);
       },
       child: Scaffold(
+        extendBody: Platform.isAndroid,
         drawer: Drawer(
           child: AppSidebar(
             currentIndex: _index,
@@ -189,36 +196,56 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         body: Platform.isAndroid
-            ? _buildMobilePager(enablePullToRefresh: true)
+            ? _buildAndroidMobileBody()
             : Column(
                 children: [
                   const SyncStatusBanner(),
                   Expanded(child: _buildMobilePager()),
                 ],
               ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _index < 4 ? _index : 0,
-          onDestinationSelected: (i) => _goToIndex(i),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.dashboard_rounded),
-              label: 'داشبورد',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.groups_rounded),
-              label: 'کارکنان',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.calculate_rounded),
-              label: 'محاسبه',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.receipt_long_rounded),
-              label: 'فیش‌ها',
-            ),
-          ],
-        ),
+        bottomNavigationBar: Platform.isAndroid
+            ? null
+            : NavigationBar(
+                selectedIndex: _index < 4 ? _index : 0,
+                onDestinationSelected: (i) => _goToIndex(i),
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.dashboard_rounded),
+                    label: 'داشبورد',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.groups_rounded),
+                    label: 'کارکنان',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.calculate_rounded),
+                    label: 'محاسبه',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.receipt_long_rounded),
+                    label: 'فیش‌ها',
+                  ),
+                ],
+              ),
       ),
+    );
+  }
+
+  Widget _buildAndroidMobileBody() {
+    return Stack(
+      children: [
+        Positioned.fill(child: _buildMobilePager(enablePullToRefresh: true)),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: AndroidExpressiveNavigationBar(
+            selectedIndex: _index < 4 ? _index : -1,
+            onDestinationSelected: _goToIndex,
+            destinations: _mobilePrimaryDestinations,
+          ),
+        ),
+      ],
     );
   }
 

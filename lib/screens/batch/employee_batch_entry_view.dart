@@ -13,6 +13,7 @@ import '../../services/sync_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/constants.dart';
 import '../../utils/persian_date_helper.dart';
+import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/seniority_helper.dart';
@@ -1173,7 +1174,7 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
                       ? const _PersianNumberInputFormatter()
                       : const _PersianDigitsInputFormatter(),
                 ]
-              : null,
+              : const [PersianDigitsInputFormatter()],
           textInputAction: TextInputAction.next,
           decoration: InputDecoration(
             hintText: hint,
@@ -1670,22 +1671,24 @@ class EmployeeBatchDraft {
     required AppSettings settings,
   }) {
     employeeId = employee.id;
-    personnelCode.text = employee.personnelCode.toString();
-    firstName.text = employee.firstName;
-    lastName.text = employee.lastName;
+    personnelCode.text = PersianNumberFormatter.toPersian(
+      employee.personnelCode.toString(),
+    );
+    firstName.text = PersianNumberFormatter.toPersian(employee.firstName);
+    lastName.text = PersianNumberFormatter.toPersian(employee.lastName);
     nationalId.text = PersianNumberFormatter.toPersian(employee.nationalId);
-    fatherName.text = employee.fatherName;
+    fatherName.text = PersianNumberFormatter.toPersian(employee.fatherName);
     birthCertificateNumber.text = PersianNumberFormatter.toPersian(
       employee.birthCertificateNumber,
     );
-    workplace.text = employee.workplace;
+    workplace.text = PersianNumberFormatter.toPersian(employee.workplace);
     bankAccountNumber.text = PersianNumberFormatter.toPersian(
       employee.bankAccountNumber,
     );
     jobCode.text = PersianNumberFormatter.toPersian(employee.jobCode);
-    jobTitle.text = employee.jobTitle;
+    jobTitle.text = PersianNumberFormatter.toPersian(employee.jobTitle);
     birthDate.text = PersianNumberFormatter.toPersian(employee.birthDate);
-    birthPlace.text = employee.birthPlace;
+    birthPlace.text = PersianNumberFormatter.toPersian(employee.birthPlace);
     phone.text = PersianNumberFormatter.toPersian(employee.phone);
     childrenCount.text = PersianNumberFormatter.toPersian(
       employee.childrenCount.toString(),
@@ -1707,10 +1710,12 @@ class EmployeeBatchDraft {
     insuranceNumber.text = PersianNumberFormatter.toPersian(
       employee.insuranceNumber,
     );
-    position.text = employee.position;
-    address.text = employee.address;
-    payslipFooterNote.text = employee.payslipFooterNote;
-    notes.text = employee.notes ?? '';
+    position.text = PersianNumberFormatter.toPersian(employee.position);
+    address.text = PersianNumberFormatter.toPersian(employee.address);
+    payslipFooterNote.text = PersianNumberFormatter.toPersian(
+      employee.payslipFooterNote,
+    );
+    notes.text = PersianNumberFormatter.toPersian(employee.notes ?? '');
 
     gender = EmployeeReferenceData.genders.contains(employee.gender)
         ? employee.gender
@@ -1848,7 +1853,9 @@ class EmployeeBatchDraft {
 
   bool get isExisting => employeeId != null;
 
-  String get fullName => '${firstName.text} ${lastName.text}'.trim();
+  String get fullName => PersianNumberFormatter.toPersian(
+    '${firstName.text} ${lastName.text}'.trim(),
+  );
 
   int get childrenCountValue => parseInt(childrenCount.text) ?? 0;
 
@@ -1874,8 +1881,10 @@ class EmployeeBatchDraft {
     errors = [];
     employeeId = null;
 
-    this.personnelCode.text = personnelCode.toString();
-    workplace.text = settings.companyName;
+    this.personnelCode.text = PersianNumberFormatter.toPersian(
+      personnelCode.toString(),
+    );
+    workplace.text = PersianNumberFormatter.toPersian(settings.companyName);
     startDate.text = PersianNumberFormatter.toPersian(
       PersianDateHelper.todayText(),
     );
@@ -1899,7 +1908,9 @@ class EmployeeBatchDraft {
     );
     copy
       ..employeeId = null
-      ..personnelCode.text = personnelCode.toString()
+      ..personnelCode.text = PersianNumberFormatter.toPersian(
+        personnelCode.toString(),
+      )
       ..errors = []
       ..touched = true;
     return copy;
