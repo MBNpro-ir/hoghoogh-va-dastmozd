@@ -1,19 +1,23 @@
-📅 **۱۴۰۵/۰۴/۰۶ | 2026-06-27**
+**1405/04/06 | 2026-06-27**
 
-## 💳 بخش پرداخت
-- اضافه‌شدن بخش جدید «بخش پرداخت» برای مشاهده فیش‌های حقوقی همه دوره‌ها.
-- ثبت وضعیت پرداخت‌شده یا پرداخت‌نشده برای هر فیش، همراه با دلیل پرداخت نشدن.
-- نمایش اعلان داخل برنامه برای ادمین‌ها پس از دریافت تغییرات پرداخت از sync.
+## Payment Section
+- Added payslip viewing and printing directly from payment cards.
+- Added payment status history so unpaid/paid changes remain visible with actor, date, and unpaid reason.
+- Kept both paid and unpaid actions available so a later payment can update an earlier unpaid status.
+- Added copy action for the net payable amount.
+- Added configurable payment-card layout with automatic/manual columns and card sizing for desktop and mobile.
 
-## 🔐 سطح دسترسی
-- اضافه‌شدن نقش جدید «بخش پرداخت» در بک‌اند، sync و اپلیکیشن.
-- محدودشدن کاربر بخش پرداخت به صفحه پرداخت و تنظیمات پس از ورود.
-- دریافت نقش کاربر از سرور هنگام login/refresh.
+## Updates
+- Added GitHub release update checks in settings.
+- Added automatic update check on app launch.
+- Added optional automatic download of update assets.
+- Added Windows portable updater flow that closes the app, replaces files, and relaunches.
+- Added Android APK download and install prompt flow.
 
-## 🖥️ پنل مدیریت و بک‌اند
-- اضافه‌شدن انتخاب سطح دسترسی در ساخت و ویرایش کاربران پنل مدیریت.
-- اضافه‌شدن جدول sync وضعیت پرداخت به دیتابیس، backup/restore و اعتبارسنجی سرور.
-- جهت‌دار شدن داینامیک فیلدهای متنی پنل مدیریت و اضافه‌شدن کپی رمز موقت.
+## Backend Sync
+- Added synced `change_log` storage for payment statuses.
+- Added server validation and backup/restore support for payment history.
 
-## 🚀 انتشار
-- اجرای workflow انتشار روی push به `master` و ساخت pre-release خودکار با تگ نسخه.
+## Quality
+- Updated the app, server, and admin package versions for `0.9.0-alpha`.
+- Release workflow continues to run on `master` and publish this version as a pre-release.

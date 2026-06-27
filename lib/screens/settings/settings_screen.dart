@@ -16,6 +16,7 @@ import '../../services/settings_service.dart';
 import '../../services/api_client.dart';
 import '../../services/local_security_service.dart';
 import '../../services/sync_service.dart';
+import '../../services/update_service.dart';
 import '../../services/window_close_service.dart';
 import '../auth/local_unlock_setup_screen.dart';
 import '../auth/server_login_screen.dart';
@@ -41,12 +42,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _backupService = BackupService();
   final _security = LocalSecurityService();
   final _apiClient = ApiClient();
+  final _updateService = UpdateService();
   final _formKey = GlobalKey<FormState>();
 
   LocalCredentialMethod? _localMethod;
   bool _hasLocalCredential = false;
   bool _biometricEnabled = false;
   WindowCloseBehavior _closeBehavior = WindowCloseBehavior.ask;
+  UpdatePreferences _updatePreferences = const UpdatePreferences();
+  bool _checkingUpdate = false;
 
   AppSettings? _settings;
   bool _loading = true;
@@ -141,6 +145,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (Platform.isWindows) {
       _closeBehavior = await WindowClosePreferences.getBehavior();
     }
+    _updatePreferences = await _updateService.loadPreferences();
     if (mounted) setState(() => _loading = false);
   }
 
@@ -569,6 +574,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await WindowClosePreferences.setBehavior(behavior);
     if (!mounted) return;
     setState(() => _closeBehavior = behavior);
+  }
+
+  Future<void> _setUpdatePreferences(UpdatePreferences preferences) async {
+    final saved = await _updateService.savePreferences(preferences);
+    if (!mounted) return;
+    setState(() => _updatePreferences = saved);
+  }
+
+  Future<void> _checkUpdateNow() async {
+    if (_checkingUpdate) return;
+    setState(() => _checkingUpdate = true);
+    try {
+      await _updateService.checkAndPrompt(context);
+    } finally {
+      if (mounted) setState(() => _checkingUpdate = false);
+    }
   }
 
   Future<void> _changeServerAccount() async {
@@ -1015,6 +1036,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onToggleBiometrics: _toggleBiometrics,
                         onClearCredential: _clearLocalCredential,
                         onChangeServerAccount: _changeServerAccount,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FadeInUp(
+                      delay: const Duration(milliseconds: 620),
+                      child: _UpdateSection(
+                        preferences: _updatePreferences,
+                        checking: _checkingUpdate,
+                        onAutoCheckChanged: (value) => _setUpdatePreferences(
+                          _updatePreferences.copyWith(autoCheck: value),
+                        ),
+                        onAutoDownloadChanged: (value) => _setUpdatePreferences(
+                          _updatePreferences.copyWith(autoDownload: value),
+                        ),
+                        onCheckNow: _checkUpdateNow,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -1815,6 +1851,111 @@ class _SwitchTile extends StatelessWidget {
 }
 
 // -------- بخش امنیت ورود به برنامه --------
+class _UpdateSection extends StatelessWidget {
+  final UpdatePreferences preferences;
+  final bool checking;
+  final ValueChanged<bool> onAutoCheckChanged;
+  final ValueChanged<bool> onAutoDownloadChanged;
+  final VoidCallback onCheckNow;
+
+  const _UpdateSection({
+    required this.preferences,
+    required this.checking,
+    required this.onAutoCheckChanged,
+    required this.onAutoDownloadChanged,
+    required this.onCheckNow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.system_update_alt_rounded,
+                    color: scheme.primary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'آپدیت برنامه',
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(right: 56),
+              child: Text(
+                'نسخه‌های جدید از GitHub بررسی می‌شوند و فایل مناسب ویندوز یا اندروید دانلود می‌شود.',
+                style: TextStyle(
+                  fontFamily: 'Vazirmatn',
+                  fontSize: 12,
+                  color: scheme.onSurfaceVariant,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Divider(color: scheme.outlineVariant, height: 1),
+            const SizedBox(height: 8),
+            _SwitchTile(
+              icon: Icons.manage_search_rounded,
+              title: 'بررسی خودکار هنگام باز شدن برنامه',
+              subtitle: 'در هر اجرا، آخرین pre-release گیت‌هاب بررسی می‌شود',
+              value: preferences.autoCheck,
+              onChanged: onAutoCheckChanged,
+            ),
+            _SwitchTile(
+              icon: Icons.downloading_rounded,
+              title: 'دانلود خودکار آپدیت',
+              subtitle:
+                  'پس از پیدا شدن نسخه جدید، فایل نصب به صورت خودکار دانلود می‌شود',
+              value: preferences.autoDownload,
+              enabled: preferences.autoCheck,
+              onChanged: onAutoDownloadChanged,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: checking ? null : onCheckNow,
+              icon: checking
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.update_rounded),
+              label: Text(checking ? 'در حال بررسی...' : 'بررسی آپدیت'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SecuritySection extends StatelessWidget {
   final bool hasCredential;
   final LocalCredentialMethod? method;

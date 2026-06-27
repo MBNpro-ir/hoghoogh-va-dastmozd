@@ -8,6 +8,7 @@ class SalaryPaymentStatus {
   final String updatedByUsername;
   final String updatedByRole;
   final DateTime statusChangedAt;
+  final String changeLog;
 
   const SalaryPaymentStatus({
     this.id,
@@ -19,6 +20,7 @@ class SalaryPaymentStatus {
     this.updatedByUsername = '',
     this.updatedByRole = '',
     required this.statusChangedAt,
+    this.changeLog = '[]',
   });
 
   Map<String, dynamic> toMap() => {
@@ -31,6 +33,7 @@ class SalaryPaymentStatus {
     'updated_by_username': updatedByUsername,
     'updated_by_role': updatedByRole,
     'status_changed_at': statusChangedAt.toUtc().toIso8601String(),
+    'change_log': changeLog.trim().isEmpty ? '[]' : changeLog,
   };
 
   factory SalaryPaymentStatus.fromMap(Map<String, dynamic> map) {
@@ -47,6 +50,9 @@ class SalaryPaymentStatus {
       updatedByUsername: map['updated_by_username']?.toString() ?? '',
       updatedByRole: map['updated_by_role']?.toString() ?? '',
       statusChangedAt: changedAt,
+      changeLog: map['change_log']?.toString().trim().isNotEmpty == true
+          ? map['change_log'].toString()
+          : '[]',
     );
   }
 }

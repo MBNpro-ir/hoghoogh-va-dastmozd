@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 15;
+  static const int _dbVersion = 16;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -512,6 +512,18 @@ class DatabaseHelper {
       await _createSalaryPaymentStatusesTable(db);
       await _createSyncIndexes(db);
     }
+    if (oldVersion < 16) {
+      await _safeAddColumn(
+        db,
+        'salary_payment_statuses',
+        "change_log TEXT NOT NULL DEFAULT '[]'",
+      );
+      await db.execute('''
+        UPDATE salary_payment_statuses
+        SET change_log = '[]'
+        WHERE change_log IS NULL OR TRIM(change_log) = '';
+      ''');
+    }
   }
 
   Future<void> _createSalaryDraftsTable(Database db) async {
@@ -597,6 +609,7 @@ class DatabaseHelper {
         updated_by_username TEXT NOT NULL DEFAULT '',
         updated_by_role TEXT NOT NULL DEFAULT '',
         status_changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        change_log TEXT NOT NULL DEFAULT '[]',
         sync_id TEXT UNIQUE,
         server_updated_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,

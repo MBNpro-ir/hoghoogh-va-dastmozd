@@ -1,4 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/salary_payment_service.dart';
 import '../../utils/business_validation.dart';
@@ -16,6 +20,9 @@ class PaymentScreen extends StatefulWidget {
 }
 
 class _PaymentScreenState extends State<PaymentScreen> {
+  static const _columnsPrefsKey = 'hvm_payment_grid_columns_v1';
+  static const _cardScalePrefsKey = 'hvm_payment_card_scale_v1';
+
   final _service = SalaryPaymentService();
   final _searchController = TextEditingController();
   List<PaymentSlipRow> _rows = const [];
@@ -25,10 +32,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
   String? _savingKey;
   bool _loading = true;
   String _error = '';
+  int _gridColumns = 0;
+  double _cardScale = 1;
 
   @override
   void initState() {
     super.initState();
+    _loadViewPreferences();
     _load();
   }
 
@@ -62,6 +72,29 @@ class _PaymentScreenState extends State<PaymentScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _loadViewPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _gridColumns = (prefs.getInt(_columnsPrefsKey) ?? 0).clamp(0, 6);
+      _cardScale = (prefs.getDouble(_cardScalePrefsKey) ?? 1).clamp(0.85, 1.2);
+    });
+  }
+
+  Future<void> _setGridColumns(int columns) async {
+    final clean = columns.clamp(0, 6);
+    setState(() => _gridColumns = clean);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_columnsPrefsKey, clean);
+  }
+
+  Future<void> _setCardScale(double scale) async {
+    final clean = scale.clamp(0.85, 1.2);
+    setState(() => _cardScale = clean);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_cardScalePrefsKey, clean);
   }
 
   List<PaymentSlipRow> get _filteredRows {
@@ -100,6 +133,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
               trailing: _PaymentSummary(rows: visible),
             ),
           ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: _PaymentLayoutControls(
+                columns: _gridColumns,
+                cardScale: _cardScale,
+                onColumnsChanged: _setGridColumns,
+                onCardScaleChanged: _setCardScale,
+              ),
+            ),
+          ),
           if (_error.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
@@ -118,23 +162,53 @@ class _PaymentScreenState extends State<PaymentScreen> {
               child: _EmptyPaymentState(hasAnyPeriod: _periods.isNotEmpty),
             )
           else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
-              sliver: SliverList.separated(
-                itemBuilder: (context, index) => _PaymentCard(
-                  row: visible[index],
-                  saving: _savingKey == _keyOf(visible[index]),
-                  onOpenPayslip: () => _openPayslip(visible[index]),
-                  onPaid: () => _save(row: visible[index], isPaid: true),
-                  onUnpaid: () => _markUnpaid(visible[index]),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 128),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final spacing = 10.0 * _cardScale;
+                    final columns = _effectiveColumns(constraints.maxWidth);
+                    final itemWidth =
+                        (constraints.maxWidth - spacing * (columns - 1)) /
+                        columns;
+                    return Wrap(
+                      spacing: spacing,
+                      runSpacing: spacing,
+                      children: [
+                        for (final row in visible)
+                          SizedBox(
+                            width: itemWidth.clamp(220.0, constraints.maxWidth),
+                            child: _PaymentCard(
+                              row: row,
+                              scale: _cardScale,
+                              saving: _savingKey == _keyOf(row),
+                              onCopyAmount: () => _copyFinalPayment(row),
+                              onOpenPayslip: () => _openPayslip(row),
+                              onPaid: () => _save(row: row, isPaid: true),
+                              onUnpaid: () => _markUnpaid(row),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemCount: visible.length,
               ),
             ),
         ],
       ),
     );
+  }
+
+  int _effectiveColumns(double width) {
+    if (_gridColumns > 0) {
+      final maxForWidth = width < 560 ? 2 : 6;
+      return _gridColumns.clamp(1, maxForWidth);
+    }
+    if (width >= 1320) return 4;
+    if (width >= 960) return 3;
+    if (width >= 620) return 2;
+    return 1;
   }
 
   Future<void> _markUnpaid(PaymentSlipRow row) async {
@@ -168,6 +242,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
       if (!mounted) return;
       setState(() => _error = e.toString().replaceAll('Exception: ', ''));
     }
+  }
+
+  Future<void> _copyFinalPayment(PaymentSlipRow row) async {
+    final raw = row.finalPayment.round().toString();
+    await Clipboard.setData(ClipboardData(text: raw));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'مبلغ خالص دریافتی ${PersianNumberFormatter.toPersian(raw)} ریال کپی شد',
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _save({
@@ -243,6 +331,110 @@ class _PaymentSummary extends StatelessWidget {
   }
 }
 
+class _PaymentLayoutControls extends StatelessWidget {
+  final int columns;
+  final double cardScale;
+  final ValueChanged<int> onColumnsChanged;
+  final ValueChanged<double> onCardScaleChanged;
+
+  const _PaymentLayoutControls({
+    required this.columns,
+    required this.cardScale,
+    required this.onColumnsChanged,
+    required this.onCardScaleChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final percent = ((cardScale - 1) * 100).round();
+    final percentText = percent == 0
+        ? 'عادی'
+        : '${percent > 0 ? '+' : ''}${PersianNumberFormatter.toPersian(percent.toString())}%';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final narrow = constraints.maxWidth < 720;
+            final columnsMenu = DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                value: columns,
+                borderRadius: BorderRadius.circular(12),
+                items: [
+                  const DropdownMenuItem(value: 0, child: Text('ستون خودکار')),
+                  for (var i = 1; i <= 6; i++)
+                    DropdownMenuItem(
+                      value: i,
+                      child: Text(
+                        '${PersianNumberFormatter.toPersian(i.toString())} ستون',
+                      ),
+                    ),
+                ],
+                onChanged: (value) => onColumnsChanged(value ?? 0),
+              ),
+            );
+            final scaleControl = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.fit_screen_rounded, size: 20, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text(percentText),
+                SizedBox(
+                  width: narrow
+                      ? math.max<double>(140, constraints.maxWidth - 220)
+                      : 220,
+                  child: Slider(
+                    value: cardScale,
+                    min: 0.85,
+                    max: 1.2,
+                    divisions: 7,
+                    onChanged: onCardScaleChanged,
+                  ),
+                ),
+              ],
+            );
+            final reset = IconButton(
+              tooltip: 'بازنشانی چیدمان',
+              onPressed: () {
+                onColumnsChanged(0);
+                onCardScaleChanged(1);
+              },
+              icon: const Icon(Icons.restart_alt_rounded),
+            );
+            if (narrow) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.view_comfy_alt_rounded),
+                      const SizedBox(width: 8),
+                      Expanded(child: columnsMenu),
+                      reset,
+                    ],
+                  ),
+                  scaleControl,
+                ],
+              );
+            }
+            return Row(
+              children: [
+                const Icon(Icons.view_comfy_alt_rounded),
+                const SizedBox(width: 8),
+                columnsMenu,
+                const SizedBox(width: 24),
+                Expanded(child: scaleControl),
+                reset,
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class _SummaryChip extends StatelessWidget {
   final String label;
   final int value;
@@ -267,14 +459,18 @@ class _SummaryChip extends StatelessWidget {
 
 class _PaymentCard extends StatelessWidget {
   final PaymentSlipRow row;
+  final double scale;
   final bool saving;
+  final VoidCallback onCopyAmount;
   final VoidCallback onOpenPayslip;
   final VoidCallback onPaid;
   final VoidCallback onUnpaid;
 
   const _PaymentCard({
     required this.row,
+    required this.scale,
     required this.saving,
+    required this.onCopyAmount,
     required this.onOpenPayslip,
     required this.onPaid,
     required this.onUnpaid,
@@ -297,9 +493,11 @@ class _PaymentCard extends StatelessWidget {
         : unpaid
         ? 'پرداخت‌نشده'
         : 'ثبت‌نشده';
+    final padding = 14.0 * scale;
+    final gap = 10.0 * scale;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(padding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -316,7 +514,7 @@ class _PaymentCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: gap),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,7 +532,7 @@ class _PaymentCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: gap * 0.8),
                 Chip(
                   side: BorderSide(color: statusColor.withValues(alpha: 0.45)),
                   backgroundColor: statusColor.withValues(alpha: 0.12),
@@ -348,16 +546,17 @@ class _PaymentCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: gap + 4),
             Row(
               children: [
                 Expanded(
                   child: _AmountTile(
                     label: 'خالص دریافتی',
                     value: row.finalPayment,
+                    onCopy: onCopyAmount,
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: gap),
                 Expanded(
                   child: _MetaTile(
                     label: 'آخرین ثبت',
@@ -375,7 +574,7 @@ class _PaymentCard extends StatelessWidget {
               ],
             ),
             if (unpaid && row.unpaidReason.trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: gap + 2),
               DecoratedBox(
                 decoration: BoxDecoration(
                   color: scheme.errorContainer.withValues(alpha: 0.35),
@@ -390,13 +589,17 @@ class _PaymentCard extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 14),
+            if (row.history.isNotEmpty) ...[
+              SizedBox(height: gap + 2),
+              _PaymentHistoryTimeline(entries: row.history),
+            ],
+            SizedBox(height: gap + 4),
             OutlinedButton.icon(
               onPressed: saving ? null : onOpenPayslip,
               icon: const Icon(Icons.print_rounded),
               label: const Text('نمایش و چاپ فیش'),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: gap),
             Row(
               children: [
                 Expanded(
@@ -428,10 +631,94 @@ class _PaymentCard extends StatelessWidget {
   }
 }
 
+class _PaymentHistoryTimeline extends StatelessWidget {
+  final List<PaymentStatusLogEntry> entries;
+  const _PaymentHistoryTimeline({required this.entries});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final latest = entries.reversed.take(4).toList();
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'تاریخچه وضعیت',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            for (final entry in latest) _PaymentHistoryRow(entry: entry),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentHistoryRow extends StatelessWidget {
+  final PaymentStatusLogEntry entry;
+  const _PaymentHistoryRow({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = entry.isPaid ? Colors.green : scheme.error;
+    final date = PersianNumberFormatter.toPersian(
+      PersianDateHelper.formatJalali(
+        PersianDateHelper.fromGregorian(entry.changedAt.toLocal()),
+      ),
+    );
+    final status = entry.isPaid ? 'پرداخت شد' : 'پرداخت نشد';
+    final actor = entry.actor.trim().isEmpty ? '' : ' - ${entry.actor}';
+    final reason = entry.reason.trim();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            entry.isPaid
+                ? Icons.check_circle_rounded
+                : Icons.report_problem_rounded,
+            color: color,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              reason.isEmpty
+                  ? '$date - $status$actor'
+                  : '$date - $status$actor؛ دلیل: $reason',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AmountTile extends StatelessWidget {
   final String label;
   final double value;
-  const _AmountTile({required this.label, required this.value});
+  final VoidCallback onCopy;
+  const _AmountTile({
+    required this.label,
+    required this.value,
+    required this.onCopy,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -446,7 +733,22 @@ class _AmountTile extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'کپی مبلغ',
+                  onPressed: onCopy,
+                  icon: const Icon(Icons.content_copy_rounded, size: 18),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
             const SizedBox(height: 4),
             CurrencyText(
               value,

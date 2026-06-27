@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../database/database_helper.dart';
 import '../models/app_settings.dart';
 import '../models/employee.dart';
@@ -24,6 +26,7 @@ class PaymentSlipRow {
   final String updatedByRole;
   final String? serverUpdatedAt;
   final DateTime? statusChangedAt;
+  final List<PaymentStatusLogEntry> history;
 
   const PaymentSlipRow({
     required this.salaryRecordId,
@@ -41,6 +44,7 @@ class PaymentSlipRow {
     required this.updatedByRole,
     required this.serverUpdatedAt,
     required this.statusChangedAt,
+    required this.history,
   });
 
   bool get hasStatus => statusId != null;
@@ -76,7 +80,63 @@ class PaymentSlipRow {
       statusChangedAt: DateTime.tryParse(
         map['status_changed_at']?.toString() ?? '',
       ),
+      history: PaymentStatusLogEntry.listFromJson(
+        map['change_log']?.toString(),
+      ),
     );
+  }
+}
+
+class PaymentStatusLogEntry {
+  final bool isPaid;
+  final String reason;
+  final String actor;
+  final String role;
+  final DateTime changedAt;
+
+  const PaymentStatusLogEntry({
+    required this.isPaid,
+    required this.reason,
+    required this.actor,
+    required this.role,
+    required this.changedAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'is_paid': isPaid,
+    'reason': reason,
+    'actor': actor,
+    'role': role,
+    'changed_at': changedAt.toUtc().toIso8601String(),
+  };
+
+  factory PaymentStatusLogEntry.fromJson(Map<String, dynamic> json) {
+    return PaymentStatusLogEntry(
+      isPaid: json['is_paid'] == true || json['is_paid'] == 1,
+      reason: json['reason']?.toString() ?? '',
+      actor: json['actor']?.toString() ?? '',
+      role: json['role']?.toString() ?? '',
+      changedAt:
+          DateTime.tryParse(json['changed_at']?.toString() ?? '') ??
+          DateTime.now().toUtc(),
+    );
+  }
+
+  static List<PaymentStatusLogEntry> listFromJson(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      return decoded
+          .whereType<Map>()
+          .map(
+            (item) =>
+                PaymentStatusLogEntry.fromJson(Map<String, dynamic>.from(item)),
+          )
+          .toList();
+    } catch (_) {
+      return const [];
+    }
   }
 }
 
@@ -126,6 +186,7 @@ class SalaryPaymentService {
         ps.updated_by_username,
         ps.updated_by_role,
         ps.status_changed_at,
+        ps.change_log,
         ps.server_updated_at AS payment_server_updated_at
       FROM salary_records sr
       JOIN employees e ON e.id = sr.employee_id
@@ -175,6 +236,54 @@ class SalaryPaymentService {
         ? user!['full_name'].toString().trim()
         : user?['username']?.toString().trim() ?? '';
     final role = user?['role']?.toString() ?? '';
+    final now = DateTime.now().toUtc();
+    final existing = await db.query(
+      'salary_payment_statuses',
+      columns: [
+        'id',
+        'is_paid',
+        'unpaid_reason',
+        'updated_by_username',
+        'updated_by_role',
+        'status_changed_at',
+        'change_log',
+      ],
+      where: 'employee_id = ? AND year = ? AND month = ?',
+      whereArgs: [employeeId, year, month],
+      limit: 1,
+    );
+    final history = existing.isEmpty
+        ? <PaymentStatusLogEntry>[]
+        : PaymentStatusLogEntry.listFromJson(
+            existing.first['change_log']?.toString(),
+          );
+    if (existing.isNotEmpty && history.isEmpty) {
+      history.add(
+        PaymentStatusLogEntry(
+          isPaid: (existing.first['is_paid'] as num? ?? 0) != 0,
+          reason: existing.first['unpaid_reason']?.toString() ?? '',
+          actor: existing.first['updated_by_username']?.toString() ?? '',
+          role: existing.first['updated_by_role']?.toString() ?? '',
+          changedAt:
+              DateTime.tryParse(
+                existing.first['status_changed_at']?.toString() ?? '',
+              ) ??
+              now,
+        ),
+      );
+    }
+    history.add(
+      PaymentStatusLogEntry(
+        isPaid: isPaid,
+        reason: isPaid ? '' : reason,
+        actor: username,
+        role: role,
+        changedAt: now,
+      ),
+    );
+    final limitedHistory = history.length > 50
+        ? history.sublist(history.length - 50)
+        : history;
     final status = SalaryPaymentStatus(
       employeeId: employeeId,
       year: year,
@@ -183,14 +292,10 @@ class SalaryPaymentService {
       unpaidReason: isPaid ? '' : reason,
       updatedByUsername: username,
       updatedByRole: role,
-      statusChangedAt: DateTime.now().toUtc(),
-    );
-    final existing = await db.query(
-      'salary_payment_statuses',
-      columns: ['id'],
-      where: 'employee_id = ? AND year = ? AND month = ?',
-      whereArgs: [employeeId, year, month],
-      limit: 1,
+      statusChangedAt: now,
+      changeLog: jsonEncode(
+        limitedHistory.map((entry) => entry.toJson()).toList(),
+      ),
     );
     final map = status.toMap()..remove('id');
     final id = existing.isEmpty

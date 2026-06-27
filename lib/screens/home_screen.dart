@@ -11,6 +11,7 @@ import '../services/api_client.dart';
 import '../services/company_service.dart';
 import '../services/payment_notification_service.dart';
 import '../services/sync_service.dart';
+import '../services/update_service.dart';
 import '../utils/constants.dart';
 import '../utils/persian_number_formatter.dart';
 import '../utils/responsive.dart';
@@ -50,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _sync = SyncService();
   final _api = ApiClient();
   final _paymentNotifications = PaymentNotificationService();
+  final _updates = UpdateService();
   CompanyProfile? _currentCompany;
   bool _sidebarCollapsed = false;
   String _userRole = '';
@@ -123,6 +125,10 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadCompanies();
     unawaited(_loadSidebarState());
     unawaited(_startSync());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_showUpdateStatus());
+      unawaited(_checkUpdatesOnOpen());
+    });
   }
 
   @override
@@ -470,6 +476,17 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     await _paymentNotifications.markSeen(notifications);
+  }
+
+  Future<void> _showUpdateStatus() async {
+    if (!mounted) return;
+    await _updates.showInstalledMessageIfNeeded(context);
+  }
+
+  Future<void> _checkUpdatesOnOpen() async {
+    await Future<void>.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    await _updates.checkAndPrompt(context, automatic: true);
   }
 }
 
