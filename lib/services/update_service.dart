@@ -207,6 +207,7 @@ class UpdateService {
     await _markInstallStarted(update.release.version.toString());
     if (Platform.isWindows) {
       await _installWindowsPortable(update);
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       exit(0);
     }
     if (Platform.isAndroid) {
@@ -361,7 +362,13 @@ class UpdateService {
         ],
       ),
     );
-    if (install == true) await installUpdate(downloaded);
+    if (install == true) {
+      if (Platform.isWindows && context.mounted) {
+        _showWindowsInstallingDialog(context, version);
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+      }
+      await installUpdate(downloaded);
+    }
   }
 
   Future<void> installUpdate(DownloadedUpdate downloaded) =>
@@ -376,26 +383,7 @@ class UpdateService {
         'hvm_update_${DateTime.now().millisecondsSinceEpoch}.ps1',
       ),
     );
-    await script.writeAsString(r'''
-param(
-  [int]$AppPid,
-  [string]$ZipPath,
-  [string]$AppDir,
-  [string]$ExePath
-)
-$ErrorActionPreference = "Stop"
-Wait-Process -Id $AppPid -ErrorAction SilentlyContinue
-$ExtractDir = Join-Path $env:TEMP ("hvm-update-" + [guid]::NewGuid().ToString())
-New-Item -ItemType Directory -Path $ExtractDir -Force | Out-Null
-Expand-Archive -LiteralPath $ZipPath -DestinationPath $ExtractDir -Force
-$Bundle = Get-ChildItem -Path $ExtractDir -Directory -Recurse |
-  Where-Object { Test-Path (Join-Path $_.FullName "payroll_app.exe") } |
-  Select-Object -First 1
-if (-not $Bundle) { throw "Update bundle was not found." }
-Get-ChildItem -LiteralPath $Bundle.FullName |
-  Copy-Item -Destination $AppDir -Recurse -Force
-Start-Process -FilePath $ExePath -WorkingDirectory $AppDir
-''');
+    await script.writeAsString(buildWindowsPortableUpdaterScript());
     await Process.start('powershell', [
       '-NoProfile',
       '-ExecutionPolicy',
@@ -407,6 +395,35 @@ Start-Process -FilePath $ExePath -WorkingDirectory $AppDir
       appDir,
       exePath,
     ], mode: ProcessStartMode.detached);
+  }
+
+  void _showWindowsInstallingDialog(BuildContext context, String version) {
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            title: Text('در حال نصب نسخه $version'),
+            content: const Row(
+              children: [
+                SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    'برنامه در حال آماده‌سازی نصب است. پنجره بسته می‌شود، فایل‌ها جایگزین می‌شوند و برنامه به صورت خودکار اجرا می‌شود.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _markInstallStarted(String version) async {
@@ -428,6 +445,80 @@ Start-Process -FilePath $ExePath -WorkingDirectory $AppDir
     return clean.length > 600 ? '${clean.substring(0, 600)}...' : clean;
   }
 }
+
+String buildWindowsPortableUpdaterScript() => r'''
+param(
+  [int]$AppPid,
+  [string]$ZipPath,
+  [string]$AppDir,
+  [string]$ExePath
+)
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+$LogPath = Join-Path $env:TEMP ("hvm-update-" + $AppPid + ".log")
+
+function Write-UpdateLog([string]$Message) {
+  $Stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+  Add-Content -LiteralPath $LogPath -Value ("[$Stamp] " + $Message)
+}
+
+try {
+  Write-UpdateLog "Updater started."
+  Wait-Process -Id $AppPid -ErrorAction SilentlyContinue
+  Start-Sleep -Milliseconds 700
+
+  if (-not (Test-Path -LiteralPath $ZipPath)) {
+    throw "Update zip was not found: $ZipPath"
+  }
+  if (-not (Test-Path -LiteralPath $AppDir)) {
+    throw "Application directory was not found: $AppDir"
+  }
+
+  $ExtractDir = Join-Path $env:TEMP ("hvm-update-" + [guid]::NewGuid().ToString())
+  New-Item -ItemType Directory -Path $ExtractDir -Force | Out-Null
+  Write-UpdateLog "Extracting $ZipPath to $ExtractDir"
+  Expand-Archive -LiteralPath $ZipPath -DestinationPath $ExtractDir -Force
+
+  $RootExe = Join-Path $ExtractDir "payroll_app.exe"
+  if (Test-Path -LiteralPath $RootExe) {
+    $BundlePath = $ExtractDir
+  } else {
+    $Bundle = Get-ChildItem -LiteralPath $ExtractDir -Directory -Recurse |
+      Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "payroll_app.exe") } |
+      Select-Object -First 1
+    if (-not $Bundle) { throw "Update bundle was not found inside extracted zip." }
+    $BundlePath = $Bundle.FullName
+  }
+
+  Write-UpdateLog "Copying files from $BundlePath to $AppDir"
+  Get-ChildItem -LiteralPath $BundlePath -Force |
+    ForEach-Object {
+      Copy-Item -LiteralPath $_.FullName -Destination $AppDir -Recurse -Force
+    }
+
+  $LaunchPath = Join-Path $AppDir (Split-Path -Path $ExePath -Leaf)
+  if (-not (Test-Path -LiteralPath $LaunchPath)) {
+    $LaunchPath = Join-Path $AppDir "payroll_app.exe"
+  }
+  if (-not (Test-Path -LiteralPath $LaunchPath)) {
+    throw "Updated executable was not found: $LaunchPath"
+  }
+
+  Write-UpdateLog "Launching $LaunchPath"
+  Start-Process -FilePath $LaunchPath -WorkingDirectory $AppDir
+  Remove-Item -LiteralPath $ExtractDir -Recurse -Force -ErrorAction SilentlyContinue
+  Write-UpdateLog "Updater finished."
+} catch {
+  Write-UpdateLog ("ERROR: " + $_.Exception.Message)
+  try {
+    Add-Type -AssemblyName PresentationFramework
+    [System.Windows.MessageBox]::Show(
+      "HvM update failed. Please check this log:`n$LogPath",
+      "HvM Updater"
+    ) | Out-Null
+  } catch {}
+}
+''';
 
 class UpdateException implements Exception {
   final String message;
