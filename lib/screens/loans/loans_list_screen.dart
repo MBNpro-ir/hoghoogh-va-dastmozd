@@ -359,15 +359,23 @@ class _LoansListScreenState extends State<LoansListScreen> {
       ),
     ),
     ResponsiveTableColumn(
-      label: 'کارمند',
-      sortValue: (loan) => _employeesMap[loan.employeeId]?.fullName ?? '',
+      label: 'کد',
+      sortValue: (loan) => _employeesMap[loan.employeeId]?.personnelCode ?? 0,
       cellBuilder: (loan) {
         final emp = _employeesMap[loan.employeeId];
         return Text(
           emp != null
-              ? '${emp.fullName} (${PersianNumberFormatter.toPersian(emp.personnelCode.toString())})'
+              ? PersianNumberFormatter.toPersian(emp.personnelCode.toString())
               : '—',
         );
+      },
+    ),
+    ResponsiveTableColumn(
+      label: 'نام کارمند',
+      sortValue: (loan) => _employeesMap[loan.employeeId]?.fullName ?? '',
+      cellBuilder: (loan) {
+        final emp = _employeesMap[loan.employeeId];
+        return Text(emp?.fullName ?? '—');
       },
     ),
     ResponsiveTableColumn(

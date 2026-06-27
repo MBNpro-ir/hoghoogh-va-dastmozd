@@ -286,11 +286,26 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
       ),
     ),
     ResponsiveTableColumn(
-      label: 'کارمند',
+      label: 'کد',
+      sortValue: (advance) =>
+          _employeesMap[advance.employeeId]?.personnelCode ?? 0,
+      cellBuilder: (advance) {
+        final employee = _employeesMap[advance.employeeId];
+        return Text(
+          employee != null
+              ? PersianNumberFormatter.toPersian(
+                  employee.personnelCode.toString(),
+                )
+              : '—',
+        );
+      },
+    ),
+    ResponsiveTableColumn(
+      label: 'نام کارمند',
       sortValue: (advance) => _employeesMap[advance.employeeId]?.fullName ?? '',
       cellBuilder: (advance) {
         final employee = _employeesMap[advance.employeeId];
-        return Text(_employeeLabel(employee));
+        return Text(employee?.fullName ?? '—');
       },
     ),
     ResponsiveTableColumn(

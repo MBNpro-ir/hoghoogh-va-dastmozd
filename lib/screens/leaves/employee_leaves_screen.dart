@@ -364,10 +364,24 @@ class _EmployeeLeavesScreenState extends State<EmployeeLeavesScreen> {
       ),
     ),
     ResponsiveTableColumn(
-      label: 'کارمند',
+      label: 'کد',
+      sortValue: (leave) => _employeesMap[leave.employeeId]?.personnelCode ?? 0,
+      cellBuilder: (leave) {
+        final employee = _employeesMap[leave.employeeId];
+        return Text(
+          employee != null
+              ? PersianNumberFormatter.toPersian(
+                  employee.personnelCode.toString(),
+                )
+              : '—',
+        );
+      },
+    ),
+    ResponsiveTableColumn(
+      label: 'نام کارمند',
       sortValue: (leave) => _employeesMap[leave.employeeId]?.fullName ?? '',
       cellBuilder: (leave) =>
-          Text(_employeeLabel(_employeesMap[leave.employeeId])),
+          Text(_employeesMap[leave.employeeId]?.fullName ?? '—'),
     ),
     ResponsiveTableColumn(
       label: 'نوع',

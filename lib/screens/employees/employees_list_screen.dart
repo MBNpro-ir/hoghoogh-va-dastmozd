@@ -23,7 +23,7 @@ class EmployeesListScreen extends StatefulWidget {
 
 class _EmployeesListScreenState extends State<EmployeesListScreen> {
   static const _sortPreferenceKey = 'employees';
-  static const _defaultSortColumnIndex = 0;
+  static const _defaultSortColumnIndex = 1;
   static const _defaultSortAscending = true;
 
   final _service = EmployeeService();
@@ -291,20 +291,24 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
 
   List<ResponsiveTableColumn<Employee>> _columns(ColorScheme scheme) => [
     ResponsiveTableColumn(
-      label: 'کد پرسنلی',
+      label: 'ردیف',
+      sortValue: (e) => _filteredEmployees.indexOf(e),
+      cellBuilder: (e) => Text(
+        PersianNumberFormatter.toPersian(
+          (_filteredEmployees.indexOf(e) + 1).toString(),
+        ),
+      ),
+    ),
+    ResponsiveTableColumn(
+      label: 'کد',
       sortValue: (e) => e.personnelCode,
       cellBuilder: (e) =>
           Text(PersianNumberFormatter.toPersian(e.personnelCode.toString())),
     ),
     ResponsiveTableColumn(
-      label: 'نام',
-      sortValue: (e) => e.firstName,
-      cellBuilder: (e) => Text(PersianNumberFormatter.toPersian(e.firstName)),
-    ),
-    ResponsiveTableColumn(
-      label: 'نام خانوادگی',
-      sortValue: (e) => e.lastName,
-      cellBuilder: (e) => Text(PersianNumberFormatter.toPersian(e.lastName)),
+      label: 'نام کارمند',
+      sortValue: (e) => e.fullName,
+      cellBuilder: (e) => Text(PersianNumberFormatter.toPersian(e.fullName)),
     ),
     ResponsiveTableColumn(
       label: 'کد ملی',

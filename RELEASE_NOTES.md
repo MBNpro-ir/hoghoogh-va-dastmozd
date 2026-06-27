@@ -1,23 +1,16 @@
 **1405/04/06 | 2026-06-27**
 
-## Payment Section
-- Added payslip viewing and printing directly from payment cards.
-- Added payment status history so unpaid/paid changes remain visible with actor, date, and unpaid reason.
-- Kept both paid and unpaid actions available so a later payment can update an earlier unpaid status.
-- Added copy action for the net payable amount.
-- Added configurable payment-card layout with automatic/manual columns and card sizing for desktop and mobile.
+## Windows Tables
+- Rebuilt the shared desktop table view with a sticky header row.
+- Kept the right-side identity columns pinned while scrolling horizontally: row number, employee code, and employee name.
+- Made vertical and horizontal scrollbars permanently visible on desktop tables.
+- Synchronized frozen and scrollable table bodies so vertical scrolling stays aligned.
 
-## Updates
-- Added GitHub release update checks in settings.
-- Added automatic update check on app launch.
-- Added optional automatic download of update assets.
-- Added Windows portable updater flow that closes the app, replaces files, and relaunches.
-- Added Android APK download and install prompt flow.
-
-## Backend Sync
-- Added synced `change_log` storage for payment statuses.
-- Added server validation and backup/restore support for payment history.
+## Employee Columns
+- Split combined employee labels into separate code and employee-name columns in advances, loans, and leave tables.
+- Updated the employees table to start with row number, employee code, and employee name for the same frozen-column layout used by salary records.
 
 ## Quality
-- Updated the app, server, and admin package versions for `0.9.0-alpha`.
-- Release workflow continues to run on `master` and publish this version as a pre-release.
+- Added a widget regression test for the desktop responsive table shell.
+- Updated the app version to `0.9.1`.
+- Release workflow continues to run from `master` and publish this version as a pre-release.

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
@@ -9,12 +11,14 @@ class ResponsiveTableColumn<T> {
   final Widget Function(T item) cellBuilder;
   final Object? Function(T item)? sortValue;
   final bool numeric;
+  final double? width;
 
   const ResponsiveTableColumn({
     required this.label,
     required this.cellBuilder,
     this.sortValue,
     this.numeric = false,
+    this.width,
   });
 }
 
@@ -122,87 +126,393 @@ class _DesktopDataTable<T> extends StatefulWidget {
 }
 
 class _DesktopDataTableState<T> extends State<_DesktopDataTable<T>> {
+  static const _frozenColumnCount = 3;
+  static const _headerHeight = 58.0;
+  static const _rowHeight = 48.0;
+  static const _scrollbarThickness = 10.0;
+
   final _horizontalController = ScrollController();
   final _verticalController = ScrollController();
+  final _frozenVerticalController = ScrollController();
+  bool _syncingVertical = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _verticalController.addListener(_syncFrozenToBody);
+    _frozenVerticalController.addListener(_syncBodyToFrozen);
+  }
 
   @override
   void dispose() {
+    _verticalController.removeListener(_syncFrozenToBody);
+    _frozenVerticalController.removeListener(_syncBodyToFrozen);
     _horizontalController.dispose();
     _verticalController.dispose();
+    _frozenVerticalController.dispose();
     super.dispose();
+  }
+
+  void _syncFrozenToBody() {
+    _syncVertical(_verticalController, _frozenVerticalController);
+  }
+
+  void _syncBodyToFrozen() {
+    _syncVertical(_frozenVerticalController, _verticalController);
+  }
+
+  void _syncVertical(ScrollController source, ScrollController target) {
+    if (_syncingVertical || !source.hasClients || !target.hasClients) return;
+    if (!source.position.hasContentDimensions ||
+        !target.position.hasContentDimensions) {
+      return;
+    }
+
+    final targetOffset = source.offset
+        .clamp(target.position.minScrollExtent, target.position.maxScrollExtent)
+        .toDouble();
+    if ((target.offset - targetOffset).abs() < 0.5) return;
+
+    _syncingVertical = true;
+    target.jumpTo(targetOffset);
+    _syncingVertical = false;
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final specs = [
+      for (var i = 0; i < widget.columns.length; i++)
+        _TableColumnSpec<T>(
+          index: i,
+          column: widget.columns[i],
+          width: _columnWidth(widget.columns[i], i),
+        ),
+    ];
+    final frozenCount = math.min(_frozenColumnCount, specs.length);
+    final frozenSpecs = specs.take(frozenCount).toList(growable: false);
+    final scrollableSpecs = specs.skip(frozenCount).toList(growable: false);
+    final frozenWidth = frozenSpecs.fold<double>(
+      0,
+      (total, spec) => total + spec.width,
+    );
+
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: Scrollbar(
-        controller: _horizontalController,
-        thumbVisibility: true,
-        interactive: true,
-        scrollbarOrientation: ScrollbarOrientation.bottom,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tableHeight = constraints.maxHeight.isFinite
+              ? constraints.maxHeight
+              : math.max(
+                  360.0,
+                  math.min(620.0, widget.items.length * _rowHeight + 96),
+                );
+          final scrollableWidth = math.max(
+            scrollableSpecs.fold<double>(
+              0,
+              (total, spec) => total + spec.width,
+            ),
+            constraints.maxWidth.isFinite
+                ? math.max(0.0, constraints.maxWidth - frozenWidth)
+                : 0.0,
+          );
+
+          return SizedBox(
+            height: tableHeight,
+            child: Row(
+              textDirection: TextDirection.rtl,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _frozenPane(frozenSpecs, frozenWidth, scheme),
+                if (scrollableSpecs.isNotEmpty)
+                  Expanded(
+                    child: _scrollablePane(
+                      scrollableSpecs,
+                      scrollableWidth,
+                      scheme,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  double _columnWidth(ResponsiveTableColumn<T> column, int index) {
+    if (column.width != null) return column.width!;
+
+    final label = column.label;
+    if (index == 0 || label.contains('ردیف')) return 72;
+    if (index == 1 || label.contains('کد')) return 112;
+    if (index == 2 || label.contains('نام')) return 184;
+    if (label.contains('عملیات')) return 136;
+    if (label.contains('توضیحات')) return 220;
+    if (label.contains('دستمزد') || label.contains('حقوق پایه')) return 176;
+    if (label.contains('جمع')) return 160;
+    if (column.numeric) return 142;
+    if (label.length > 14) return 168;
+    return 132;
+  }
+
+  Widget _frozenPane(
+    List<_TableColumnSpec<T>> specs,
+    double width,
+    ColorScheme scheme,
+  ) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        border: Border(left: BorderSide(color: scheme.outlineVariant)),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(-4, 0),
+          ),
+        ],
+      ),
+      child: SizedBox(
+        width: width,
+        child: Column(
+          children: [
+            _headerRow(specs, scheme, frozen: true),
+            Expanded(
+              child: Scrollbar(
+                controller: _frozenVerticalController,
+                thumbVisibility: true,
+                trackVisibility: true,
+                interactive: true,
+                thickness: _scrollbarThickness,
+                radius: const Radius.circular(8),
+                scrollbarOrientation: ScrollbarOrientation.right,
+                notificationPredicate: (notification) =>
+                    notification.metrics.axis == Axis.vertical,
+                child: _withoutAutomaticScrollbars(
+                  child: SingleChildScrollView(
+                    controller: _frozenVerticalController,
+                    primary: false,
+                    child: _bodyRows(specs, scheme),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _scrollablePane(
+    List<_TableColumnSpec<T>> specs,
+    double width,
+    ColorScheme scheme,
+  ) {
+    return Scrollbar(
+      controller: _horizontalController,
+      thumbVisibility: true,
+      trackVisibility: true,
+      interactive: true,
+      thickness: _scrollbarThickness,
+      radius: const Radius.circular(8),
+      scrollbarOrientation: ScrollbarOrientation.bottom,
+      notificationPredicate: (notification) =>
+          notification.metrics.axis == Axis.horizontal,
+      child: _withoutAutomaticScrollbars(
         child: SingleChildScrollView(
           controller: _horizontalController,
           scrollDirection: Axis.horizontal,
           primary: false,
-          child: Scrollbar(
-            controller: _verticalController,
-            thumbVisibility: true,
-            interactive: true,
-            child: SingleChildScrollView(
-              controller: _verticalController,
-              primary: false,
-              child: DataTable(
-                sortColumnIndex: widget.sortColumnIndex,
-                sortAscending: widget.sortAscending,
-                headingRowColor: WidgetStateProperty.all(
-                  widget.headerColor.withValues(alpha: 0.14),
-                ),
-                headingTextStyle: TextStyle(
-                  color: scheme.onSurface,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                ),
-                dataTextStyle: const TextStyle(fontSize: 13),
-                dividerThickness: 0.6,
-                columnSpacing: 22,
-                horizontalMargin: 18,
-                columns: [
-                  for (var i = 0; i < widget.columns.length; i++)
-                    DataColumn(
-                      label: Text(widget.columns[i].label),
-                      numeric: widget.columns[i].numeric,
-                      onSort: widget.columns[i].sortValue == null
-                          ? null
-                          : (columnIndex, ascending) {
-                              widget.onSortColumnChanged(columnIndex);
-                              widget.onSortDirectionChanged(ascending);
-                            },
+          child: SizedBox(
+            width: width,
+            child: Column(
+              children: [
+                _headerRow(specs, scheme),
+                Expanded(
+                  child: _withoutAutomaticScrollbars(
+                    child: SingleChildScrollView(
+                      controller: _verticalController,
+                      primary: false,
+                      child: _bodyRows(specs, scheme),
                     ),
-                ],
-                rows: [
-                  for (final item in widget.items)
-                    DataRow(
-                      color: WidgetStateProperty.resolveWith((states) {
-                        if (states.contains(WidgetState.hovered)) {
-                          return widget.headerColor.withValues(alpha: 0.06);
-                        }
-                        return null;
-                      }),
-                      cells: [
-                        for (final column in widget.columns)
-                          DataCell(column.cellBuilder(item)),
-                      ],
-                    ),
-                ],
-              ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+
+  Widget _headerRow(
+    List<_TableColumnSpec<T>> specs,
+    ColorScheme scheme, {
+    bool frozen = false,
+  }) {
+    return Container(
+      height: _headerHeight,
+      decoration: BoxDecoration(
+        color: widget.headerColor.withValues(alpha: frozen ? 0.18 : 0.14),
+        border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
+      ),
+      child: Row(
+        textDirection: TextDirection.rtl,
+        children: [for (final spec in specs) _headerCell(spec, scheme)],
+      ),
+    );
+  }
+
+  Widget _headerCell(_TableColumnSpec<T> spec, ColorScheme scheme) {
+    final sortable = spec.column.sortValue != null;
+    final selected = widget.sortColumnIndex == spec.index;
+    final icon = selected
+        ? (widget.sortAscending
+              ? Icons.arrow_upward_rounded
+              : Icons.arrow_downward_rounded)
+        : Icons.unfold_more_rounded;
+
+    return SizedBox(
+      width: spec.width,
+      height: _headerHeight,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: sortable ? () => _sortBy(spec.index) : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              textDirection: TextDirection.rtl,
+              mainAxisAlignment: spec.column.numeric
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.start,
+              children: [
+                Flexible(
+                  child: Text(
+                    spec.column.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                if (sortable) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: selected
+                        ? widget.headerColor
+                        : scheme.onSurfaceVariant,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _sortBy(int index) {
+    final nextAscending = widget.sortColumnIndex == index
+        ? !widget.sortAscending
+        : true;
+    widget.onSortColumnChanged(index);
+    widget.onSortDirectionChanged(nextAscending);
+  }
+
+  Widget _bodyRows(List<_TableColumnSpec<T>> specs, ColorScheme scheme) {
+    if (widget.items.isEmpty) {
+      return SizedBox(
+        height: 136,
+        child: Center(
+          child: Text(
+            'داده‌ای برای نمایش وجود ندارد',
+            style: TextStyle(color: scheme.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        children: [
+          for (var rowIndex = 0; rowIndex < widget.items.length; rowIndex++)
+            _bodyRow(specs, widget.items[rowIndex], rowIndex, scheme),
+        ],
+      ),
+    );
+  }
+
+  Widget _bodyRow(
+    List<_TableColumnSpec<T>> specs,
+    T item,
+    int rowIndex,
+    ColorScheme scheme,
+  ) {
+    final fill = rowIndex.isEven
+        ? scheme.surface
+        : scheme.surfaceContainerLowest.withValues(alpha: 0.38);
+    return ColoredBox(
+      color: fill,
+      child: Row(
+        textDirection: TextDirection.rtl,
+        children: [for (final spec in specs) _bodyCell(spec, item, scheme)],
+      ),
+    );
+  }
+
+  Widget _bodyCell(_TableColumnSpec<T> spec, T item, ColorScheme scheme) {
+    final alignment = spec.column.numeric
+        ? Alignment.centerLeft
+        : Alignment.centerRight;
+    return Container(
+      width: spec.width,
+      height: _rowHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
+      ),
+      alignment: alignment,
+      child: DefaultTextStyle.merge(
+        style: TextStyle(color: scheme.onSurface, fontSize: 13),
+        child: IconTheme.merge(
+          data: IconThemeData(color: scheme.onSurfaceVariant, size: 20),
+          child: ClipRect(
+            child: Align(
+              alignment: alignment,
+              child: spec.column.cellBuilder(item),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _withoutAutomaticScrollbars({required Widget child}) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: child,
+    );
+  }
+}
+
+class _TableColumnSpec<T> {
+  final int index;
+  final ResponsiveTableColumn<T> column;
+  final double width;
+
+  const _TableColumnSpec({
+    required this.index,
+    required this.column,
+    required this.width,
+  });
 }
 
 class MobileDataCard extends StatelessWidget {

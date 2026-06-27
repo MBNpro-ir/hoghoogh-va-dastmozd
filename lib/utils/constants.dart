@@ -8,7 +8,7 @@ class AppConstants {
   /// ورژن برنامه - فقط از pubspec.yaml خوانده می‌شود.
   /// برای تغییر ورژن، فقط فایل pubspec.yaml را ویرایش کنید.
   static String get appVersion {
-    const fallback = '0.9.0 alpha';
+    const fallback = '0.9.1';
     try {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       final match = RegExp(
