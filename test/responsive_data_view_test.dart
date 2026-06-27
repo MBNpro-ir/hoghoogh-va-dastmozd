@@ -80,6 +80,17 @@ void main() {
     expect(find.text('کد'), findsOneWidget);
     expect(find.text('نام کارمند'), findsOneWidget);
     expect(find.byType(Scrollbar), findsNWidgets(2));
+
+    final netPayHeader = find.byKey(const ValueKey('responsive-header-cell-5'));
+    final netPayHandle = find.byKey(
+      const ValueKey('responsive-column-resize-5'),
+    );
+    final beforeWidth = tester.getSize(netPayHeader).width;
+
+    await tester.drag(netPayHandle, const Offset(-42, 0));
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(netPayHeader).width, greaterThan(beforeWidth));
   });
 }
 

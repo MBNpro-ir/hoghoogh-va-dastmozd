@@ -130,10 +130,13 @@ class _DesktopDataTableState<T> extends State<_DesktopDataTable<T>> {
   static const _headerHeight = 58.0;
   static const _rowHeight = 48.0;
   static const _scrollbarThickness = 10.0;
+  static const _minColumnWidth = 64.0;
+  static const _maxColumnWidth = 360.0;
 
   final _horizontalController = ScrollController();
   final _verticalController = ScrollController();
   final _frozenVerticalController = ScrollController();
+  final Map<int, double> _columnWidthOverrides = {};
   bool _syncingVertical = false;
 
   @override
@@ -151,6 +154,14 @@ class _DesktopDataTableState<T> extends State<_DesktopDataTable<T>> {
     _verticalController.dispose();
     _frozenVerticalController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DesktopDataTable<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _columnWidthOverrides.removeWhere(
+      (index, _) => index >= widget.columns.length,
+    );
   }
 
   void _syncFrozenToBody() {
@@ -186,7 +197,7 @@ class _DesktopDataTableState<T> extends State<_DesktopDataTable<T>> {
         _TableColumnSpec<T>(
           index: i,
           column: widget.columns[i],
-          width: _columnWidth(widget.columns[i], i),
+          width: _effectiveColumnWidth(widget.columns[i], i),
         ),
     ];
     final frozenCount = math.min(_frozenColumnCount, specs.length);
@@ -240,20 +251,34 @@ class _DesktopDataTableState<T> extends State<_DesktopDataTable<T>> {
     );
   }
 
-  double _columnWidth(ResponsiveTableColumn<T> column, int index) {
-    if (column.width != null) return column.width!;
+  double _effectiveColumnWidth(ResponsiveTableColumn<T> column, int index) {
+    return _columnWidthOverrides[index] ?? _defaultColumnWidth(column, index);
+  }
+
+  double _defaultColumnWidth(ResponsiveTableColumn<T> column, int index) {
+    if (column.width != null) {
+      return column.width!.clamp(_minColumnWidth, _maxColumnWidth).toDouble();
+    }
 
     final label = column.label;
-    if (index == 0 || label.contains('ردیف')) return 72;
-    if (index == 1 || label.contains('کد')) return 112;
-    if (index == 2 || label.contains('نام')) return 184;
-    if (label.contains('عملیات')) return 136;
-    if (label.contains('توضیحات')) return 220;
-    if (label.contains('دستمزد') || label.contains('حقوق پایه')) return 176;
-    if (label.contains('جمع')) return 160;
-    if (column.numeric) return 142;
-    if (label.length > 14) return 168;
-    return 132;
+    if (index == 0 || label.contains('ردیف')) return 70;
+    if (index == 1 || label == 'کد' || label.contains('کد کارمند')) return 92;
+    if (index == 2 || label.contains('نام')) return 210;
+    if (label.contains('عملیات')) return 118;
+    if (label.contains('توضیحات') || label.contains('شرح')) return 240;
+    if (label.contains('دوره')) return 126;
+    if (label.contains('کارکرد') || label.contains('استعلاجی')) return 104;
+    if (label.contains('خالص')) return 156;
+    if (label.contains('جمع')) return 150;
+    if (label.contains('مالیات') ||
+        label.contains('بیمه') ||
+        label.contains('قسط') ||
+        label.contains('مساعده')) {
+      return 132;
+    }
+    if (column.numeric) return 126;
+    final textDrivenWidth = 88 + math.min(128, label.runes.length * 7);
+    return textDrivenWidth.clamp(_minColumnWidth, _maxColumnWidth).toDouble();
   }
 
   Widget _frozenPane(
@@ -374,48 +399,89 @@ class _DesktopDataTableState<T> extends State<_DesktopDataTable<T>> {
         : Icons.unfold_more_rounded;
 
     return SizedBox(
+      key: ValueKey('responsive-header-cell-${spec.index}'),
       width: spec.width,
       height: _headerHeight,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: sortable ? () => _sortBy(spec.index) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              textDirection: TextDirection.rtl,
-              mainAxisAlignment: spec.column.numeric
-                  ? MainAxisAlignment.end
-                  : MainAxisAlignment.start,
-              children: [
-                Flexible(
-                  child: Text(
-                    spec.column.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: scheme.onSurface,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: sortable ? () => _sortBy(spec.index) : null,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  child: Row(
+                    textDirection: TextDirection.rtl,
+                    mainAxisAlignment: spec.column.numeric
+                        ? MainAxisAlignment.end
+                        : MainAxisAlignment.start,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          spec.column.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      if (sortable) ...[
+                        const SizedBox(width: 6),
+                        Icon(
+                          icon,
+                          size: 16,
+                          color: selected
+                              ? widget.headerColor
+                              : scheme.onSurfaceVariant,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.resizeLeftRight,
+              child: GestureDetector(
+                key: ValueKey('responsive-column-resize-${spec.index}'),
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragUpdate: (details) =>
+                    _resizeColumn(spec, details.delta.dx),
+                child: SizedBox(
+                  width: 12,
+                  child: Center(
+                    child: Container(
+                      width: 1,
+                      height: 24,
+                      color: scheme.outlineVariant.withValues(alpha: 0.72),
                     ),
                   ),
                 ),
-                if (sortable) ...[
-                  const SizedBox(width: 6),
-                  Icon(
-                    icon,
-                    size: 16,
-                    color: selected
-                        ? widget.headerColor
-                        : scheme.onSurfaceVariant,
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
+  }
+
+  void _resizeColumn(_TableColumnSpec<T> spec, double deltaX) {
+    final nextWidth = (spec.width - deltaX)
+        .clamp(_minColumnWidth, _maxColumnWidth)
+        .toDouble();
+    if ((nextWidth - spec.width).abs() < 0.5) return;
+    setState(() {
+      _columnWidthOverrides[spec.index] = nextWidth;
+    });
   }
 
   void _sortBy(int index) {

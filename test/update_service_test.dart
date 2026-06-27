@@ -11,6 +11,10 @@ void main() {
       script,
       contains(r'Get-ChildItem -LiteralPath $ExtractDir -Directory -Recurse'),
     );
+    expect(script, contains(r'[string]$MarkerPath'));
+    expect(script, contains(r'Wait-ExecutableUnlocked $ExePath'));
+    expect(script, contains(r'Copy-WithRetry $_.FullName $AppDir'));
+    expect(script, contains(r'Set-Content -LiteralPath $MarkerPath'));
     expect(script, contains(r'Get-ChildItem -LiteralPath $BundlePath -Force'));
     expect(script, contains(r'Start-Process -FilePath $LaunchPath'));
   });

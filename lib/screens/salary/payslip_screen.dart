@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:excel/excel.dart' as xls;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -44,18 +45,18 @@ extension _PayslipPaperDetails on _PayslipPaper {
   };
 
   PdfPageFormat get format => switch (this) {
-    _PayslipPaper.a4 => PdfPageFormat.a4.landscape,
-    _PayslipPaper.a5 => PdfPageFormat.a5.landscape,
+    _PayslipPaper.a4 => PdfPageFormat.a4,
+    _PayslipPaper.a5 => PdfPageFormat.a5,
     _PayslipPaper.b5 => PdfPageFormat(
       176 * PdfPageFormat.mm,
       250 * PdfPageFormat.mm,
-    ).landscape,
+    ),
   };
 
   double get designWidth => switch (this) {
-    _PayslipPaper.a4 => 790,
-    _PayslipPaper.a5 => 700,
-    _PayslipPaper.b5 => 740,
+    _PayslipPaper.a4 => 540,
+    _PayslipPaper.a5 => 380,
+    _PayslipPaper.b5 => 455,
   };
 }
 
@@ -680,9 +681,9 @@ class PayslipScreen extends StatelessWidget {
           final imagePaper = await _askPaperSize(context, 'اندازه عکس فیش');
           if (imagePaper == null) return;
           await _saveBytes(
-            bytes: await _capturePngBytes(paper: imagePaper),
-            fileName: '${_fileBaseName()}.png',
-            extension: 'png',
+            bytes: await _captureJpegBytes(paper: imagePaper),
+            fileName: '${_fileBaseName()}.jpg',
+            extension: 'jpg',
           );
           break;
         case _PayslipExportAction.saveText:
@@ -704,9 +705,9 @@ class PayslipScreen extends StatelessWidget {
             extension: 'pdf',
           );
           await _saveBytes(
-            bytes: await _capturePngBytes(paper: comboPaper),
-            fileName: '${_fileBaseName()}.png',
-            extension: 'png',
+            bytes: await _captureJpegBytes(paper: comboPaper),
+            fileName: '${_fileBaseName()}.jpg',
+            extension: 'jpg',
           );
           break;
         case _PayslipExportAction.saveExcel:
@@ -741,8 +742,8 @@ class PayslipScreen extends StatelessWidget {
           );
           if (shareImagePaper == null) return;
           await _shareFile(
-            await _capturePngBytes(paper: shareImagePaper),
-            '${_fileBaseName()}.png',
+            await _captureJpegBytes(paper: shareImagePaper),
+            '${_fileBaseName()}.jpg',
           );
           break;
         case _PayslipExportAction.shareText:
@@ -929,16 +930,41 @@ class PayslipScreen extends StatelessWidget {
     return file.writeAsBytes(bytes, flush: true);
   }
 
-  Future<Uint8List> _capturePngBytes({
+  Future<Uint8List> _captureJpegBytes({
     _PayslipPaper paper = _PayslipPaper.a5,
   }) async {
     final pdfBytes = await _buildPdfBytes(paper: paper);
     final page = await Printing.raster(
       pdfBytes,
       pages: const [0],
-      dpi: 180,
+      dpi: 300,
     ).first;
-    return page.toPng();
+    return _rasterToWhiteJpeg(page);
+  }
+
+  Uint8List _rasterToWhiteJpeg(PdfRaster raster) {
+    final source = raster.pixels;
+    final rgb = Uint8List(raster.width * raster.height * 3);
+    for (var si = 0, di = 0; si < source.length; si += 4, di += 3) {
+      final alpha = source[si + 3];
+      rgb[di] = _blendOnWhite(source[si], alpha);
+      rgb[di + 1] = _blendOnWhite(source[si + 1], alpha);
+      rgb[di + 2] = _blendOnWhite(source[si + 2], alpha);
+    }
+    final image = img.Image.fromBytes(
+      width: raster.width,
+      height: raster.height,
+      bytes: rgb.buffer,
+      numChannels: 3,
+      order: img.ChannelOrder.rgb,
+    );
+    return Uint8List.fromList(img.encodeJpg(image, quality: 95));
+  }
+
+  int _blendOnWhite(int channel, int alpha) {
+    return ((channel * alpha + 255 * (255 - alpha)) ~/ 255)
+        .clamp(0, 255)
+        .toInt();
   }
 
   Future<Uint8List> _buildPdfBytes({
@@ -954,14 +980,19 @@ class PayslipScreen extends StatelessWidget {
     doc.addPage(
       pw.Page(
         pageFormat: paper.format,
+        margin: pw.EdgeInsets.zero,
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
-        build: (ctx) => pw.FittedBox(
-          fit: pw.BoxFit.contain,
-          alignment: pw.Alignment.center,
-          child: pw.SizedBox(
-            width: paper.designWidth,
-            child: _buildPdfContent(),
+        build: (ctx) => pw.Container(
+          color: PdfColors.white,
+          padding: const pw.EdgeInsets.all(18),
+          child: pw.FittedBox(
+            fit: pw.BoxFit.contain,
+            alignment: pw.Alignment.topCenter,
+            child: pw.SizedBox(
+              width: paper.designWidth,
+              child: _buildPdfContent(),
+            ),
           ),
         ),
       ),
@@ -1171,7 +1202,7 @@ class PayslipScreen extends StatelessWidget {
                 crossAxisAlignment: pw.CrossAxisAlignment.end,
                 children: [
                   pw.Text(
-                    'تاریخ: ${PersianDateHelper.monthName(record.month)} ${record.year}',
+                    'تاریخ: ${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())}',
                     style: const pw.TextStyle(fontSize: 10),
                   ),
                 ],
@@ -1190,7 +1221,7 @@ class PayslipScreen extends StatelessWidget {
             children: [
               pw.Expanded(
                 child: pw.Text(
-                  'کد کارمند: $_employeePersonnelCode',
+                  'کد کارمند: ${PersianNumberFormatter.toPersian(_employeePersonnelCode.toString())}',
                   style: const pw.TextStyle(fontSize: 10),
                 ),
               ),
@@ -1203,7 +1234,7 @@ class PayslipScreen extends StatelessWidget {
               ),
               pw.Expanded(
                 child: pw.Text(
-                  'کد ملی: $_employeeNationalId',
+                  'کد ملی: ${PersianNumberFormatter.toPersian(_employeeNationalId)}',
                   style: const pw.TextStyle(fontSize: 10),
                 ),
               ),
@@ -1227,7 +1258,7 @@ class PayslipScreen extends StatelessWidget {
                       ),
                     ),
                     pw.Text(
-                      _formatDays(record.workDays, persian: false),
+                      _formatDays(record.workDays),
                       style: pw.TextStyle(
                         fontSize: 13,
                         fontWeight: pw.FontWeight.bold,
@@ -1277,7 +1308,7 @@ class PayslipScreen extends StatelessWidget {
                       ),
                     ),
                     pw.Text(
-                      _formatDays(record.leaveDays, persian: false),
+                      _formatDays(record.leaveDays),
                       style: pw.TextStyle(
                         fontSize: 13,
                         fontWeight: pw.FontWeight.bold,
@@ -1302,7 +1333,7 @@ class PayslipScreen extends StatelessWidget {
                       ),
                     ),
                     pw.Text(
-                      _formatDays(record.sickLeaveDays, persian: false),
+                      _formatDays(record.sickLeaveDays),
                       style: pw.TextStyle(
                         fontSize: 13,
                         fontWeight: pw.FontWeight.bold,
@@ -1403,7 +1434,7 @@ class PayslipScreen extends StatelessWidget {
               ),
               pw.Spacer(),
               pw.Text(
-                '${PersianNumberFormatter.formatRial(record.finalPayment, persian: false)} ریال',
+                '${PersianNumberFormatter.formatRial(record.finalPayment)} ریال',
                 style: pw.TextStyle(
                   color: PdfColors.white,
                   fontSize: 14,
@@ -1472,7 +1503,7 @@ class PayslipScreen extends StatelessWidget {
             ),
           ),
           pw.Text(
-            PersianNumberFormatter.formatRial(value, persian: false),
+            PersianNumberFormatter.formatRial(value),
             style: pw.TextStyle(
               fontSize: 9,
               fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,

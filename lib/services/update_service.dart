@@ -120,6 +120,8 @@ class UpdateService {
   static const _autoDownloadKey = 'hvm_update_auto_download_v1';
   static const _pendingInstalledVersionKey =
       'hvm_update_pending_installed_version_v1';
+  static const _pendingInstallMarkerPathKey =
+      'hvm_update_pending_install_marker_path_v1';
 
   Future<UpdatePreferences> loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
@@ -204,13 +206,16 @@ class UpdateService {
   }
 
   Future<void> install(DownloadedUpdate update) async {
-    await _markInstallStarted(update.release.version.toString());
     if (Platform.isWindows) {
-      await _installWindowsPortable(update);
+      final markerPath = await _markWindowsInstallPending(
+        update.release.version.toString(),
+      );
+      await _installWindowsPortable(update, markerPath: markerPath);
       await Future<void>.delayed(const Duration(milliseconds: 250));
       exit(0);
     }
     if (Platform.isAndroid) {
+      await _markInstallStarted(update.release.version.toString());
       await OpenFilex.open(
         update.filePath,
         type: 'application/vnd.android.package-archive',
@@ -259,24 +264,28 @@ class UpdateService {
     }
     final shouldDownload = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'آپدیت ${PersianNumberFormatter.toPersian(available.version.toString())}',
-        ),
-        content: Text(
-          'نسخه جدید آماده دانلود است.\n${_trimBody(available.body)}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('بعدا'),
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: Text(
+            'آپدیت ${PersianNumberFormatter.toPersian(available.version.toString())}',
           ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.download_rounded),
-            label: const Text('دانلود'),
+          content: Text(
+            'نسخه جدید آماده دانلود است.\n${_trimBody(available.body)}',
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('بعدا'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.download_rounded),
+              label: const Text('دانلود'),
+            ),
+          ],
+        ),
       ),
     );
     if (shouldDownload != true || !context.mounted) return;
@@ -288,7 +297,20 @@ class UpdateService {
     final prefs = await SharedPreferences.getInstance();
     final version = prefs.getString(_pendingInstalledVersionKey);
     if (version == null || version.isEmpty) return;
+    final markerPath = prefs.getString(_pendingInstallMarkerPathKey);
+    if (Platform.isWindows && markerPath != null && markerPath.isNotEmpty) {
+      final marker = File(markerPath);
+      if (!await marker.exists()) {
+        await prefs.remove(_pendingInstalledVersionKey);
+        await prefs.remove(_pendingInstallMarkerPathKey);
+        return;
+      }
+      try {
+        await marker.delete();
+      } catch (_) {}
+    }
     await prefs.remove(_pendingInstalledVersionKey);
+    await prefs.remove(_pendingInstallMarkerPathKey);
     if (!context.mounted) return;
     _snack(
       context,
@@ -342,24 +364,28 @@ class UpdateService {
     );
     final install = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('نصب نسخه $version'),
-        content: Text(
-          Platform.isWindows
-              ? 'آپدیت دانلود شد. با تایید شما برنامه بسته می‌شود، فایل‌های نسخه جدید جایگزین می‌شوند و برنامه دوباره اجرا می‌شود.'
-              : 'آپدیت دانلود شد. با تایید شما نصب‌کننده اندروید باز می‌شود.',
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: Text('نصب نسخه $version'),
+          content: Text(
+            Platform.isWindows
+                ? 'آپدیت دانلود شد. با تایید شما برنامه بسته می‌شود، فایل‌های نسخه جدید جایگزین می‌شوند و برنامه دوباره اجرا می‌شود.'
+                : 'آپدیت دانلود شد. با تایید شما نصب‌کننده اندروید باز می‌شود.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('بعدا'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.system_update_alt_rounded),
+              label: const Text('نصب'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('بعدا'),
-          ),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            icon: const Icon(Icons.system_update_alt_rounded),
-            label: const Text('نصب'),
-          ),
-        ],
       ),
     );
     if (install == true) {
@@ -374,7 +400,10 @@ class UpdateService {
   Future<void> installUpdate(DownloadedUpdate downloaded) =>
       install(downloaded);
 
-  Future<void> _installWindowsPortable(DownloadedUpdate update) async {
+  Future<void> _installWindowsPortable(
+    DownloadedUpdate update, {
+    required String markerPath,
+  }) async {
     final exePath = Platform.resolvedExecutable;
     final appDir = p.dirname(exePath);
     final script = File(
@@ -394,6 +423,7 @@ class UpdateService {
       update.filePath,
       appDir,
       exePath,
+      markerPath,
     ], mode: ProcessStartMode.detached);
   }
 
@@ -431,6 +461,18 @@ class UpdateService {
     await prefs.setString(_pendingInstalledVersionKey, version);
   }
 
+  Future<String> _markWindowsInstallPending(String version) async {
+    final dir = await getTemporaryDirectory();
+    final markerPath = p.join(
+      dir.path,
+      'hvm-update-installed-$version-${DateTime.now().millisecondsSinceEpoch}.marker',
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pendingInstalledVersionKey, version);
+    await prefs.setString(_pendingInstallMarkerPathKey, markerPath);
+    return markerPath;
+  }
+
   void _snack(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(PersianNumberFormatter.toPersian(message))),
@@ -451,7 +493,8 @@ param(
   [int]$AppPid,
   [string]$ZipPath,
   [string]$AppDir,
-  [string]$ExePath
+  [string]$ExePath,
+  [string]$MarkerPath
 )
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
@@ -462,10 +505,47 @@ function Write-UpdateLog([string]$Message) {
   Add-Content -LiteralPath $LogPath -Value ("[$Stamp] " + $Message)
 }
 
+function Test-FileUnlocked([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return $true }
+  try {
+    $Stream = [System.IO.File]::Open(
+      $Path,
+      [System.IO.FileMode]::Open,
+      [System.IO.FileAccess]::ReadWrite,
+      [System.IO.FileShare]::None
+    )
+    $Stream.Close()
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+function Wait-ExecutableUnlocked([string]$Path) {
+  for ($Index = 0; $Index -lt 80; $Index++) {
+    if (Test-FileUnlocked $Path) { return }
+    Start-Sleep -Milliseconds 250
+  }
+  throw "Application executable is still locked: $Path"
+}
+
+function Copy-WithRetry([string]$Source, [string]$Destination) {
+  for ($Index = 0; $Index -lt 50; $Index++) {
+    try {
+      Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
+      return
+    } catch {
+      if ($Index -eq 49) { throw }
+      Start-Sleep -Milliseconds 300
+    }
+  }
+}
+
 try {
   Write-UpdateLog "Updater started."
   Wait-Process -Id $AppPid -ErrorAction SilentlyContinue
   Start-Sleep -Milliseconds 700
+  Wait-ExecutableUnlocked $ExePath
 
   if (-not (Test-Path -LiteralPath $ZipPath)) {
     throw "Update zip was not found: $ZipPath"
@@ -493,7 +573,7 @@ try {
   Write-UpdateLog "Copying files from $BundlePath to $AppDir"
   Get-ChildItem -LiteralPath $BundlePath -Force |
     ForEach-Object {
-      Copy-Item -LiteralPath $_.FullName -Destination $AppDir -Recurse -Force
+      Copy-WithRetry $_.FullName $AppDir
     }
 
   $LaunchPath = Join-Path $AppDir (Split-Path -Path $ExePath -Leaf)
@@ -504,6 +584,9 @@ try {
     throw "Updated executable was not found: $LaunchPath"
   }
 
+  if ($MarkerPath -and $MarkerPath.Trim().Length -gt 0) {
+    Set-Content -LiteralPath $MarkerPath -Value ("installed " + (Get-Date -Format "o")) -Force
+  }
   Write-UpdateLog "Launching $LaunchPath"
   Start-Process -FilePath $LaunchPath -WorkingDirectory $AppDir
   Remove-Item -LiteralPath $ExtractDir -Recurse -Force -ErrorAction SilentlyContinue

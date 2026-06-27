@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -32,18 +33,18 @@ extension _BatchPayslipPaperDetails on _BatchPayslipPaper {
   };
 
   PdfPageFormat get format => switch (this) {
-    _BatchPayslipPaper.a4 => PdfPageFormat.a4.landscape,
-    _BatchPayslipPaper.a5 => PdfPageFormat.a5.landscape,
+    _BatchPayslipPaper.a4 => PdfPageFormat.a4,
+    _BatchPayslipPaper.a5 => PdfPageFormat.a5,
     _BatchPayslipPaper.b5 => PdfPageFormat(
       176 * PdfPageFormat.mm,
       250 * PdfPageFormat.mm,
-    ).landscape,
+    ),
   };
 
   double get designWidth => switch (this) {
-    _BatchPayslipPaper.a4 => 790,
-    _BatchPayslipPaper.a5 => 700,
-    _BatchPayslipPaper.b5 => 740,
+    _BatchPayslipPaper.a4 => 540,
+    _BatchPayslipPaper.a5 => 380,
+    _BatchPayslipPaper.b5 => 455,
   };
 }
 
@@ -281,13 +282,13 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
       if (directory == null) return;
       var saved = 0;
       for (final record in _selectedRecords) {
-        final bytes = await _buildSinglePayslipPng(record, paper: paper);
+        final bytes = await _buildSinglePayslipJpeg(record, paper: paper);
         final code = _employeeFor(record)?.personnelCode.toString() ?? '0';
         final name = _employeeName(
           record,
         ).replaceAll(RegExp(r'[\\/:*?"<>|]+'), '-').trim();
         final file = File(
-          '$directory${Platform.pathSeparator}hvm-payslip-$_year-${_month.toString().padLeft(2, '0')}-$code-${name.isEmpty ? 'employee' : name}.png',
+          '$directory${Platform.pathSeparator}hvm-payslip-$_year-${_month.toString().padLeft(2, '0')}-$code-${name.isEmpty ? 'employee' : name}.jpg',
         );
         await file.writeAsBytes(bytes, flush: true);
         saved++;
@@ -442,6 +443,7 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
       doc.addPage(
         pw.Page(
           pageFormat: paper.format,
+          margin: pw.EdgeInsets.zero,
           textDirection: pw.TextDirection.rtl,
           theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
           build: (_) => _fitPdfPayslip(record, paper),
@@ -451,7 +453,7 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
     return doc.save();
   }
 
-  Future<Uint8List> _buildSinglePayslipPng(
+  Future<Uint8List> _buildSinglePayslipJpeg(
     SalaryRecord record, {
     required _BatchPayslipPaper paper,
   }) async {
@@ -465,6 +467,7 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
     doc.addPage(
       pw.Page(
         pageFormat: paper.format,
+        margin: pw.EdgeInsets.zero,
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
         build: (_) => _fitPdfPayslip(record, paper),
@@ -474,16 +477,48 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
     final page = await Printing.raster(
       pdfBytes,
       pages: const [0],
-      dpi: 180,
+      dpi: 300,
     ).first;
-    return page.toPng();
+    return _rasterToWhiteJpeg(page);
+  }
+
+  Uint8List _rasterToWhiteJpeg(PdfRaster raster) {
+    final source = raster.pixels;
+    final rgb = Uint8List(raster.width * raster.height * 3);
+    for (var si = 0, di = 0; si < source.length; si += 4, di += 3) {
+      final alpha = source[si + 3];
+      rgb[di] = _blendOnWhite(source[si], alpha);
+      rgb[di + 1] = _blendOnWhite(source[si + 1], alpha);
+      rgb[di + 2] = _blendOnWhite(source[si + 2], alpha);
+    }
+    final image = img.Image.fromBytes(
+      width: raster.width,
+      height: raster.height,
+      bytes: rgb.buffer,
+      numChannels: 3,
+      order: img.ChannelOrder.rgb,
+    );
+    return Uint8List.fromList(img.encodeJpg(image, quality: 95));
+  }
+
+  int _blendOnWhite(int channel, int alpha) {
+    return ((channel * alpha + 255 * (255 - alpha)) ~/ 255)
+        .clamp(0, 255)
+        .toInt();
   }
 
   pw.Widget _fitPdfPayslip(SalaryRecord record, _BatchPayslipPaper paper) {
-    return pw.FittedBox(
-      fit: pw.BoxFit.contain,
-      alignment: pw.Alignment.center,
-      child: pw.SizedBox(width: paper.designWidth, child: _pdfPayslip(record)),
+    return pw.Container(
+      color: PdfColors.white,
+      padding: const pw.EdgeInsets.all(18),
+      child: pw.FittedBox(
+        fit: pw.BoxFit.contain,
+        alignment: pw.Alignment.topCenter,
+        child: pw.SizedBox(
+          width: paper.designWidth,
+          child: _pdfPayslip(record),
+        ),
+      ),
     );
   }
 
@@ -547,7 +582,7 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
               ),
             ),
             pw.Text(
-              '${PersianDateHelper.monthName(record.month)} ${record.year}',
+              '${PersianDateHelper.monthName(record.month)} ${PersianNumberFormatter.toPersian(record.year.toString())}',
               style: const pw.TextStyle(fontSize: 11),
             ),
           ],
@@ -561,17 +596,15 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
               pw.Expanded(child: pw.Text('نام: ${_employeeName(record)}')),
               pw.Expanded(
                 child: pw.Text(
-                  'کد: ${_employeeFor(record)?.personnelCode ?? ''}',
+                  'کد: ${PersianNumberFormatter.toPersian((_employeeFor(record)?.personnelCode ?? '').toString())}',
                 ),
               ),
               pw.Expanded(
-                child: pw.Text(
-                  'کارکرد: ${_formatDays(record.workDays, persian: false)}',
-                ),
+                child: pw.Text('کارکرد: ${_formatDays(record.workDays)}'),
               ),
               pw.Expanded(
                 child: pw.Text(
-                  'استعلاجی: ${_formatDays(record.sickLeaveDays, persian: false)}',
+                  'استعلاجی: ${_formatDays(record.sickLeaveDays)}',
                 ),
               ),
             ],
@@ -594,7 +627,9 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
                   pw.Padding(
                     padding: const pw.EdgeInsets.all(5),
                     child: pw.Text(
-                      row.$2.round().toString(),
+                      PersianNumberFormatter.toPersian(
+                        row.$2.round().toString(),
+                      ),
                       style: const pw.TextStyle(fontSize: 9),
                     ),
                   ),
@@ -617,7 +652,9 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
               ),
               pw.Spacer(),
               pw.Text(
-                record.finalPayment.round().toString(),
+                PersianNumberFormatter.toPersian(
+                  record.finalPayment.round().toString(),
+                ),
                 style: pw.TextStyle(
                   color: PdfColors.white,
                   fontWeight: pw.FontWeight.bold,
