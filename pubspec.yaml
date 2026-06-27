@@ -2,7 +2,7 @@ name: payroll_app
 description: "برنامه محاسبه حقوق و دستمزد فرایند کود و سم بافق - سال 1405"
 publish_to: 'none'
 
-version: 0.9.2+26
+version: 0.9.5+27
 
 environment:
   sdk: ^3.12.0
@@ -51,6 +51,7 @@ dependencies:
   flutter_colorpicker: ^1.1.0
   excel: ^4.0.6
   share_plus: ^12.0.2
+  url_launcher: ^6.3.2
   window_manager: 0.5.1
   tray_manager: 0.5.3
   package_info_plus: ^9.0.1

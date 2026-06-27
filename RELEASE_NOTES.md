@@ -1,13 +1,21 @@
-**1405/04/06 | 2026-06-27**
+**۱۴۰۵/۰۴/۰۶ | 2026-06-27**
 
-## Windows Updater
-- Fixed the Windows portable updater so it can install release ZIP files that contain app files directly at the archive root.
-- Kept support for nested portable bundles as a fallback.
-- Added a visible "installing" dialog before the app closes for update installation.
-- Relaunch now targets the updated executable from the app directory after files are replaced.
-- Added updater logging and a Windows error message if installation fails instead of silently closing the app.
+## 🔐 ورود و ثبت نام
+- امکان نمایش و مخفی کردن رمز عبور در فرم ورود اپلیکیشن و پنل مدیریت اضافه شد.
+- صفحه شروع اپلیکیشن به سه گزینه «ثبت نام»، «ورود» و «پشتیبانی» تغییر کرد.
+- درخواست ثبت‌نام از اپلیکیشن به سرور ارسال می‌شود و ادمین می‌تواند آن را به شرکت و سطح دسترسی مناسب وصل کند.
+- بعد از تایید ادمین، اپلیکیشن با باز شدن دوباره تلاش می‌کند کاربر را خودکار وارد برنامه کند.
 
-## Quality
-- Added regression tests for the Windows updater script and version comparison.
-- Updated the app version to `0.9.2`.
-- Release workflow continues to run from `master` and publish this version as a pre-release.
+## 🖨️ چاپ و خروجی فیش
+- هنگام چاپ فیش تکی و دسته‌ای، انتخاب اندازه A4، A5 یا B5 اضافه شد.
+- خروجی عکس فیش‌ها هم با انتخاب اندازه A4، A5 یا B5 ساخته می‌شود.
+- خروجی عکس از رندر PDF ساخته می‌شود تا تمام بخش‌های فیش کامل و هم‌اندازه خروجی چاپ باشد.
+
+## 🔄 نشست و همگام‌سازی
+- refresh توکن در اپلیکیشن و پنل مدیریت در برابر درخواست‌های هم‌زمان مقاوم شد تا خطای unauthorized ناگهانی رخ ندهد.
+- نمایش درخواست انتقال دیتای لوکال در اولین ورود حذف شد و داده‌ها همیشه ابتدا از سرور دریافت و ذخیره می‌شوند.
+
+## 🧪 کیفیت و انتشار
+- نسخه برنامه به `0.9.5` ارتقا یافت.
+- تحلیل کد و تست‌های اپلیکیشن، سرور و پنل مدیریت با موفقیت اجرا شدند.
+- انتشار روی شاخه `master` اجرا می‌شود و خروجی به‌صورت pre-release منتشر می‌شود.

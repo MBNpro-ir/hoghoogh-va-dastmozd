@@ -1,12 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:excel/excel.dart' as xls;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -34,6 +32,31 @@ enum _PayslipExportAction {
   shareImage,
   shareText,
   shareExcel,
+}
+
+enum _PayslipPaper { a4, a5, b5 }
+
+extension _PayslipPaperDetails on _PayslipPaper {
+  String get label => switch (this) {
+    _PayslipPaper.a4 => 'A4',
+    _PayslipPaper.a5 => 'A5',
+    _PayslipPaper.b5 => 'B5',
+  };
+
+  PdfPageFormat get format => switch (this) {
+    _PayslipPaper.a4 => PdfPageFormat.a4.landscape,
+    _PayslipPaper.a5 => PdfPageFormat.a5.landscape,
+    _PayslipPaper.b5 => PdfPageFormat(
+      176 * PdfPageFormat.mm,
+      250 * PdfPageFormat.mm,
+    ).landscape,
+  };
+
+  double get designWidth => switch (this) {
+    _PayslipPaper.a4 => 790,
+    _PayslipPaper.a5 => 700,
+    _PayslipPaper.b5 => 740,
+  };
 }
 
 class PayslipScreen extends StatelessWidget {
@@ -645,15 +668,19 @@ class PayslipScreen extends StatelessWidget {
     try {
       switch (action) {
         case _PayslipExportAction.savePdf:
+          final pdfPaper = await _askPaperSize(context, 'اندازه فایل PDF');
+          if (pdfPaper == null) return;
           await _saveBytes(
-            bytes: await _buildPdfBytes(),
+            bytes: await _buildPdfBytes(paper: pdfPaper),
             fileName: '${_fileBaseName()}.pdf',
             extension: 'pdf',
           );
           break;
         case _PayslipExportAction.saveImage:
+          final imagePaper = await _askPaperSize(context, 'اندازه عکس فیش');
+          if (imagePaper == null) return;
           await _saveBytes(
-            bytes: await _capturePngBytes(),
+            bytes: await _capturePngBytes(paper: imagePaper),
             fileName: '${_fileBaseName()}.png',
             extension: 'png',
           );
@@ -666,13 +693,18 @@ class PayslipScreen extends StatelessWidget {
           );
           break;
         case _PayslipExportAction.savePdfAndImage:
+          final comboPaper = await _askPaperSize(
+            context,
+            'اندازه PDF و عکس فیش',
+          );
+          if (comboPaper == null) return;
           await _saveBytes(
-            bytes: await _buildPdfBytes(),
+            bytes: await _buildPdfBytes(paper: comboPaper),
             fileName: '${_fileBaseName()}.pdf',
             extension: 'pdf',
           );
           await _saveBytes(
-            bytes: await _capturePngBytes(),
+            bytes: await _capturePngBytes(paper: comboPaper),
             fileName: '${_fileBaseName()}.png',
             extension: 'png',
           );
@@ -695,10 +727,23 @@ class PayslipScreen extends StatelessWidget {
           );
           break;
         case _PayslipExportAction.sharePdf:
-          await _shareFile(await _buildPdfBytes(), '${_fileBaseName()}.pdf');
+          final sharePdfPaper = await _askPaperSize(context, 'اندازه فایل PDF');
+          if (sharePdfPaper == null) return;
+          await _shareFile(
+            await _buildPdfBytes(paper: sharePdfPaper),
+            '${_fileBaseName()}.pdf',
+          );
           break;
         case _PayslipExportAction.shareImage:
-          await _shareFile(await _capturePngBytes(), '${_fileBaseName()}.png');
+          final shareImagePaper = await _askPaperSize(
+            context,
+            'اندازه عکس فیش',
+          );
+          if (shareImagePaper == null) return;
+          await _shareFile(
+            await _capturePngBytes(paper: shareImagePaper),
+            '${_fileBaseName()}.png',
+          );
           break;
         case _PayslipExportAction.shareText:
           await SharePlus.instance.share(
@@ -884,20 +929,21 @@ class PayslipScreen extends StatelessWidget {
     return file.writeAsBytes(bytes, flush: true);
   }
 
-  Future<Uint8List> _capturePngBytes() async {
-    final boundary =
-        _payslipKey.currentContext?.findRenderObject()
-            as RenderRepaintBoundary?;
-    if (boundary == null) {
-      throw StateError('فیش برای خروجی عکس آماده نیست.');
-    }
-    final image = await boundary.toImage(pixelRatio: 2.5);
-    final data = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (data == null) throw StateError('ساخت عکس انجام نشد.');
-    return data.buffer.asUint8List();
+  Future<Uint8List> _capturePngBytes({
+    _PayslipPaper paper = _PayslipPaper.a5,
+  }) async {
+    final pdfBytes = await _buildPdfBytes(paper: paper);
+    final page = await Printing.raster(
+      pdfBytes,
+      pages: const [0],
+      dpi: 180,
+    ).first;
+    return page.toPng();
   }
 
-  Future<Uint8List> _buildPdfBytes() async {
+  Future<Uint8List> _buildPdfBytes({
+    _PayslipPaper paper = _PayslipPaper.a5,
+  }) async {
     final fontRegular = pw.Font.ttf(
       await rootBundle.load('assets/fonts/Vazirmatn-Regular.ttf'),
     );
@@ -907,10 +953,17 @@ class PayslipScreen extends StatelessWidget {
     final doc = pw.Document();
     doc.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.a5.landscape,
+        pageFormat: paper.format,
         textDirection: pw.TextDirection.rtl,
         theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
-        build: (ctx) => _buildPdfContent(),
+        build: (ctx) => pw.FittedBox(
+          fit: pw.BoxFit.contain,
+          alignment: pw.Alignment.center,
+          child: pw.SizedBox(
+            width: paper.designWidth,
+            child: _buildPdfContent(),
+          ),
+        ),
       ),
     );
     return doc.save();
@@ -920,8 +973,10 @@ class PayslipScreen extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     final scheme = Theme.of(context).colorScheme;
     try {
+      final paper = await _askPaperSize(context, 'اندازه چاپ فیش');
+      if (paper == null) return;
       await Printing.layoutPdf(
-        onLayout: (format) async => _buildPdfBytes(),
+        onLayout: (format) async => _buildPdfBytes(paper: paper),
         name:
             'فیش حقوق $_employeeFullName - ${PersianDateHelper.monthName(record.month)} ${record.year}',
       );
@@ -933,6 +988,35 @@ class PayslipScreen extends StatelessWidget {
         ),
       );
     }
+  }
+
+  Future<_PayslipPaper?> _askPaperSize(BuildContext context, String title) {
+    return showDialog<_PayslipPaper>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final paper in _PayslipPaper.values)
+              ListTile(
+                leading: const Icon(Icons.description_rounded),
+                title: Text(paper.label),
+                trailing: paper == _PayslipPaper.a5
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.pop(context, paper),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('انصراف'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _buildTextContent() {

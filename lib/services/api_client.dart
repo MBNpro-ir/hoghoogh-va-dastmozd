@@ -13,6 +13,12 @@ class ApiClient {
   static const accessTokenKey = 'hvm_access_token';
   static const refreshTokenKey = 'hvm_refresh_token';
   static const userKey = 'hvm_user';
+  static const pendingRegistrationUsernameKey =
+      'hvm_pending_registration_username';
+  static const pendingRegistrationPasswordKey =
+      'hvm_pending_registration_password';
+
+  Future<Map<String, dynamic>>? _refreshFuture;
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(),
@@ -60,6 +66,7 @@ class ApiClient {
       value: body['refresh_token'] as String,
     );
     await _storage.write(key: userKey, value: jsonEncode(body['user']));
+    await clearPendingRegistrationCredentials();
     return body;
   }
 
@@ -100,7 +107,15 @@ class ApiClient {
     return body;
   }
 
-  Future<Map<String, dynamic>> refresh() async {
+  Future<Map<String, dynamic>> refresh() {
+    final pending = _refreshFuture;
+    if (pending != null) return pending;
+    final next = _refreshInternal();
+    _refreshFuture = next;
+    return next.whenComplete(() => _refreshFuture = null);
+  }
+
+  Future<Map<String, dynamic>> _refreshInternal() async {
     final refreshToken = await _storage.read(key: refreshTokenKey);
     if (refreshToken == null || refreshToken.isEmpty) {
       throw ApiException('نشست منقضی شده است', 401);
@@ -135,6 +150,61 @@ class ApiClient {
       await _storage.write(key: userKey, value: jsonEncode(body['user']));
     }
     return body;
+  }
+
+  Future<Map<String, dynamic>> registerRequest({
+    required String fullName,
+    required String username,
+    required String password,
+    String phone = '',
+    String notes = '',
+  }) async {
+    final serverUrl = await getServerUrl();
+    final response = await _safeRequest(
+      () => http
+          .post(
+            Uri.parse('$serverUrl/api/auth/register-request'),
+            headers: {'content-type': 'application/json'},
+            body: jsonEncode({
+              'full_name': fullName,
+              'username': username,
+              'password': password,
+              'phone': phone,
+              'notes': notes,
+            }),
+          )
+          .timeout(const Duration(seconds: 20)),
+    );
+    final body = _decode(response);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        _friendlyApiMessage(body['error']?.toString(), response.statusCode),
+        response.statusCode,
+      );
+    }
+    await _storage.write(
+      key: pendingRegistrationUsernameKey,
+      value: username.trim(),
+    );
+    await _storage.write(key: pendingRegistrationPasswordKey, value: password);
+    return body;
+  }
+
+  Future<Map<String, String>?> getPendingRegistrationCredentials() async {
+    final username = await _storage.read(key: pendingRegistrationUsernameKey);
+    final password = await _storage.read(key: pendingRegistrationPasswordKey);
+    if (username == null ||
+        username.trim().isEmpty ||
+        password == null ||
+        password.isEmpty) {
+      return null;
+    }
+    return {'username': username.trim(), 'password': password};
+  }
+
+  Future<void> clearPendingRegistrationCredentials() async {
+    await _storage.delete(key: pendingRegistrationUsernameKey);
+    await _storage.delete(key: pendingRegistrationPasswordKey);
   }
 
   Future<void> logout() async {

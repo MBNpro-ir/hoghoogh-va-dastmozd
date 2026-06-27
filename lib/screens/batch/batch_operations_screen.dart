@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -20,6 +21,31 @@ import '../../utils/persian_number_formatter.dart';
 import '../../widgets/mouse_wheel_picker.dart';
 import '../salary/salary_calculation_screen.dart';
 import 'employee_batch_entry_view.dart';
+
+enum _BatchPayslipPaper { a4, a5, b5 }
+
+extension _BatchPayslipPaperDetails on _BatchPayslipPaper {
+  String get label => switch (this) {
+    _BatchPayslipPaper.a4 => 'A4',
+    _BatchPayslipPaper.a5 => 'A5',
+    _BatchPayslipPaper.b5 => 'B5',
+  };
+
+  PdfPageFormat get format => switch (this) {
+    _BatchPayslipPaper.a4 => PdfPageFormat.a4.landscape,
+    _BatchPayslipPaper.a5 => PdfPageFormat.a5.landscape,
+    _BatchPayslipPaper.b5 => PdfPageFormat(
+      176 * PdfPageFormat.mm,
+      250 * PdfPageFormat.mm,
+    ).landscape,
+  };
+
+  double get designWidth => switch (this) {
+    _BatchPayslipPaper.a4 => 790,
+    _BatchPayslipPaper.a5 => 700,
+    _BatchPayslipPaper.b5 => 740,
+  };
+}
 
 class BatchOperationsScreen extends StatefulWidget {
   const BatchOperationsScreen({super.key});
@@ -232,13 +258,43 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
   Future<void> _printPayslips() async {
     if (!_validateSelection() || _settings == null) return;
     try {
-      final bytes = await _buildPayslipsPdf();
+      final paper = await _askPaperSize('اندازه چاپ فیش‌های دسته‌ای');
+      if (paper == null) return;
+      final bytes = await _buildPayslipsPdf(paper: paper);
       await Printing.layoutPdf(
         onLayout: (_) async => bytes,
         name: 'فیش‌های حقوق ${PersianDateHelper.monthName(_month)} $_year',
       );
     } catch (e) {
       _message('خطا در چاپ دسته‌ای: $e', isError: true);
+    }
+  }
+
+  Future<void> _exportPayslipImages() async {
+    if (!_validateSelection() || _settings == null) return;
+    try {
+      final paper = await _askPaperSize('اندازه عکس فیش‌های دسته‌ای');
+      if (paper == null) return;
+      final directory = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: 'انتخاب پوشه ذخیره عکس فیش‌ها',
+      );
+      if (directory == null) return;
+      var saved = 0;
+      for (final record in _selectedRecords) {
+        final bytes = await _buildSinglePayslipPng(record, paper: paper);
+        final code = _employeeFor(record)?.personnelCode.toString() ?? '0';
+        final name = _employeeName(
+          record,
+        ).replaceAll(RegExp(r'[\\/:*?"<>|]+'), '-').trim();
+        final file = File(
+          '$directory${Platform.pathSeparator}hvm-payslip-$_year-${_month.toString().padLeft(2, '0')}-$code-${name.isEmpty ? 'employee' : name}.png',
+        );
+        await file.writeAsBytes(bytes, flush: true);
+        saved++;
+      }
+      _message('عکس فیش‌ها ذخیره شد: $saved فایل');
+    } catch (e) {
+      _message('خطا در خروجی عکس دسته‌ای: $e', isError: true);
     }
   }
 
@@ -372,7 +428,9 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
     ];
   }
 
-  Future<Uint8List> _buildPayslipsPdf() async {
+  Future<Uint8List> _buildPayslipsPdf({
+    _BatchPayslipPaper paper = _BatchPayslipPaper.a5,
+  }) async {
     final fontRegular = pw.Font.ttf(
       await rootBundle.load('assets/fonts/Vazirmatn-Regular.ttf'),
     );
@@ -383,14 +441,79 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
     for (final record in _selectedRecords) {
       doc.addPage(
         pw.Page(
-          pageFormat: PdfPageFormat.a5.landscape,
+          pageFormat: paper.format,
           textDirection: pw.TextDirection.rtl,
           theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
-          build: (_) => _pdfPayslip(record),
+          build: (_) => _fitPdfPayslip(record, paper),
         ),
       );
     }
     return doc.save();
+  }
+
+  Future<Uint8List> _buildSinglePayslipPng(
+    SalaryRecord record, {
+    required _BatchPayslipPaper paper,
+  }) async {
+    final fontRegular = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Vazirmatn-Regular.ttf'),
+    );
+    final fontBold = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Vazirmatn-Bold.ttf'),
+    );
+    final doc = pw.Document();
+    doc.addPage(
+      pw.Page(
+        pageFormat: paper.format,
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
+        build: (_) => _fitPdfPayslip(record, paper),
+      ),
+    );
+    final pdfBytes = await doc.save();
+    final page = await Printing.raster(
+      pdfBytes,
+      pages: const [0],
+      dpi: 180,
+    ).first;
+    return page.toPng();
+  }
+
+  pw.Widget _fitPdfPayslip(SalaryRecord record, _BatchPayslipPaper paper) {
+    return pw.FittedBox(
+      fit: pw.BoxFit.contain,
+      alignment: pw.Alignment.center,
+      child: pw.SizedBox(width: paper.designWidth, child: _pdfPayslip(record)),
+    );
+  }
+
+  Future<_BatchPayslipPaper?> _askPaperSize(String title) {
+    return showDialog<_BatchPayslipPaper>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final paper in _BatchPayslipPaper.values)
+              ListTile(
+                leading: const Icon(Icons.description_rounded),
+                title: Text(paper.label),
+                trailing: paper == _BatchPayslipPaper.a5
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.pop(context, paper),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('انصراف'),
+          ),
+        ],
+      ),
+    );
   }
 
   pw.Widget _pdfPayslip(SalaryRecord record) {
@@ -689,6 +812,11 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
                   onPressed: _printPayslips,
                   icon: const Icon(Icons.print_rounded),
                   label: const Text('چاپ فیش‌ها'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _exportPayslipImages,
+                  icon: const Icon(Icons.image_rounded),
+                  label: const Text('عکس فیش‌ها'),
                 ),
                 FilledButton.tonalIcon(
                   onPressed: _exportFinancialCsv,
