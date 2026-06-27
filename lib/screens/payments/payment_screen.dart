@@ -6,6 +6,7 @@ import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
 import '../../widgets/period_filter_bar.dart';
+import '../salary/payslip_screen.dart';
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
@@ -123,6 +124,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 itemBuilder: (context, index) => _PaymentCard(
                   row: visible[index],
                   saving: _savingKey == _keyOf(visible[index]),
+                  onOpenPayslip: () => _openPayslip(visible[index]),
                   onPaid: () => _save(row: visible[index], isPaid: true),
                   onUnpaid: () => _markUnpaid(visible[index]),
                 ),
@@ -142,6 +144,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
     if (reason == null) return;
     await _save(row: row, isPaid: false, reason: reason);
+  }
+
+  Future<void> _openPayslip(PaymentSlipRow row) async {
+    try {
+      final data = await _service.payslipData(row);
+      if (!mounted) return;
+      if (data == null) {
+        setState(() => _error = 'اطلاعات فیش برای نمایش پیدا نشد.');
+        return;
+      }
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PayslipScreen(
+            employee: data.employee,
+            settings: data.settings,
+            record: data.record,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString().replaceAll('Exception: ', ''));
+    }
   }
 
   Future<void> _save({
@@ -242,12 +268,14 @@ class _SummaryChip extends StatelessWidget {
 class _PaymentCard extends StatelessWidget {
   final PaymentSlipRow row;
   final bool saving;
+  final VoidCallback onOpenPayslip;
   final VoidCallback onPaid;
   final VoidCallback onUnpaid;
 
   const _PaymentCard({
     required this.row,
     required this.saving,
+    required this.onOpenPayslip,
     required this.onPaid,
     required this.onUnpaid,
   });
@@ -363,6 +391,12 @@ class _PaymentCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: saving ? null : onOpenPayslip,
+              icon: const Icon(Icons.print_rounded),
+              label: const Text('نمایش و چاپ فیش'),
+            ),
+            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(

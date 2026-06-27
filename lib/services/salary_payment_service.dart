@@ -1,7 +1,11 @@
 import '../database/database_helper.dart';
+import '../models/app_settings.dart';
+import '../models/employee.dart';
 import '../models/salary_payment_status.dart';
+import '../models/salary_record.dart';
 import '../utils/business_validation.dart';
 import 'api_client.dart';
+import 'settings_service.dart';
 import 'sync_service.dart';
 
 class PaymentSlipRow {
@@ -76,10 +80,23 @@ class PaymentSlipRow {
   }
 }
 
+class PaymentPayslipData {
+  final Employee employee;
+  final AppSettings settings;
+  final SalaryRecord record;
+
+  const PaymentPayslipData({
+    required this.employee,
+    required this.settings,
+    required this.record,
+  });
+}
+
 class SalaryPaymentService {
   final _db = DatabaseHelper.instance;
   final _sync = SyncService();
   final _api = ApiClient();
+  final _settings = SettingsService();
 
   Future<List<PaymentSlipRow>> getRows({(int, int)? period}) async {
     final db = await _db.database;
@@ -189,5 +206,30 @@ class SalaryPaymentService {
     }
     await _sync.markUpsert('salary_payment_statuses', id, schedule: false);
     await _sync.syncNow(silent: true, throwOnServerError: true);
+  }
+
+  Future<PaymentPayslipData?> payslipData(PaymentSlipRow row) async {
+    final db = await _db.database;
+    final recordRows = await db.query(
+      'salary_records',
+      where: 'id = ? AND deleted_at IS NULL',
+      whereArgs: [row.salaryRecordId],
+      limit: 1,
+    );
+    if (recordRows.isEmpty) return null;
+    final employeeRows = await db.query(
+      'employees',
+      where: 'id = ? AND deleted_at IS NULL',
+      whereArgs: [row.employeeId],
+      limit: 1,
+    );
+    if (employeeRows.isEmpty) return null;
+    final record = SalaryRecord.fromMap(recordRows.first);
+    final settings = await _settings.getCurrentSettings(year: record.year);
+    return PaymentPayslipData(
+      employee: Employee.fromMap(employeeRows.first),
+      settings: settings,
+      record: record,
+    );
   }
 }
