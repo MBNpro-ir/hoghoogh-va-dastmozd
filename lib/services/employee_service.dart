@@ -196,6 +196,12 @@ class EmployeeService {
       where: 'employee_id = ? AND deleted_at IS NULL',
       whereArgs: [id],
     );
+    final paymentRows = await db.query(
+      'salary_payment_statuses',
+      columns: ['id'],
+      where: 'employee_id = ? AND deleted_at IS NULL',
+      whereArgs: [id],
+    );
     for (final row in salaryRows) {
       final childId = row['id'] as int?;
       if (childId != null) {
@@ -218,6 +224,16 @@ class EmployeeService {
       final childId = row['id'] as int?;
       if (childId != null) {
         await _sync.markDelete('leaves', childId, schedule: false);
+      }
+    }
+    for (final row in paymentRows) {
+      final childId = row['id'] as int?;
+      if (childId != null) {
+        await _sync.markDelete(
+          'salary_payment_statuses',
+          childId,
+          schedule: false,
+        );
       }
     }
     final result = await _sync.markDelete('employees', id, schedule: false);

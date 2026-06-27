@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 14;
+  static const int _dbVersion = 15;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -203,6 +203,7 @@ class DatabaseHelper {
     ''');
 
     await _createSalaryDraftsTable(db);
+    await _createSalaryPaymentStatusesTable(db);
 
     // جدول تنظیمات
     await db.execute('''
@@ -507,6 +508,10 @@ class DatabaseHelper {
       await _deduplicateLeaves(db);
       await _createLeavesNaturalKeyIndex(db);
     }
+    if (oldVersion < 15) {
+      await _createSalaryPaymentStatusesTable(db);
+      await _createSyncIndexes(db);
+    }
   }
 
   Future<void> _createSalaryDraftsTable(Database db) async {
@@ -577,6 +582,37 @@ class DatabaseHelper {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_advances_payment_date ON advances(payment_date);',
+    );
+  }
+
+  Future<void> _createSalaryPaymentStatusesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS salary_payment_statuses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_id INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        month INTEGER NOT NULL,
+        is_paid INTEGER NOT NULL DEFAULT 0,
+        unpaid_reason TEXT NOT NULL DEFAULT '',
+        updated_by_username TEXT NOT NULL DEFAULT '',
+        updated_by_role TEXT NOT NULL DEFAULT '',
+        status_changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        sync_id TEXT UNIQUE,
+        server_updated_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT,
+        sync_state TEXT NOT NULL DEFAULT 'synced',
+        UNIQUE (employee_id, year, month),
+        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+      );
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_salary_payment_statuses_employee_period '
+      'ON salary_payment_statuses(employee_id, year, month);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_salary_payment_statuses_period '
+      'ON salary_payment_statuses(year, month);',
     );
   }
 
@@ -765,6 +801,7 @@ class DatabaseHelper {
       'advances',
       'leaves',
       'salary_records',
+      'salary_payment_statuses',
       'salary_drafts',
       'app_settings',
     ]) {

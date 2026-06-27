@@ -7,9 +7,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/company_profile.dart';
 import '../providers/theme_controller.dart';
+import '../services/api_client.dart';
 import '../services/company_service.dart';
+import '../services/payment_notification_service.dart';
 import '../services/sync_service.dart';
 import '../utils/constants.dart';
+import '../utils/persian_number_formatter.dart';
 import '../utils/responsive.dart';
 import '../widgets/android_expressive_nav_bar.dart';
 import '../widgets/app_sidebar.dart';
@@ -20,6 +23,7 @@ import 'employees/employees_list_screen.dart';
 import 'home/dashboard_view.dart';
 import 'leaves/employee_leaves_screen.dart';
 import 'loans/loans_list_screen.dart';
+import 'payments/payment_screen.dart';
 import 'salary/salary_calculation_screen.dart';
 import 'salary/salary_records_screen.dart';
 import 'settings/settings_screen.dart';
@@ -44,39 +48,66 @@ class _HomeScreenState extends State<HomeScreen> {
   final PageController _pageController = PageController();
   final _companyService = CompanyService();
   final _sync = SyncService();
+  final _api = ApiClient();
+  final _paymentNotifications = PaymentNotificationService();
   CompanyProfile? _currentCompany;
   bool _sidebarCollapsed = false;
+  String _userRole = '';
+  bool _roleLoaded = false;
+
+  bool get _isPaymentRole => _userRole == 'payment';
+  int get _settingsIndex => _items.length - 1;
 
   List<Widget> get _pages => [
-    DashboardView(
-      onNavigateToEmployees: () => _goToIndex(1),
-      onNavigateToSalaryCalc: () => _goToIndex(2),
-      onNavigateToSalaryRecords: () => _goToIndex(3),
-      onNavigateToLoans: () => _goToIndex(5),
-      onNavigateToSettings: () => _goToIndex(8),
-    ),
-    const EmployeesListScreen(),
-    const SalaryCalculationScreen(),
-    const SalaryRecordsScreen(),
-    const EmployeeLeavesScreen(),
-    const LoansListScreen(),
-    const AdvancesListScreen(),
-    const BatchOperationsScreen(),
+    if (_isPaymentRole)
+      const PaymentScreen()
+    else ...[
+      DashboardView(
+        onNavigateToEmployees: () => _goToIndex(1),
+        onNavigateToSalaryCalc: () => _goToIndex(2),
+        onNavigateToSalaryRecords: () => _goToIndex(3),
+        onNavigateToLoans: () => _goToIndex(5),
+        onNavigateToSettings: () => _goToIndex(_settingsIndex),
+      ),
+      const EmployeesListScreen(),
+      const SalaryCalculationScreen(),
+      const SalaryRecordsScreen(),
+      const EmployeeLeavesScreen(),
+      const LoansListScreen(),
+      const AdvancesListScreen(),
+      const BatchOperationsScreen(),
+      const PaymentScreen(),
+    ],
   ];
 
-  late final List<SidebarItem> _items = [
-    const SidebarItem(label: 'داشبورد', icon: Icons.dashboard_rounded),
-    const SidebarItem(label: 'مدیریت کارکنان', icon: Icons.groups_rounded),
-    const SidebarItem(label: 'محاسبه حقوق', icon: Icons.calculate_rounded),
-    const SidebarItem(label: 'فیش‌های حقوقی', icon: Icons.receipt_long_rounded),
-    const SidebarItem(label: 'مرخصی کارکنان', icon: Icons.beach_access_rounded),
-    const SidebarItem(
-      label: 'وام و اقساط',
-      icon: Icons.account_balance_wallet_rounded,
-    ),
-    const SidebarItem(label: 'مساعده کارکنان', icon: Icons.payments_rounded),
-    const SidebarItem(label: 'عملیات دسته‌ای', icon: Icons.fact_check_rounded),
-    const SidebarItem(label: 'تنظیمات سیستم', icon: Icons.settings_rounded),
+  List<SidebarItem> get _items => [
+    if (_isPaymentRole) ...[
+      const SidebarItem(label: 'بخش پرداخت', icon: Icons.payments_rounded),
+      const SidebarItem(label: 'تنظیمات سیستم', icon: Icons.settings_rounded),
+    ] else ...[
+      const SidebarItem(label: 'داشبورد', icon: Icons.dashboard_rounded),
+      const SidebarItem(label: 'مدیریت کارکنان', icon: Icons.groups_rounded),
+      const SidebarItem(label: 'محاسبه حقوق', icon: Icons.calculate_rounded),
+      const SidebarItem(
+        label: 'فیش‌های حقوقی',
+        icon: Icons.receipt_long_rounded,
+      ),
+      const SidebarItem(
+        label: 'مرخصی کارکنان',
+        icon: Icons.beach_access_rounded,
+      ),
+      const SidebarItem(
+        label: 'وام و اقساط',
+        icon: Icons.account_balance_wallet_rounded,
+      ),
+      const SidebarItem(label: 'مساعده کارکنان', icon: Icons.payments_rounded),
+      const SidebarItem(
+        label: 'عملیات دسته‌ای',
+        icon: Icons.fact_check_rounded,
+      ),
+      const SidebarItem(label: 'بخش پرداخت', icon: Icons.fact_check_rounded),
+      const SidebarItem(label: 'تنظیمات سیستم', icon: Icons.settings_rounded),
+    ],
   ];
 
   List<AndroidExpressiveNavDestination> get _mobilePrimaryDestinations => [
@@ -88,6 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _sync.dataVersion.addListener(_onSyncedDataChanged);
+    unawaited(_loadUserRole());
     _loadCompanies();
     unawaited(_loadSidebarState());
     unawaited(_startSync());
@@ -104,6 +136,37 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final responsive = Responsive.of(context);
     final scheme = Theme.of(context).colorScheme;
+
+    if (!_roleLoaded) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_isPaymentRole && !responsive.showsSidebar) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('بخش پرداخت'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.brightness_6_rounded),
+              tooltip: 'تغییر تم',
+              onPressed: () => _cycleTheme(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.settings_rounded),
+              tooltip: 'تنظیمات',
+              onPressed: _openSettings,
+            ),
+            if (Platform.isAndroid) const MobileSyncStatusButton(),
+          ],
+        ),
+        body: const Column(
+          children: [
+            SyncStatusBanner(),
+            Expanded(child: PaymentScreen()),
+          ],
+        ),
+      );
+    }
 
     if (responsive.showsSidebar) {
       final canCollapse = Platform.isWindows;
@@ -290,6 +353,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onSyncedDataChanged() {
     unawaited(_loadCompanies());
+    if (!_isPaymentRole) unawaited(_showPaymentNotifications());
     if (mounted) setState(() {});
   }
 
@@ -322,14 +386,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
 
     // تنظیمات در صفحه جداگانه باز می‌شود.
-    if (index == 8) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SettingsScreen()),
-      );
+    if (index == _settingsIndex) {
+      _openSettings();
       return;
     }
 
+    if (index >= _pages.length) return;
     setState(() => _index = index);
     if (index < _pages.length && _pageController.hasClients) {
       _pageController.animateToPage(
@@ -342,6 +404,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void changeIndex(int index) {
     _goToIndex(index);
+  }
+
+  void _openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
   }
 
   void _cycleTheme(BuildContext context) {
@@ -373,6 +442,34 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _currentCompany = current;
     });
+  }
+
+  Future<void> _loadUserRole() async {
+    final user = await _api.getUser();
+    if (!mounted) return;
+    setState(() {
+      _userRole = user?['role']?.toString() ?? '';
+      _roleLoaded = true;
+      if (_isPaymentRole) _index = 0;
+    });
+  }
+
+  Future<void> _showPaymentNotifications() async {
+    final notifications = await _paymentNotifications.unseenForAdmin();
+    if (!mounted || notifications.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final first = notifications.first;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          notifications.length == 1
+              ? first.message
+              : '${PersianNumberFormatter.toPersian(notifications.length.toString())} تغییر وضعیت پرداخت دریافت شد. ${first.message}',
+        ),
+        duration: const Duration(seconds: 6),
+      ),
+    );
+    await _paymentNotifications.markSeen(notifications);
   }
 }
 

@@ -13,6 +13,7 @@ import '../models/employee.dart';
 import '../models/employee_leave.dart';
 import '../models/loan.dart';
 import '../models/salary_draft.dart';
+import '../models/salary_payment_status.dart';
 import '../models/salary_record.dart';
 import '../utils/business_validation.dart';
 import 'api_client.dart';
@@ -74,6 +75,7 @@ class SyncService {
     'advances',
     'leaves',
     'salary_records',
+    'salary_payment_statuses',
     'salary_drafts',
     'app_settings',
   ];
@@ -86,9 +88,11 @@ class SyncService {
     'leaves',
     'salary_drafts',
     'salary_records',
+    'salary_payment_statuses',
   ];
 
   static const _deleteOrder = <String>[
+    'salary_payment_statuses',
     'salary_records',
     'salary_drafts',
     'leaves',
@@ -97,6 +101,7 @@ class SyncService {
     'employees',
     'app_settings',
   ];
+  static const _paymentWritableTables = {'salary_payment_statuses'};
 
   final ValueNotifier<SyncSnapshot> status = ValueNotifier<SyncSnapshot>(
     SyncSnapshot.initial(),
@@ -195,7 +200,8 @@ class SyncService {
   Future<int> pendingCount() async {
     final db = await _db.database;
     var count = 0;
-    for (final table in trackedTables) {
+    final writableTables = await _writableTablesForCurrentUser();
+    for (final table in trackedTables.where(writableTables.contains)) {
       final rows = await db.rawQuery(
         "SELECT COUNT(*) AS count FROM $table WHERE sync_state IN ('pending', 'deleting')",
       );
@@ -494,9 +500,10 @@ class SyncService {
   Future<void> _pushPending() async {
     if (_isPushBlocked) return;
     final db = await _db.database;
+    final writableTables = await _writableTablesForCurrentUser();
     final deleteOperations = <Map<String, dynamic>>[];
     final deleteRefs = <({String table, String syncId, String operation})>[];
-    for (final table in _deleteOrder) {
+    for (final table in _deleteOrder.where(writableTables.contains)) {
       final rows = await db.query(
         table,
         where: "sync_state = 'deleting'",
@@ -523,7 +530,7 @@ class SyncService {
 
     final upsertOperations = <Map<String, dynamic>>[];
     final upsertRefs = <({String table, String syncId, String operation})>[];
-    for (final table in _upsertOrder) {
+    for (final table in _upsertOrder.where(writableTables.contains)) {
       final rows = await db.query(
         table,
         where: "sync_state = 'pending' AND deleted_at IS NULL",
@@ -710,6 +717,7 @@ class SyncService {
         table == 'advances' ||
         table == 'leaves' ||
         table == 'salary_records' ||
+        table == 'salary_payment_statuses' ||
         table == 'salary_drafts') {
       final employeeId = payload['employee_id'];
       if (employeeId != null) {
@@ -751,6 +759,10 @@ class SyncService {
       'advances' => await _remoteAdvancePayload(db, payload),
       'leaves' => await _remoteLeavePayload(db, payload),
       'salary_records' => await _remoteSalaryPayload(db, payload),
+      'salary_payment_statuses' => await _remotePaymentStatusPayload(
+        db,
+        payload,
+      ),
       'salary_drafts' => await _remoteSalaryDraftPayload(db, payload),
       'app_settings' => AppSettings.fromMap(payload).toMap()..remove('id'),
       _ => null,
@@ -838,6 +850,18 @@ class SyncService {
     }).toMap()..remove('id');
   }
 
+  Future<Map<String, dynamic>?> _remotePaymentStatusPayload(
+    Database db,
+    Map<String, dynamic> payload,
+  ) async {
+    final employeeId = await _localEmployeeId(db, payload);
+    if (employeeId == null) return null;
+    return SalaryPaymentStatus.fromMap({
+      ..._boolsToInts(payload, const {'is_paid'}),
+      'employee_id': employeeId,
+    }).toMap()..remove('id');
+  }
+
   Future<int?> _localEmployeeId(
     Database db,
     Map<String, dynamic> payload,
@@ -880,6 +904,14 @@ class SyncService {
         limit: 1,
       );
     } else if (table == 'salary_drafts') {
+      rows = await db.query(
+        table,
+        columns: ['id', 'sync_state'],
+        where: 'employee_id = ? AND year = ? AND month = ?',
+        whereArgs: [payload['employee_id'], payload['year'], payload['month']],
+        limit: 1,
+      );
+    } else if (table == 'salary_payment_statuses') {
       rows = await db.query(
         table,
         columns: ['id', 'sync_state'],
@@ -1038,6 +1070,12 @@ class SyncService {
     }
   }
 
+  Future<Set<String>> _writableTablesForCurrentUser() async {
+    final role = (await _api.getUser())?['role']?.toString();
+    if (role == 'payment') return _paymentWritableTables;
+    return trackedTables.toSet();
+  }
+
   String _errorFrom(dynamic response) {
     try {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1079,6 +1117,8 @@ class SyncService {
         'برای این کارمند و این ماه قبلا فیش حقوقی ثبت شده است. اطلاعات را تازه کنید و دوباره بررسی کنید.',
       'duplicate_salary_draft' =>
         'پیش‌نویس این کارمند و ماه همزمان در دستگاه دیگری تغییر کرده است. اطلاعات را تازه کنید.',
+      'duplicate_payment_status' =>
+        'وضعیت پرداخت این فیش همزمان در دستگاه دیگری تغییر کرده است. اطلاعات را تازه کنید.',
       'duplicate_leave' =>
         'برای این کارمند، نوع و بازه زمانی یک مرخصی یکسان قبلاً ثبت شده است. اطلاعات را تازه کنید.',
       'stale_update' =>
@@ -1099,6 +1139,10 @@ class SyncService {
         'اطلاعات مساعده معتبر نیست. مبلغ و تاریخ پرداخت را بررسی کنید.',
       'invalid_payroll_period' =>
         'دوره حقوق معتبر نیست. سال، ماه و تعداد روزها را بررسی کنید.',
+      'invalid_payment_period' =>
+        'دوره پرداخت معتبر نیست. سال و ماه را بررسی کنید.',
+      'invalid_payment_reason' =>
+        'برای وضعیت پرداخت‌نشده باید دلیل معتبر وارد شود.',
       'invalid_salary_amount' =>
         'یکی از مقادیر حقوق یا ساعات نامعتبر است و امکان ذخیره وجود ندارد.',
       'invalid_settings' =>
@@ -1142,6 +1186,8 @@ class SyncService {
         'فیش حقوقی این ماه با اطلاعات سرور تداخل دارد. اطلاعات را تازه کنید و دوباره ذخیره کنید.',
       'salary_drafts' =>
         'پیش‌نویس این ماه با اطلاعات سرور تداخل دارد. اطلاعات را تازه کنید و دوباره ادامه دهید.',
+      'salary_payment_statuses' =>
+        'وضعیت پرداخت این ماه با اطلاعات سرور تداخل دارد. اطلاعات را تازه کنید و دوباره ذخیره کنید.',
       _ =>
         'اطلاعات محلی با داده‌های سرور تداخل دارد. اطلاعات را تازه کنید و دوباره تلاش کنید.',
     };
