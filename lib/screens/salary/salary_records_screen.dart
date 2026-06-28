@@ -287,7 +287,10 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
             child: const Text('انصراف'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: scheme.error),
+            style: FilledButton.styleFrom(
+              backgroundColor: scheme.error,
+              foregroundColor: scheme.onError,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('حذف'),
           ),

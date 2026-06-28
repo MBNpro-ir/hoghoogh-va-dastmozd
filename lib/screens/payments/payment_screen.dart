@@ -448,8 +448,16 @@ class _SummaryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Chip(
-      avatar: Icon(icon, size: 18),
+      avatar: Icon(icon, size: 18, color: scheme.primary),
+      backgroundColor: scheme.surfaceContainerLowest,
+      side: BorderSide(color: scheme.outlineVariant),
+      shape: const StadiumBorder(),
+      labelStyle: TextStyle(
+        color: scheme.onSurface,
+        fontWeight: FontWeight.w700,
+      ),
       label: Text(
         '$label: ${PersianNumberFormatter.toPersian(value.toString())}',
       ),

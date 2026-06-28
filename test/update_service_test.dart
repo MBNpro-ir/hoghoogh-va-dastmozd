@@ -25,4 +25,14 @@ void main() {
 
     expect(stable.compareTo(alpha), greaterThan(0));
   });
+
+  test('builds GitHub release download base URL for Velopack feeds', () {
+    expect(
+      buildGithubReleaseDownloadBaseUrl(
+        'MBNpro-ir/hoghoogh-va-dastmozd',
+        'v0.9.10-alpha',
+      ),
+      'https://github.com/MBNpro-ir/hoghoogh-va-dastmozd/releases/download/v0.9.10-alpha/',
+    );
+  });
 }

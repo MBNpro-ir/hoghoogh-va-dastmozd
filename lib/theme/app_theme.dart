@@ -352,6 +352,8 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: scheme.surfaceContainerLow,
         selectedColor: scheme.primaryContainer,
+        checkmarkColor: scheme.onPrimaryContainer,
+        iconTheme: IconThemeData(color: scheme.onSurfaceVariant, size: 18),
         side: BorderSide(color: scheme.outlineVariant),
         padding: extraSpacing
             ? const EdgeInsets.symmetric(horizontal: 16, vertical: 9)
@@ -359,7 +361,16 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusFull),
         ),
-        labelStyle: TextStyle(fontFamily: family, fontSize: 13),
+        labelStyle: TextStyle(
+          fontFamily: family,
+          fontSize: 13,
+          color: scheme.onSurface,
+        ),
+        secondaryLabelStyle: TextStyle(
+          fontFamily: family,
+          fontSize: 13,
+          color: scheme.onPrimaryContainer,
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: scheme.inverseSurface,
@@ -744,10 +755,17 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: scheme.surfaceContainer,
         selectedColor: scheme.primaryContainer,
+        checkmarkColor: scheme.onPrimaryContainer,
+        iconTheme: IconThemeData(color: scheme.onSurfaceVariant, size: 18),
         labelStyle: TextStyle(
           fontFamily: family,
           fontSize: 13,
           color: scheme.onSurface,
+        ),
+        secondaryLabelStyle: TextStyle(
+          fontFamily: family,
+          fontSize: 13,
+          color: scheme.onPrimaryContainer,
         ),
         padding: extraSpacing
             ? const EdgeInsets.symmetric(horizontal: 16, vertical: 9)
@@ -875,7 +893,7 @@ class AppTheme {
         fontFamily: AppConstants.fontFamily,
         fontSize: 11,
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-        color: selected ? scheme.primary : scheme.onSurfaceVariant,
+        color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
       );
     }),
   );

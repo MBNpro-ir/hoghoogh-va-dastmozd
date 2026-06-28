@@ -202,6 +202,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
             ),
             child: const Text('خروج بدون ذخیره'),
           ),
@@ -303,6 +304,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('بازنشانی'),
@@ -371,6 +373,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('انتخاب بکاپ'),
@@ -440,6 +443,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('انتخاب بکاپ'),
@@ -554,6 +558,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('حذف'),
@@ -608,6 +613,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('خروج'),

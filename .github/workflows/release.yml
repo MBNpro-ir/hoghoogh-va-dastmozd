@@ -91,6 +91,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Velopack CLI
+        shell: pwsh
+        run: |
+          if (dotnet tool list --global | Select-String -SimpleMatch "vpk") {
+            dotnet tool update --global vpk --version 1.2.0
+          } else {
+            dotnet tool install --global vpk --version 1.2.0
+          }
+          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -116,6 +131,20 @@ jobs:
       - name: Build Windows x64
         run: flutter build windows --release
 
+      - name: Publish Windows updater helper
+        shell: pwsh
+        run: |
+          $releaseDir = "build\windows\x64\runner\Release"
+          $helperOut = Join-Path $releaseDir "hvm-updater-publish"
+          dotnet publish "tools\HvMUpdater\HvMUpdater.csproj" `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -o $helperOut
+          Copy-Item -Path (Join-Path $helperOut "hvm_updater.exe") -Destination (Join-Path $releaseDir "hvm_updater.exe") -Force
+          Remove-Item -LiteralPath $helperOut -Recurse -Force
+
       - name: Package Windows x64 Portable
         shell: pwsh
         run: |
@@ -137,11 +166,32 @@ jobs:
           }
           Compress-Archive -Path "$bundle\*" -DestinationPath "artifacts/payroll-app-${tag}-windows-x64-portable.zip"
 
-      - name: Upload Windows portable
+      - name: Package Windows x64 with Velopack
+        shell: pwsh
+        run: |
+          $versionLine = Select-String -Path pubspec.yaml -Pattern '^version:\s*(.+)$'
+          $version = $versionLine.Matches[0].Groups[1].Value.Split('+')[0]
+          New-Item -ItemType Directory -Path artifacts\velopack -Force
+          vpk pack `
+            --packId "ir.mbnpro.hvm" `
+            --packVersion $version `
+            --packDir "build\windows\x64\runner\Release" `
+            --mainExe "payroll_app.exe" `
+            --channel "win" `
+            --packTitle "HvM" `
+            --packAuthors "MBNpro" `
+            --icon "windows\runner\resources\app_icon.ico" `
+            --releaseNotes "RELEASE_NOTES.md" `
+            --skipVeloAppCheck `
+            --outputDir "artifacts\velopack"
+
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: windows-portable
-          path: artifacts/*.zip
+          name: windows-artifacts
+          path: |
+            artifacts/*.zip
+            artifacts/velopack/*
           if-no-files-found: error
 
   release:
@@ -183,5 +233,6 @@ jobs:
           files: |
             artifacts/*.apk
             artifacts/*.zip
+            artifacts/velopack/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

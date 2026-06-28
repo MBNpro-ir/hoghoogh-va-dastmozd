@@ -164,6 +164,7 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('حذف'),

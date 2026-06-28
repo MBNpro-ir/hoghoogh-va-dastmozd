@@ -26,13 +26,16 @@ class UpdatePreferences {
   }
 }
 
+enum AppUpdateInstaller { githubAsset, velopack }
+
 class AppUpdateRelease {
   final AppVersion version;
   final String tag;
   final String name;
   final String body;
   final Uri pageUrl;
-  final GithubReleaseAsset asset;
+  final GithubReleaseAsset? asset;
+  final AppUpdateInstaller installer;
 
   const AppUpdateRelease({
     required this.version,
@@ -40,8 +43,11 @@ class AppUpdateRelease {
     required this.name,
     required this.body,
     required this.pageUrl,
-    required this.asset,
-  });
+    this.asset,
+    this.installer = AppUpdateInstaller.githubAsset,
+  }) : assert(installer == AppUpdateInstaller.velopack || asset != null);
+
+  bool get usesVelopack => installer == AppUpdateInstaller.velopack;
 }
 
 class GithubReleaseAsset {
@@ -58,9 +64,9 @@ class GithubReleaseAsset {
 
 class DownloadedUpdate {
   final AppUpdateRelease release;
-  final String filePath;
+  final String? filePath;
 
-  const DownloadedUpdate({required this.release, required this.filePath});
+  const DownloadedUpdate({required this.release, this.filePath});
 }
 
 class AppVersion implements Comparable<AppVersion> {
@@ -115,13 +121,27 @@ class AppVersion implements Comparable<AppVersion> {
 
 class UpdateService {
   static const _repo = 'MBNpro-ir/hoghoogh-va-dastmozd';
+  static const _repoUrl = 'https://github.com/$_repo';
   static const _releasesUrl = 'https://api.github.com/repos/$_repo/releases';
+  static const _windowsVelopackChannel = 'win';
+  static const _windowsVelopackHelperExe = 'hvm_updater.exe';
   static const _autoCheckKey = 'hvm_update_auto_check_v1';
   static const _autoDownloadKey = 'hvm_update_auto_download_v1';
   static const _pendingInstalledVersionKey =
       'hvm_update_pending_installed_version_v1';
   static const _pendingInstallMarkerPathKey =
       'hvm_update_pending_install_marker_path_v1';
+  static const _velopackHookCommands = {
+    '--veloapp-install',
+    '--veloapp-updated',
+    '--veloapp-obsolete',
+    '--veloapp-uninstall',
+  };
+
+  static Future<void> initializeWindowsVelopackHooks(List<String> args) async {
+    if (!Platform.isWindows) return;
+    if (args.any(_velopackHookCommands.contains)) exit(0);
+  }
 
   Future<UpdatePreferences> loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
@@ -142,6 +162,18 @@ class UpdateService {
 
   Future<AppUpdateRelease?> checkLatest() async {
     final current = await _currentVersion();
+    final releases = await _loadGithubReleases();
+    if (Platform.isWindows) {
+      final velopackRelease = await _selectWindowsVelopackRelease(
+        releases,
+        current,
+      );
+      if (velopackRelease != null) return velopackRelease;
+    }
+    return _selectGithubAssetRelease(releases, current);
+  }
+
+  Future<List<Map>> _loadGithubReleases() async {
     final response = await http
         .get(
           Uri.parse(_releasesUrl),
@@ -155,9 +187,48 @@ class UpdateService {
       throw UpdateException('خطا در بررسی آپدیت از GitHub');
     }
     final decoded = jsonDecode(response.body);
-    if (decoded is! List) return null;
+    if (decoded is! List) return const [];
+    return decoded.whereType<Map>().toList();
+  }
+
+  Future<AppUpdateRelease?> _selectWindowsVelopackRelease(
+    List<Map> releases,
+    AppVersion current,
+  ) async {
+    if (!_isWindowsVelopackManaged()) return null;
     final candidates = <AppUpdateRelease>[];
-    for (final item in decoded.whereType<Map>()) {
+    for (final item in releases) {
+      if (item['draft'] == true) continue;
+      final tag = item['tag_name']?.toString() ?? '';
+      if (tag.isEmpty) continue;
+      final version = AppVersion.parse(tag);
+      if (version.compareTo(current) <= 0) continue;
+      final assets = _releaseAssets(item['assets']);
+      if (!_hasWindowsVelopackAssets(assets)) continue;
+      candidates.add(
+        AppUpdateRelease(
+          version: version,
+          tag: tag,
+          name: item['name']?.toString() ?? tag,
+          body: item['body']?.toString() ?? '',
+          pageUrl: Uri.parse(
+            item['html_url']?.toString() ?? '$_repoUrl/releases/tag/$tag',
+          ),
+          installer: AppUpdateInstaller.velopack,
+        ),
+      );
+    }
+    if (candidates.isEmpty) return null;
+    candidates.sort((a, b) => b.version.compareTo(a.version));
+    return candidates.first;
+  }
+
+  AppUpdateRelease? _selectGithubAssetRelease(
+    List<Map> releases,
+    AppVersion current,
+  ) {
+    final candidates = <AppUpdateRelease>[];
+    for (final item in releases) {
       if (item['draft'] == true) continue;
       final tag = item['tag_name']?.toString() ?? '';
       if (tag.isEmpty) continue;
@@ -172,8 +243,7 @@ class UpdateService {
           name: item['name']?.toString() ?? tag,
           body: item['body']?.toString() ?? '',
           pageUrl: Uri.parse(
-            item['html_url']?.toString() ??
-                'https://github.com/$_repo/releases/tag/$tag',
+            item['html_url']?.toString() ?? '$_repoUrl/releases/tag/$tag',
           ),
           asset: asset,
         ),
@@ -185,13 +255,20 @@ class UpdateService {
   }
 
   Future<DownloadedUpdate> download(AppUpdateRelease release) async {
+    if (release.usesVelopack) {
+      return DownloadedUpdate(release: release);
+    }
+    final asset = release.asset;
+    if (asset == null) {
+      throw const UpdateException('فایل آپدیت پیدا نشد');
+    }
     final dir = Directory(
       p.join((await getTemporaryDirectory()).path, 'hvm_updates'),
     );
     if (!await dir.exists()) await dir.create(recursive: true);
-    final filePath = p.join(dir.path, release.asset.name);
+    final filePath = p.join(dir.path, asset.name);
     final file = File(filePath);
-    final request = http.Request('GET', release.asset.downloadUrl)
+    final request = http.Request('GET', asset.downloadUrl)
       ..headers['user-agent'] = 'HvM updater';
     final response = await http.Client()
         .send(request)
@@ -207,6 +284,10 @@ class UpdateService {
 
   Future<void> install(DownloadedUpdate update) async {
     if (Platform.isWindows) {
+      if (update.release.usesVelopack) {
+        await _installWindowsVelopack(update.release);
+        return;
+      }
       final markerPath = await _markWindowsInstallPending(
         update.release.version.toString(),
       );
@@ -216,13 +297,21 @@ class UpdateService {
     }
     if (Platform.isAndroid) {
       await _markInstallStarted(update.release.version.toString());
+      final filePath = update.filePath;
+      if (filePath == null) {
+        throw const UpdateException('فایل آپدیت پیدا نشد');
+      }
       await OpenFilex.open(
-        update.filePath,
+        filePath,
         type: 'application/vnd.android.package-archive',
       );
       return;
     }
-    await OpenFilex.open(update.filePath);
+    final filePath = update.filePath;
+    if (filePath == null) {
+      throw const UpdateException('فایل آپدیت پیدا نشد');
+    }
+    await OpenFilex.open(filePath);
   }
 
   Future<void> checkAndPrompt(
@@ -297,6 +386,12 @@ class UpdateService {
     final prefs = await SharedPreferences.getInstance();
     final version = prefs.getString(_pendingInstalledVersionKey);
     if (version == null || version.isEmpty) return;
+    final installed = await _currentVersion();
+    if (installed.compareTo(AppVersion.parse(version)) < 0) {
+      await prefs.remove(_pendingInstalledVersionKey);
+      await prefs.remove(_pendingInstallMarkerPathKey);
+      return;
+    }
     final markerPath = prefs.getString(_pendingInstallMarkerPathKey);
     if (Platform.isWindows && markerPath != null && markerPath.isNotEmpty) {
       final marker = File(markerPath);
@@ -324,8 +419,28 @@ class UpdateService {
   }
 
   GithubReleaseAsset? _selectAsset(Object? rawAssets) {
-    if (rawAssets is! List) return null;
-    final assets = rawAssets
+    final assets = _releaseAssets(rawAssets);
+    bool apkUniversal(GithubReleaseAsset asset) =>
+        asset.name.endsWith('.apk') && asset.name.contains('universal');
+    bool apk(GithubReleaseAsset asset) => asset.name.endsWith('.apk');
+    bool windowsZip(GithubReleaseAsset asset) =>
+        asset.name.endsWith('.zip') &&
+        asset.name.startsWith('payroll-app-') &&
+        asset.name.contains('windows-x64-portable');
+    if (Platform.isAndroid) {
+      return assets.where(apkUniversal).firstOrNull ??
+          assets.where(apk).firstOrNull;
+    }
+    if (Platform.isWindows) {
+      return assets.where(windowsZip).firstOrNull ??
+          assets.where((asset) => asset.name.endsWith('.zip')).firstOrNull;
+    }
+    return null;
+  }
+
+  List<GithubReleaseAsset> _releaseAssets(Object? rawAssets) {
+    if (rawAssets is! List) return const [];
+    return rawAssets
         .whereType<Map>()
         .map((item) {
           final name = item['name']?.toString() ?? '';
@@ -339,20 +454,15 @@ class UpdateService {
         })
         .whereType<GithubReleaseAsset>()
         .toList();
-    bool apkUniversal(GithubReleaseAsset asset) =>
-        asset.name.endsWith('.apk') && asset.name.contains('universal');
-    bool apk(GithubReleaseAsset asset) => asset.name.endsWith('.apk');
-    bool windowsZip(GithubReleaseAsset asset) =>
-        asset.name.endsWith('.zip') && asset.name.contains('windows');
-    if (Platform.isAndroid) {
-      return assets.where(apkUniversal).firstOrNull ??
-          assets.where(apk).firstOrNull;
-    }
-    if (Platform.isWindows) {
-      return assets.where(windowsZip).firstOrNull ??
-          assets.where((asset) => asset.name.endsWith('.zip')).firstOrNull;
-    }
-    return null;
+  }
+
+  bool _hasWindowsVelopackAssets(List<GithubReleaseAsset> assets) {
+    final names = assets.map((asset) => asset.name.toLowerCase()).toList();
+    final hasReleaseFeed = names.any(
+      (name) => name == 'releases.win.json' || name == 'releases',
+    );
+    final hasPackage = names.any((name) => name.endsWith('.nupkg'));
+    return hasReleaseFeed && hasPackage;
   }
 
   Future<void> _showInstallDialog(
@@ -400,10 +510,69 @@ class UpdateService {
   Future<void> installUpdate(DownloadedUpdate downloaded) =>
       install(downloaded);
 
+  Future<void> _installWindowsVelopack(AppUpdateRelease release) async {
+    final helper = _findWindowsVelopackHelper();
+    if (helper == null) {
+      throw const UpdateException('نصب خودکار ویندوز آماده نیست');
+    }
+    final sourceUrl = buildGithubReleaseDownloadBaseUrl(_repo, release.tag);
+    await _markInstallStarted(release.version.toString());
+    await Process.start(
+      helper.path,
+      [
+        'apply',
+        '--source',
+        sourceUrl,
+        '--channel',
+        _windowsVelopackChannel,
+        '--wait-pid',
+        pid.toString(),
+        '--restart',
+        '--silent',
+      ],
+      workingDirectory: helper.parent.path,
+      mode: ProcessStartMode.detached,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    exit(0);
+  }
+
+  bool _isWindowsVelopackManaged() =>
+      Platform.isWindows &&
+      _findWindowsVelopackHelper() != null &&
+      _findWindowsVelopackUpdateExe() != null;
+
+  File? _findWindowsVelopackHelper() =>
+      _firstExistingWindowsFile(_windowsVelopackHelperExe);
+
+  File? _findWindowsVelopackUpdateExe() =>
+      _firstExistingWindowsFile('Update.exe');
+
+  File? _firstExistingWindowsFile(String fileName) {
+    if (!Platform.isWindows) return null;
+    final appDir = p.dirname(Platform.resolvedExecutable);
+    final parentDir = p.dirname(appDir);
+    final candidates = [
+      p.join(appDir, fileName),
+      p.join(appDir, 'updater', fileName),
+      p.join(parentDir, fileName),
+      p.join(parentDir, 'updater', fileName),
+    ];
+    for (final candidate in candidates) {
+      final file = File(candidate);
+      if (file.existsSync()) return file;
+    }
+    return null;
+  }
+
   Future<void> _installWindowsPortable(
     DownloadedUpdate update, {
     required String markerPath,
   }) async {
+    final filePath = update.filePath;
+    if (filePath == null) {
+      throw const UpdateException('فایل آپدیت پیدا نشد');
+    }
     final exePath = Platform.resolvedExecutable;
     final appDir = p.dirname(exePath);
     final script = File(
@@ -420,7 +589,7 @@ class UpdateService {
       '-File',
       script.path,
       pid.toString(),
-      update.filePath,
+      filePath,
       appDir,
       exePath,
       markerPath,
@@ -602,6 +771,9 @@ try {
   } catch {}
 }
 ''';
+
+String buildGithubReleaseDownloadBaseUrl(String repo, String tag) =>
+    'https://github.com/$repo/releases/download/$tag/';
 
 class UpdateException implements Exception {
   final String message;
