@@ -12,6 +12,7 @@ import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/persian_date_picker.dart';
 import '../../widgets/persian_number_field.dart';
+import '../../widgets/app_notification.dart';
 
 class AdvanceFormScreen extends StatefulWidget {
   final AdvancePayment? advance;
@@ -112,15 +113,11 @@ class _AdvanceFormScreenState extends State<AdvanceFormScreen> {
       Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppErrorMessage.from(
-              e,
-              fallback: 'ذخیره مساعده انجام نشد. اطلاعات را بررسی کنید.',
-            ),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
+      AppNotification.error(
+        context,
+        AppErrorMessage.from(
+          e,
+          fallback: 'ذخیره مساعده انجام نشد. اطلاعات را بررسی کنید.',
         ),
       );
     } finally {

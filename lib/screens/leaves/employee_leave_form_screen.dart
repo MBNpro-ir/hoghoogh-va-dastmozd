@@ -11,6 +11,7 @@ import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/persian_date_picker.dart';
+import '../../widgets/app_notification.dart';
 import '../../widgets/persian_number_field.dart';
 
 class EmployeeLeaveFormScreen extends StatefulWidget {
@@ -151,12 +152,7 @@ class _EmployeeLeaveFormScreenState extends State<EmployeeLeaveFormScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
+    AppNotification.error(context, message);
   }
 
   bool get _isMobile => MediaQuery.sizeOf(context).width < 600;

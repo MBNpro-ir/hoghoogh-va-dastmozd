@@ -11,6 +11,7 @@ import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/app_notification.dart';
 import '../../widgets/persian_date_picker.dart';
 import '../../widgets/persian_number_field.dart';
 
@@ -227,10 +228,7 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
   }
 
   void _showError(String message) {
-    final scheme = Theme.of(context).colorScheme;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: scheme.error),
-    );
+    AppNotification.error(context, message);
   }
 
   bool get _isMobile => MediaQuery.sizeOf(context).width < 600;

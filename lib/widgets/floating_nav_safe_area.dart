@@ -42,6 +42,15 @@ class FloatingNavSafeArea {
     );
   }
 
+  static double notificationBottomInset(
+    BuildContext context, {
+    double minimum = 18,
+  }) {
+    final viewPadding = MediaQuery.viewPaddingOf(context).bottom;
+    if (!isActive(context)) return minimum + viewPadding;
+    return _androidNavHeight + _androidNavVerticalMargin + viewPadding + 12;
+  }
+
   static Widget padFloatingActionButton(BuildContext context, Widget child) {
     if (!isActive(context)) return child;
     final bottom = _fabBottomInset + MediaQuery.viewPaddingOf(context).bottom;

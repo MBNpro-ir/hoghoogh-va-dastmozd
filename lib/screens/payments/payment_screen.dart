@@ -8,6 +8,7 @@ import '../../services/salary_payment_service.dart';
 import '../../utils/business_validation.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
+import '../../widgets/app_notification.dart';
 import '../../widgets/currency_text.dart';
 import '../../widgets/period_filter_bar.dart';
 import '../salary/payslip_screen.dart';
@@ -248,13 +249,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final raw = row.finalPayment.round().toString();
     await Clipboard.setData(ClipboardData(text: raw));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'مبلغ خالص دریافتی ${PersianNumberFormatter.toPersian(raw)} ریال کپی شد',
-        ),
-        duration: const Duration(seconds: 2),
-      ),
+    AppNotification.info(
+      context,
+      'مبلغ خالص دریافتی ${PersianNumberFormatter.toPersian(raw)} ریال کپی شد',
+      duration: const Duration(seconds: 2),
     );
   }
 
@@ -278,10 +276,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
       );
       await _load();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isPaid ? 'پرداخت ثبت شد' : 'پرداخت‌نشدن ثبت شد'),
-        ),
+      AppNotification.success(
+        context,
+        isPaid ? 'پرداخت ثبت شد' : 'پرداخت‌نشدن ثبت شد',
       );
     } on BusinessValidationException catch (e) {
       if (!mounted) return;

@@ -16,6 +16,7 @@ import '../utils/constants.dart';
 import '../utils/persian_number_formatter.dart';
 import '../utils/responsive.dart';
 import '../widgets/android_expressive_nav_bar.dart';
+import '../widgets/app_notification.dart';
 import '../widgets/app_sidebar.dart';
 import '../widgets/sync_status_banner.dart';
 import 'advances/advances_list_screen.dart';
@@ -427,11 +428,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ThemeMode.dark => ThemeMode.system,
     };
     controller.setThemeMode(next);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_themeModeLabel(next)),
-        duration: const Duration(milliseconds: 1200),
-      ),
+    AppNotification.info(
+      context,
+      _themeModeLabel(next),
+      duration: const Duration(milliseconds: 1200),
     );
   }
 
@@ -463,17 +463,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _showPaymentNotifications() async {
     final notifications = await _paymentNotifications.unseenForAdmin();
     if (!mounted || notifications.isEmpty) return;
-    final messenger = ScaffoldMessenger.of(context);
     final first = notifications.first;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          notifications.length == 1
-              ? first.message
-              : '${PersianNumberFormatter.toPersian(notifications.length.toString())} تغییر وضعیت پرداخت دریافت شد. ${first.message}',
-        ),
-        duration: const Duration(seconds: 6),
-      ),
+    AppNotification.info(
+      context,
+      notifications.length == 1
+          ? first.message
+          : '${PersianNumberFormatter.toPersian(notifications.length.toString())} تغییر وضعیت پرداخت دریافت شد. ${first.message}',
+      duration: const Duration(seconds: 6),
     );
     await _paymentNotifications.markSeen(notifications);
   }

@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/persian_number_formatter.dart';
+import '../widgets/app_notification.dart';
 
 class UpdatePreferences {
   final bool autoCheck;
@@ -251,7 +252,11 @@ class UpdateService {
       release = await checkLatest();
     } catch (e) {
       if (!automatic && context.mounted) {
-        _snack(context, e.toString().replaceAll('Exception: ', ''));
+        _snack(
+          context,
+          e.toString().replaceAll('Exception: ', ''),
+          type: AppNotificationType.error,
+        );
       }
       return;
     }
@@ -272,7 +277,11 @@ class UpdateService {
         await _showInstallDialog(context, downloaded);
       } catch (e) {
         if (context.mounted) {
-          _snack(context, e.toString().replaceAll('Exception: ', ''));
+          _snack(
+            context,
+            e.toString().replaceAll('Exception: ', ''),
+            type: AppNotificationType.error,
+          );
         }
       }
       return;
@@ -336,6 +345,7 @@ class UpdateService {
     _snack(
       context,
       'برنامه به نسخه ${PersianNumberFormatter.toPersian(version)} آپدیت شد',
+      type: AppNotificationType.success,
     );
   }
 
@@ -521,9 +531,15 @@ class UpdateService {
     return markerPath;
   }
 
-  void _snack(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(PersianNumberFormatter.toPersian(message))),
+  void _snack(
+    BuildContext context,
+    String message, {
+    AppNotificationType type = AppNotificationType.info,
+  }) {
+    AppNotification.show(
+      context,
+      PersianNumberFormatter.toPersian(message),
+      type: type,
     );
   }
 

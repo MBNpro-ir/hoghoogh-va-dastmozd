@@ -19,6 +19,7 @@ import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
+import '../../widgets/app_notification.dart';
 import '../../widgets/mouse_wheel_picker.dart';
 import '../salary/salary_calculation_screen.dart';
 import 'employee_batch_entry_view.dart';
@@ -248,12 +249,11 @@ class _BatchPayslipViewState extends State<_BatchPayslipView> {
 
   void _message(String message, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Theme.of(context).colorScheme.error : null,
-      ),
-    );
+    if (isError) {
+      AppNotification.error(context, message);
+    } else {
+      AppNotification.success(context, message);
+    }
   }
 
   Future<void> _printPayslips() async {

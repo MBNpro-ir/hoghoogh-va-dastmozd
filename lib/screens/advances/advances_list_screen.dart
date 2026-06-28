@@ -9,6 +9,7 @@ import '../../utils/app_error_message.dart';
 import '../../utils/period_filter_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/app_notification.dart';
 import '../../widgets/floating_nav_safe_area.dart';
 import '../../widgets/period_filter_bar.dart';
 import '../../widgets/responsive_data_view.dart';
@@ -178,15 +179,11 @@ class _AdvancesListScreenState extends State<AdvancesListScreen> {
         await _load();
       } catch (error) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppErrorMessage.from(
-                error,
-                fallback: 'حذف مساعده انجام نشد. فهرست را تازه کنید.',
-              ),
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
+        AppNotification.error(
+          context,
+          AppErrorMessage.from(
+            error,
+            fallback: 'حذف مساعده انجام نشد. فهرست را تازه کنید.',
           ),
         );
       }

@@ -19,6 +19,7 @@ import '../../models/salary_record.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
+import '../../widgets/app_notification.dart';
 import '../../widgets/currency_text.dart';
 
 enum _PayslipExportAction {
@@ -702,8 +703,6 @@ class PayslipScreen extends StatelessWidget {
     BuildContext context,
     _PayslipExportAction action,
   ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final scheme = Theme.of(context).colorScheme;
     try {
       switch (action) {
         case _PayslipExportAction.savePdf:
@@ -793,19 +792,11 @@ class PayslipScreen extends StatelessWidget {
           await _shareFile(await _buildExcelBytes(), '${_fileBaseName()}.xlsx');
           break;
       }
-      messenger.showSnackBar(
-        SnackBar(
-          content: const Text('عملیات خروجی انجام شد'),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
+      if (!context.mounted) return;
+      AppNotification.success(context, 'عملیات خروجی انجام شد');
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('خطا در خروجی: $e'),
-          backgroundColor: scheme.error,
-        ),
-      );
+      if (!context.mounted) return;
+      AppNotification.error(context, 'خطا در خروجی: $e');
     }
   }
 
@@ -1039,8 +1030,6 @@ class PayslipScreen extends StatelessWidget {
   }
 
   Future<void> _printPdf(BuildContext context) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final scheme = Theme.of(context).colorScheme;
     try {
       final paper = await _askPaperSize(context, 'اندازه چاپ فیش');
       if (paper == null) return;
@@ -1050,12 +1039,8 @@ class PayslipScreen extends StatelessWidget {
             'فیش حقوق $_employeeFullName - ${PersianDateHelper.monthName(record.month)} ${record.year}',
       );
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('خطا در ساخت PDF: $e'),
-          backgroundColor: scheme.error,
-        ),
-      );
+      if (!context.mounted) return;
+      AppNotification.error(context, 'خطا در ساخت PDF: $e');
     }
   }
 

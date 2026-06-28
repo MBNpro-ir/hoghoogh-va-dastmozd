@@ -9,6 +9,7 @@ import '../../utils/app_error_message.dart';
 import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/app_notification.dart';
 import '../../widgets/floating_nav_safe_area.dart';
 import '../../widgets/mobile_collapsible_panel.dart';
 import '../../widgets/responsive_data_view.dart';
@@ -135,20 +136,14 @@ class _EmployeesListScreenState extends State<EmployeesListScreen> {
         await _service.delete(employee.id!);
         await _load();
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('کارمند با موفقیت حذف شد')),
-        );
+        AppNotification.success(context, 'کارمند با موفقیت حذف شد');
       } catch (error) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppErrorMessage.from(
-                error,
-                fallback: 'حذف کارمند انجام نشد. فهرست را تازه کنید.',
-              ),
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
+        AppNotification.error(
+          context,
+          AppErrorMessage.from(
+            error,
+            fallback: 'حذف کارمند انجام نشد. فهرست را تازه کنید.',
           ),
         );
       }

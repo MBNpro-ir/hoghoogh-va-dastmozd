@@ -25,6 +25,7 @@ import '../../utils/app_error_message.dart';
 import '../../utils/responsive.dart';
 import '../../utils/gradient_helpers.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/app_notification.dart';
 import '../../widgets/floating_nav_safe_area.dart';
 import '../../widgets/mouse_wheel_picker.dart';
 import '../../widgets/persian_number_field.dart';
@@ -537,12 +538,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   bool _validateAttendance() {
     final error = _attendanceError;
     if (error == null) return true;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(error),
-        backgroundColor: Theme.of(context).colorScheme.error,
-      ),
-    );
+    AppNotification.warning(context, error);
     return false;
   }
 
@@ -551,22 +547,16 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     if (_result == null || _selectedEmployee == null) return;
     if (!_validateAttendance()) return;
     if (_useCustomOvertimeBase && _overtimeBaseDaily <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('مبنای روزانه اضافه‌کاری باید بیشتر از صفر باشد'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+      AppNotification.warning(
+        context,
+        'مبنای روزانه اضافه‌کاری باید بیشتر از صفر باشد',
       );
       return;
     }
     if (!_isEditMode && !_selectedEmployee!.isActive) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'برای کارمند غیرفعال امکان ثبت فیش حقوق جدید وجود ندارد',
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+      AppNotification.warning(
+        context,
+        'برای کارمند غیرفعال امکان ثبت فیش حقوق جدید وجود ندارد',
       );
       return;
     }
@@ -635,12 +625,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('فیش حقوق با موفقیت ذخیره شد'),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
+      AppNotification.success(context, 'فیش حقوق با موفقیت ذخیره شد');
 
       if (!mounted) return;
       await Navigator.push(
@@ -658,17 +643,11 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       if (mounted) setState(() {});
     } catch (e) {
       if (!mounted) return;
-      final scheme = Theme.of(context).colorScheme;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppErrorMessage.from(
-              e,
-              fallback:
-                  'ذخیره فیش انجام نشد. اطلاعات را بررسی و دوباره تلاش کنید.',
-            ),
-          ),
-          backgroundColor: scheme.error,
+      AppNotification.error(
+        context,
+        AppErrorMessage.from(
+          e,
+          fallback: 'ذخیره فیش انجام نشد. اطلاعات را بررسی و دوباره تلاش کنید.',
         ),
       );
     } finally {

@@ -17,6 +17,7 @@ import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/seniority_helper.dart';
+import '../../widgets/app_notification.dart';
 
 enum _EmployeeGridSection {
   identity,
@@ -353,12 +354,11 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
 
   void _message(String message, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Theme.of(context).colorScheme.error : null,
-      ),
-    );
+    if (isError) {
+      AppNotification.error(context, message);
+    } else {
+      AppNotification.success(context, message);
+    }
   }
 
   @override
@@ -1423,12 +1423,9 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
       settings: settings,
     );
     if (value && !expected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'برای فعال کردن «دارای سابقه»، تاریخ شروع باید تا پایان سال مالی حداقل یک سال سابقه داشته باشد.',
-          ),
-        ),
+      AppNotification.warning(
+        context,
+        'برای فعال کردن «دارای سابقه»، تاریخ شروع باید تا پایان سال مالی حداقل یک سال سابقه داشته باشد.',
       );
       return;
     }

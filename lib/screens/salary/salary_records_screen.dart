@@ -14,6 +14,7 @@ import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_number_formatter.dart';
 import '../../utils/period_filter_helper.dart';
 import '../../widgets/currency_text.dart';
+import '../../widgets/app_notification.dart';
 import '../../widgets/period_filter_bar.dart';
 import '../../widgets/responsive_data_view.dart';
 import 'salary_calculation_screen.dart';
@@ -248,25 +249,16 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       );
       await _salaryService.update(updatedRecord);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('فیش حقوق با وضعیت جدید آپدیت شد'),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
+      AppNotification.success(context, 'فیش حقوق با وضعیت جدید آپدیت شد');
       await _load();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppErrorMessage.from(
-              error,
-              fallback:
-                  'آپدیت فیش انجام نشد. اطلاعات مرخصی، وام و مساعده را بررسی کنید.',
-            ),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
+      AppNotification.error(
+        context,
+        AppErrorMessage.from(
+          error,
+          fallback:
+              'آپدیت فیش انجام نشد. اطلاعات مرخصی، وام و مساعده را بررسی کنید.',
         ),
       );
     } finally {
@@ -303,15 +295,11 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
         await _load();
       } catch (error) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppErrorMessage.from(
-                error,
-                fallback: 'حذف فیش انجام نشد. فهرست را تازه کنید.',
-              ),
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
+        AppNotification.error(
+          context,
+          AppErrorMessage.from(
+            error,
+            fallback: 'حذف فیش انجام نشد. فهرست را تازه کنید.',
           ),
         );
       }

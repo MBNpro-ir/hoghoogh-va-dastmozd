@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/sync_service.dart';
 import '../utils/persian_number_formatter.dart';
+import 'app_notification.dart';
 
 class SyncStatusBanner extends StatelessWidget {
   const SyncStatusBanner({super.key});
@@ -114,18 +115,11 @@ class _MobileSyncStatusButtonState extends State<MobileSyncStatusButton> {
     _lastShownIssue = message;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.maybeOf(context);
-      messenger?.hideCurrentSnackBar();
-      messenger?.showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          action: SnackBarAction(
-            label: 'جزئیات',
-            textColor: Theme.of(context).colorScheme.onError,
-            onPressed: _showDetails,
-          ),
-        ),
+      AppNotification.error(
+        context,
+        message,
+        actionLabel: 'جزئیات',
+        onAction: _showDetails,
       );
     });
   }

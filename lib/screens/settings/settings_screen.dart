@@ -29,6 +29,7 @@ import '../../utils/persian_number_formatter.dart';
 import '../../utils/gradient_helpers.dart';
 import '../../utils/responsive.dart';
 import '../../widgets/persian_number_field.dart';
+import '../../widgets/app_notification.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -265,22 +266,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _initAnnualLeaveAllowance = updated.annualLeaveAllowance;
       _hasChanges = false;
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('تنظیمات با موفقیت ذخیره شد'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-        ),
-      );
+      AppNotification.success(context, 'تنظیمات با موفقیت ذخیره شد');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppErrorMessage.from(
-              e,
-              fallback: 'ذخیره تنظیمات انجام نشد. مقادیر را بررسی کنید.',
-            ),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
+      if (!mounted) return;
+      AppNotification.error(
+        context,
+        AppErrorMessage.from(
+          e,
+          fallback: 'ذخیره تنظیمات انجام نشد. مقادیر را بررسی کنید.',
         ),
       );
     } finally {
@@ -317,20 +310,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await _service.resetToDefaults();
         await _load();
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('تنظیمات بازنشانی شد')));
+        AppNotification.success(context, 'تنظیمات بازنشانی شد');
       } catch (error) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              AppErrorMessage.from(
-                error,
-                fallback: 'بازنشانی تنظیمات انجام نشد.',
-              ),
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
+        AppNotification.error(
+          context,
+          AppErrorMessage.from(
+            error,
+            fallback: 'بازنشانی تنظیمات انجام نشد.',
           ),
         );
       }
@@ -341,18 +328,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final path = await _backupService.backupDatabase();
       if (!mounted || path == null) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('بکاپ ذخیره شد: $path')));
+      AppNotification.success(context, 'بکاپ ذخیره شد: $path');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppErrorMessage.from(e, fallback: 'ساخت فایل بکاپ انجام نشد.'),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+      AppNotification.error(
+        context,
+        AppErrorMessage.from(e, fallback: 'ساخت فایل بکاپ انجام نشد.'),
       );
     }
   }
@@ -387,18 +368,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted || path == null) return;
       await _load();
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('بکاپ بازیابی شد: $path')));
+      AppNotification.success(context, 'بکاپ بازیابی شد: $path');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppErrorMessage.from(e, fallback: 'بازیابی فایل بکاپ انجام نشد.'),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+      AppNotification.error(
+        context,
+        AppErrorMessage.from(e, fallback: 'بازیابی فایل بکاپ انجام نشد.'),
       );
     }
   }
@@ -411,18 +386,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
       final path = await _backupService.saveServerBackup(response.body);
       if (!mounted || path == null) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('بکاپ سرور ذخیره شد: $path')));
+      AppNotification.success(context, 'بکاپ سرور ذخیره شد: $path');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppErrorMessage.from(e, fallback: 'دریافت بکاپ سرور انجام نشد.'),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+      AppNotification.error(
+        context,
+        AppErrorMessage.from(e, fallback: 'دریافت بکاپ سرور انجام نشد.'),
       );
     }
   }
@@ -468,18 +437,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await SyncService().syncNow();
       await _load();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('بکاپ سرور با موفقیت ریستور شد')),
-      );
+      AppNotification.success(context, 'بکاپ سرور با موفقیت ریستور شد');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppErrorMessage.from(e, fallback: 'بازیابی بکاپ سرور انجام نشد.'),
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
+      AppNotification.error(
+        context,
+        AppErrorMessage.from(e, fallback: 'بازیابی بکاپ سرور انجام نشد.'),
       );
     }
   }
@@ -531,9 +494,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _toggleBiometrics() async {
     if (!_hasLocalCredential) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ابتدا رمز محلی برنامه را بسازید')),
-      );
+      AppNotification.warning(context, 'ابتدا رمز محلی برنامه را بسازید');
       return;
     }
     final next = !await _security.biometricsEnabled();

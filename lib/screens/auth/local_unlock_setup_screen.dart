@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../services/local_security_service.dart';
+import '../../widgets/app_notification.dart';
 import '../home_screen.dart';
 
 class LocalUnlockSetupScreen extends StatefulWidget {
@@ -208,9 +209,7 @@ class _LocalUnlockSetupScreenState extends State<LocalUnlockSetupScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('خطا در فعال‌سازی قفل: $e')));
+      AppNotification.error(context, 'خطا در فعال‌سازی قفل: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
