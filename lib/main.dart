@@ -16,7 +16,6 @@ import 'services/api_client.dart';
 import 'services/local_security_service.dart';
 import 'services/single_instance_guard.dart';
 import 'services/sync_service.dart';
-import 'services/update_service.dart';
 import 'services/window_close_service.dart';
 import 'utils/constants.dart';
 import 'utils/responsive.dart';
@@ -25,9 +24,8 @@ import 'widgets/app_viewport_scale.dart';
 
 SingleInstanceGuard? _singleInstanceGuard;
 
-Future<void> main(List<String> args) async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await UpdateService.initializeWindowsVelopackHooks(args);
   if (Platform.isWindows) {
     _singleInstanceGuard = await SingleInstanceGuard.acquire(
       onActivate: _activateExistingWindow,

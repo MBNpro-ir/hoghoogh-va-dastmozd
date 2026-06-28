@@ -26,16 +26,13 @@ class UpdatePreferences {
   }
 }
 
-enum AppUpdateInstaller { githubAsset, velopack }
-
 class AppUpdateRelease {
   final AppVersion version;
   final String tag;
   final String name;
   final String body;
   final Uri pageUrl;
-  final GithubReleaseAsset? asset;
-  final AppUpdateInstaller installer;
+  final GithubReleaseAsset asset;
 
   const AppUpdateRelease({
     required this.version,
@@ -43,11 +40,8 @@ class AppUpdateRelease {
     required this.name,
     required this.body,
     required this.pageUrl,
-    this.asset,
-    this.installer = AppUpdateInstaller.githubAsset,
-  }) : assert(installer == AppUpdateInstaller.velopack || asset != null);
-
-  bool get usesVelopack => installer == AppUpdateInstaller.velopack;
+    required this.asset,
+  });
 }
 
 class GithubReleaseAsset {
@@ -64,9 +58,9 @@ class GithubReleaseAsset {
 
 class DownloadedUpdate {
   final AppUpdateRelease release;
-  final String? filePath;
+  final String filePath;
 
-  const DownloadedUpdate({required this.release, this.filePath});
+  const DownloadedUpdate({required this.release, required this.filePath});
 }
 
 class AppVersion implements Comparable<AppVersion> {
@@ -123,26 +117,13 @@ class UpdateService {
   static const _repo = 'MBNpro-ir/hoghoogh-va-dastmozd';
   static const _repoUrl = 'https://github.com/$_repo';
   static const _releasesUrl = 'https://api.github.com/repos/$_repo/releases';
-  static const _windowsVelopackChannel = 'win';
-  static const _windowsVelopackHelperExe = 'hvm_updater.exe';
+  static const _windowsUpdaterExe = 'hvm_updater.exe';
   static const _autoCheckKey = 'hvm_update_auto_check_v1';
   static const _autoDownloadKey = 'hvm_update_auto_download_v1';
   static const _pendingInstalledVersionKey =
       'hvm_update_pending_installed_version_v1';
   static const _pendingInstallMarkerPathKey =
       'hvm_update_pending_install_marker_path_v1';
-  static const _velopackHookCommands = {
-    '--veloapp-install',
-    '--veloapp-updated',
-    '--veloapp-obsolete',
-    '--veloapp-uninstall',
-  };
-
-  static Future<void> initializeWindowsVelopackHooks(List<String> args) async {
-    if (!Platform.isWindows) return;
-    if (args.any(_velopackHookCommands.contains)) exit(0);
-  }
-
   Future<UpdatePreferences> loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     return UpdatePreferences(
@@ -163,13 +144,6 @@ class UpdateService {
   Future<AppUpdateRelease?> checkLatest() async {
     final current = await _currentVersion();
     final releases = await _loadGithubReleases();
-    if (Platform.isWindows) {
-      final velopackRelease = await _selectWindowsVelopackRelease(
-        releases,
-        current,
-      );
-      if (velopackRelease != null) return velopackRelease;
-    }
     return _selectGithubAssetRelease(releases, current);
   }
 
@@ -189,38 +163,6 @@ class UpdateService {
     final decoded = jsonDecode(response.body);
     if (decoded is! List) return const [];
     return decoded.whereType<Map>().toList();
-  }
-
-  Future<AppUpdateRelease?> _selectWindowsVelopackRelease(
-    List<Map> releases,
-    AppVersion current,
-  ) async {
-    if (!_isWindowsVelopackManaged()) return null;
-    final candidates = <AppUpdateRelease>[];
-    for (final item in releases) {
-      if (item['draft'] == true) continue;
-      final tag = item['tag_name']?.toString() ?? '';
-      if (tag.isEmpty) continue;
-      final version = AppVersion.parse(tag);
-      if (version.compareTo(current) <= 0) continue;
-      final assets = _releaseAssets(item['assets']);
-      if (!_hasWindowsVelopackAssets(assets)) continue;
-      candidates.add(
-        AppUpdateRelease(
-          version: version,
-          tag: tag,
-          name: item['name']?.toString() ?? tag,
-          body: item['body']?.toString() ?? '',
-          pageUrl: Uri.parse(
-            item['html_url']?.toString() ?? '$_repoUrl/releases/tag/$tag',
-          ),
-          installer: AppUpdateInstaller.velopack,
-        ),
-      );
-    }
-    if (candidates.isEmpty) return null;
-    candidates.sort((a, b) => b.version.compareTo(a.version));
-    return candidates.first;
   }
 
   AppUpdateRelease? _selectGithubAssetRelease(
@@ -255,13 +197,7 @@ class UpdateService {
   }
 
   Future<DownloadedUpdate> download(AppUpdateRelease release) async {
-    if (release.usesVelopack) {
-      return DownloadedUpdate(release: release);
-    }
     final asset = release.asset;
-    if (asset == null) {
-      throw const UpdateException('فایل آپدیت پیدا نشد');
-    }
     final dir = Directory(
       p.join((await getTemporaryDirectory()).path, 'hvm_updates'),
     );
@@ -284,10 +220,6 @@ class UpdateService {
 
   Future<void> install(DownloadedUpdate update) async {
     if (Platform.isWindows) {
-      if (update.release.usesVelopack) {
-        await _installWindowsVelopack(update.release);
-        return;
-      }
       final markerPath = await _markWindowsInstallPending(
         update.release.version.toString(),
       );
@@ -298,9 +230,6 @@ class UpdateService {
     if (Platform.isAndroid) {
       await _markInstallStarted(update.release.version.toString());
       final filePath = update.filePath;
-      if (filePath == null) {
-        throw const UpdateException('فایل آپدیت پیدا نشد');
-      }
       await OpenFilex.open(
         filePath,
         type: 'application/vnd.android.package-archive',
@@ -308,9 +237,6 @@ class UpdateService {
       return;
     }
     final filePath = update.filePath;
-    if (filePath == null) {
-      throw const UpdateException('فایل آپدیت پیدا نشد');
-    }
     await OpenFilex.open(filePath);
   }
 
@@ -456,15 +382,6 @@ class UpdateService {
         .toList();
   }
 
-  bool _hasWindowsVelopackAssets(List<GithubReleaseAsset> assets) {
-    final names = assets.map((asset) => asset.name.toLowerCase()).toList();
-    final hasReleaseFeed = names.any(
-      (name) => name == 'releases.win.json' || name == 'releases',
-    );
-    final hasPackage = names.any((name) => name.endsWith('.nupkg'));
-    return hasReleaseFeed && hasPackage;
-  }
-
   Future<void> _showInstallDialog(
     BuildContext context,
     DownloadedUpdate downloaded,
@@ -510,59 +427,11 @@ class UpdateService {
   Future<void> installUpdate(DownloadedUpdate downloaded) =>
       install(downloaded);
 
-  Future<void> _installWindowsVelopack(AppUpdateRelease release) async {
-    final helper = _findWindowsVelopackHelper();
-    if (helper == null) {
-      throw const UpdateException('نصب خودکار ویندوز آماده نیست');
-    }
-    final sourceUrl = buildGithubReleaseDownloadBaseUrl(_repo, release.tag);
-    await _markInstallStarted(release.version.toString());
-    await Process.start(
-      helper.path,
-      [
-        'apply',
-        '--source',
-        sourceUrl,
-        '--channel',
-        _windowsVelopackChannel,
-        '--wait-pid',
-        pid.toString(),
-        '--restart',
-        '--silent',
-      ],
-      workingDirectory: helper.parent.path,
-      mode: ProcessStartMode.detached,
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    exit(0);
-  }
-
-  bool _isWindowsVelopackManaged() =>
-      Platform.isWindows &&
-      _findWindowsVelopackHelper() != null &&
-      _findWindowsVelopackUpdateExe() != null;
-
-  File? _findWindowsVelopackHelper() =>
-      _firstExistingWindowsFile(_windowsVelopackHelperExe);
-
-  File? _findWindowsVelopackUpdateExe() =>
-      _firstExistingWindowsFile('Update.exe');
-
-  File? _firstExistingWindowsFile(String fileName) {
+  File? _findWindowsUpdater() {
     if (!Platform.isWindows) return null;
     final appDir = p.dirname(Platform.resolvedExecutable);
-    final parentDir = p.dirname(appDir);
-    final candidates = [
-      p.join(appDir, fileName),
-      p.join(appDir, 'updater', fileName),
-      p.join(parentDir, fileName),
-      p.join(parentDir, 'updater', fileName),
-    ];
-    for (final candidate in candidates) {
-      final file = File(candidate);
-      if (file.existsSync()) return file;
-    }
-    return null;
+    final helper = File(p.join(appDir, _windowsUpdaterExe));
+    return helper.existsSync() ? helper : null;
   }
 
   Future<void> _installWindowsPortable(
@@ -570,30 +439,40 @@ class UpdateService {
     required String markerPath,
   }) async {
     final filePath = update.filePath;
-    if (filePath == null) {
-      throw const UpdateException('فایل آپدیت پیدا نشد');
+    final bundledHelper = _findWindowsUpdater();
+    if (bundledHelper == null) {
+      throw const UpdateException('نصب خودکار ویندوز آماده نیست');
     }
+
     final exePath = Platform.resolvedExecutable;
     final appDir = p.dirname(exePath);
-    final script = File(
-      p.join(
-        (await getTemporaryDirectory()).path,
-        'hvm_update_${DateTime.now().millisecondsSinceEpoch}.ps1',
-      ),
+    final helperDir = Directory(
+      p.join((await getTemporaryDirectory()).path, 'hvm_updater'),
     );
-    await script.writeAsString(buildWindowsPortableUpdaterScript());
-    await Process.start('powershell', [
-      '-NoProfile',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-File',
-      script.path,
-      pid.toString(),
-      filePath,
-      appDir,
-      exePath,
-      markerPath,
-    ], mode: ProcessStartMode.detached);
+    await helperDir.create(recursive: true);
+    final helper = await bundledHelper.copy(
+      p.join(helperDir.path, _windowsUpdaterExe),
+    );
+
+    await Process.start(
+      helper.path,
+      [
+        'apply',
+        '--zip',
+        filePath,
+        '--target',
+        appDir,
+        '--exe',
+        p.basename(exePath),
+        '--wait-pid',
+        pid.toString(),
+        '--marker',
+        markerPath,
+        '--restart',
+      ],
+      workingDirectory: helperDir.path,
+      mode: ProcessStartMode.detached,
+    );
   }
 
   void _showWindowsInstallingDialog(BuildContext context, String version) {
@@ -656,124 +535,6 @@ class UpdateService {
     return clean.length > 600 ? '${clean.substring(0, 600)}...' : clean;
   }
 }
-
-String buildWindowsPortableUpdaterScript() => r'''
-param(
-  [int]$AppPid,
-  [string]$ZipPath,
-  [string]$AppDir,
-  [string]$ExePath,
-  [string]$MarkerPath
-)
-$ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"
-$LogPath = Join-Path $env:TEMP ("hvm-update-" + $AppPid + ".log")
-
-function Write-UpdateLog([string]$Message) {
-  $Stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-  Add-Content -LiteralPath $LogPath -Value ("[$Stamp] " + $Message)
-}
-
-function Test-FileUnlocked([string]$Path) {
-  if (-not (Test-Path -LiteralPath $Path)) { return $true }
-  try {
-    $Stream = [System.IO.File]::Open(
-      $Path,
-      [System.IO.FileMode]::Open,
-      [System.IO.FileAccess]::ReadWrite,
-      [System.IO.FileShare]::None
-    )
-    $Stream.Close()
-    return $true
-  } catch {
-    return $false
-  }
-}
-
-function Wait-ExecutableUnlocked([string]$Path) {
-  for ($Index = 0; $Index -lt 80; $Index++) {
-    if (Test-FileUnlocked $Path) { return }
-    Start-Sleep -Milliseconds 250
-  }
-  throw "Application executable is still locked: $Path"
-}
-
-function Copy-WithRetry([string]$Source, [string]$Destination) {
-  for ($Index = 0; $Index -lt 50; $Index++) {
-    try {
-      Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
-      return
-    } catch {
-      if ($Index -eq 49) { throw }
-      Start-Sleep -Milliseconds 300
-    }
-  }
-}
-
-try {
-  Write-UpdateLog "Updater started."
-  Wait-Process -Id $AppPid -ErrorAction SilentlyContinue
-  Start-Sleep -Milliseconds 700
-  Wait-ExecutableUnlocked $ExePath
-
-  if (-not (Test-Path -LiteralPath $ZipPath)) {
-    throw "Update zip was not found: $ZipPath"
-  }
-  if (-not (Test-Path -LiteralPath $AppDir)) {
-    throw "Application directory was not found: $AppDir"
-  }
-
-  $ExtractDir = Join-Path $env:TEMP ("hvm-update-" + [guid]::NewGuid().ToString())
-  New-Item -ItemType Directory -Path $ExtractDir -Force | Out-Null
-  Write-UpdateLog "Extracting $ZipPath to $ExtractDir"
-  Expand-Archive -LiteralPath $ZipPath -DestinationPath $ExtractDir -Force
-
-  $RootExe = Join-Path $ExtractDir "payroll_app.exe"
-  if (Test-Path -LiteralPath $RootExe) {
-    $BundlePath = $ExtractDir
-  } else {
-    $Bundle = Get-ChildItem -LiteralPath $ExtractDir -Directory -Recurse |
-      Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "payroll_app.exe") } |
-      Select-Object -First 1
-    if (-not $Bundle) { throw "Update bundle was not found inside extracted zip." }
-    $BundlePath = $Bundle.FullName
-  }
-
-  Write-UpdateLog "Copying files from $BundlePath to $AppDir"
-  Get-ChildItem -LiteralPath $BundlePath -Force |
-    ForEach-Object {
-      Copy-WithRetry $_.FullName $AppDir
-    }
-
-  $LaunchPath = Join-Path $AppDir (Split-Path -Path $ExePath -Leaf)
-  if (-not (Test-Path -LiteralPath $LaunchPath)) {
-    $LaunchPath = Join-Path $AppDir "payroll_app.exe"
-  }
-  if (-not (Test-Path -LiteralPath $LaunchPath)) {
-    throw "Updated executable was not found: $LaunchPath"
-  }
-
-  if ($MarkerPath -and $MarkerPath.Trim().Length -gt 0) {
-    Set-Content -LiteralPath $MarkerPath -Value ("installed " + (Get-Date -Format "o")) -Force
-  }
-  Write-UpdateLog "Launching $LaunchPath"
-  Start-Process -FilePath $LaunchPath -WorkingDirectory $AppDir
-  Remove-Item -LiteralPath $ExtractDir -Recurse -Force -ErrorAction SilentlyContinue
-  Write-UpdateLog "Updater finished."
-} catch {
-  Write-UpdateLog ("ERROR: " + $_.Exception.Message)
-  try {
-    Add-Type -AssemblyName PresentationFramework
-    [System.Windows.MessageBox]::Show(
-      "HvM update failed. Please check this log:`n$LogPath",
-      "HvM Updater"
-    ) | Out-Null
-  } catch {}
-}
-''';
-
-String buildGithubReleaseDownloadBaseUrl(String repo, String tag) =>
-    'https://github.com/$repo/releases/download/$tag/';
 
 class UpdateException implements Exception {
   final String message;
