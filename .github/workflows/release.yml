@@ -15,12 +15,13 @@ concurrency:
 env:
   FLUTTER_STORAGE_BASE_URL: https://storage.googleapis.com
   PUB_HOSTED_URL: https://pub.dev
-  # Pinned to the caches created by the first successful v0.9.9-alpha release.
+  FLUTTER_VERSION: '3.44.4'
+  # Restore-only caches from the successful v0.9.10-alpha release.
   # Change these keys only when a cache refresh is intentional.
   FLUTTER_LINUX_CACHE_KEY: flutter-linux-stable-3.44.4-x64-ad70ec4617166f1c38e5d2bfd388af71fda14f06
-  FLUTTER_LINUX_PUB_CACHE_KEY: flutter-pub-linux-stable-3.44.4-x64-ad70ec4617166f1c38e5d2bfd388af71fda14f06-fa5096b38cdd9bb7e0a5c4eabc8033b1182508354db4e470ab1392c6d8202edd
+  FLUTTER_LINUX_PUB_CACHE_KEY: flutter-pub-linux-stable-3.44.4-x64-ad70ec4617166f1c38e5d2bfd388af71fda14f06-fa5096b38cdd9bb7e0a5c4eabc8033b1182508354db4e470ab1392c6d8202edd-fa5096b38cdd9bb7e0a5c4eabc8033b1182508354db4e470ab1392c6d8202edd
   FLUTTER_WINDOWS_CACHE_KEY: flutter-windows-stable-3.44.4-x64-ad70ec4617166f1c38e5d2bfd388af71fda14f06
-  FLUTTER_WINDOWS_PUB_CACHE_KEY: flutter-pub-windows-stable-3.44.4-x64-ad70ec4617166f1c38e5d2bfd388af71fda14f06-449345a9d4d0b1fc88512b9858f419c9a00d07467462fc9d2dae80cb65fd48b7
+  FLUTTER_WINDOWS_PUB_CACHE_KEY: flutter-pub-windows-stable-3.44.4-x64-ad70ec4617166f1c38e5d2bfd388af71fda14f06-449345a9d4d0b1fc88512b9858f419c9a00d07467462fc9d2dae80cb65fd48b7-449345a9d4d0b1fc88512b9858f419c9a00d07467462fc9d2dae80cb65fd48b7
   ANDROID_BUILD_CACHE_KEY: Linux-android-build-153b399a8e0a50b12af65e6a8f877c460715a63f1fe2f9b8b35a36af8d326afe
   WINDOWS_BUILD_CACHE_KEY: Windows-windows-build-eab3f076b15ba2439a8b158e148e342962dd4f41f1ab049020ea05bce7aeb87d
 
@@ -43,14 +44,27 @@ jobs:
         with:
           cache-read-only: true
 
+      - name: Restore Flutter SDK cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.tool_cache }}/flutter/stable-3.44.4-x64
+          key: ${{ env.FLUTTER_LINUX_CACHE_KEY }}
+          fail-on-cache-miss: true
+
+      - name: Restore Flutter pub cache
+        uses: actions/cache/restore@v5
+        with:
+          path: /home/runner/.pub-cache
+          key: ${{ env.FLUTTER_LINUX_PUB_CACHE_KEY }}
+          fail-on-cache-miss: true
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
-          cache: true
-          pub-cache: true
-          cache-key: ${{ env.FLUTTER_LINUX_CACHE_KEY }}
-          pub-cache-key: ${{ env.FLUTTER_LINUX_PUB_CACHE_KEY }}
+          cache: false
+          pub-cache: false
 
       - name: Restore Android build cache
         uses: actions/cache/restore@v5
@@ -60,7 +74,7 @@ jobs:
             build
             android/.gradle
           key: ${{ env.ANDROID_BUILD_CACHE_KEY }}
-          fail-on-cache-miss: false
+          fail-on-cache-miss: true
 
       - name: Build APKs
         run: flutter build apk --release --split-per-abi --target-platform=android-arm,android-arm64
@@ -106,14 +120,27 @@ jobs:
           }
           "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Restore Flutter SDK cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.tool_cache }}/flutter/stable-3.44.4-x64
+          key: ${{ env.FLUTTER_WINDOWS_CACHE_KEY }}
+          fail-on-cache-miss: true
+
+      - name: Restore Flutter pub cache
+        uses: actions/cache/restore@v5
+        with:
+          path: C:\Users\runneradmin\AppData\Local\Pub\Cache
+          key: ${{ env.FLUTTER_WINDOWS_PUB_CACHE_KEY }}
+          fail-on-cache-miss: true
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
-          cache: true
-          pub-cache: true
-          cache-key: ${{ env.FLUTTER_WINDOWS_CACHE_KEY }}
-          pub-cache-key: ${{ env.FLUTTER_WINDOWS_PUB_CACHE_KEY }}
+          cache: false
+          pub-cache: false
 
       - name: Restore Windows build cache
         uses: actions/cache/restore@v5
@@ -123,7 +150,7 @@ jobs:
             build/windows
             ~/.nuget/packages
           key: ${{ env.WINDOWS_BUILD_CACHE_KEY }}
-          fail-on-cache-miss: false
+          fail-on-cache-miss: true
 
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
