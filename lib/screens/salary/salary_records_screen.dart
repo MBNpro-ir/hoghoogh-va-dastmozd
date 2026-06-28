@@ -4,6 +4,7 @@ import '../../models/app_settings.dart';
 import '../../models/employee.dart';
 import '../../models/salary_record.dart';
 import '../../services/employee_service.dart';
+import '../../services/salary_record_update_service.dart';
 import '../../services/salary_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/table_sort_preferences.dart';
@@ -31,6 +32,7 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
   static const _defaultSortAscending = false;
 
   final _salaryService = SalaryService();
+  final _recordUpdateService = SalaryRecordUpdateService();
   final _employeeService = EmployeeService();
   final _settingsService = SettingsService();
   final _searchController = TextEditingController();
@@ -40,11 +42,13 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
   Map<int, Employee> _employeesMap = {};
   AppSettings? _settings;
   bool _loading = true;
+  final Set<int> _updatingRecordIds = {};
 
   int? _filterYear;
   int? _filterMonth;
   String _filter = '';
   List<(int, int)> _availableMonths = [];
+  Map<int, SalaryRecordSourceSnapshot> _outdatedSnapshots = {};
   int _sortColumnIndex = _defaultSortColumnIndex;
   bool _sortAscending = _defaultSortAscending;
 
@@ -108,16 +112,20 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     _filterYear = resolvedPeriod?.$1;
     _filterMonth = resolvedPeriod?.$2;
 
-    if (_filterYear != null && _filterMonth != null) {
-      _records = await _salaryService.getByYearMonth(
-        _filterYear!,
-        _filterMonth!,
-      );
-    } else {
-      _records = await _salaryService.getAll();
-    }
+    final records = _filterYear != null && _filterMonth != null
+        ? await _salaryService.getByYearMonth(_filterYear!, _filterMonth!)
+        : await _salaryService.getAll();
+    final outdatedSnapshots = await _recordUpdateService.outdatedSnapshotsFor(
+      records,
+    );
 
-    if (mounted) setState(() => _loading = false);
+    if (mounted) {
+      setState(() {
+        _records = records;
+        _outdatedSnapshots = outdatedSnapshots;
+        _loading = false;
+      });
+    }
   }
 
   (int, int)? get _selectedPeriod => _filterYear != null && _filterMonth != null
@@ -148,11 +156,21 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     setState(() {
       _filterYear = value?.$1;
       _filterMonth = value?.$2;
+      _loading = true;
     });
     final records = value == null
         ? await _salaryService.getAll()
         : await _salaryService.getByYearMonth(value.$1, value.$2);
-    if (mounted) setState(() => _records = records);
+    final outdatedSnapshots = await _recordUpdateService.outdatedSnapshotsFor(
+      records,
+    );
+    if (mounted) {
+      setState(() {
+        _records = records;
+        _outdatedSnapshots = outdatedSnapshots;
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _openPayslip(SalaryRecord record) async {
@@ -179,6 +197,81 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     );
     if (!mounted) return;
     if (changed == true || changed == null) await _load();
+  }
+
+  Future<void> _updatePayslip(SalaryRecord record) async {
+    final id = record.id;
+    final employee = _employeesMap[record.employeeId];
+    final snapshot = id == null ? null : _outdatedSnapshots[id];
+    if (id == null || employee == null || snapshot == null) return;
+
+    final labels = snapshot.changedLabelsComparedTo(record).join('، ');
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('آپدیت فیش حقوق'),
+        content: Text(
+          'وضعیت $labels تغییر کرده است. فیش ذخیره‌شده با وضعیت جدید جایگزین شود؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('انصراف'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.update_rounded),
+            label: const Text('آپدیت فیش'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _updatingRecordIds.add(id));
+    try {
+      final latestSnapshot = await _recordUpdateService.currentSnapshotFor(
+        record,
+      );
+      if (!latestSnapshot.hasChangesComparedTo(record)) {
+        await _load();
+        return;
+      }
+      final settings = await _settingsService.getCurrentSettings(
+        year: record.year,
+      );
+      final updatedRecord = _recordUpdateService.rebuildRecord(
+        record: record,
+        employee: employee,
+        settings: settings,
+        snapshot: latestSnapshot,
+      );
+      await _salaryService.update(updatedRecord);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('فیش حقوق با وضعیت جدید آپدیت شد'),
+          backgroundColor: AppTheme.successColor,
+        ),
+      );
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppErrorMessage.from(
+              error,
+              fallback:
+                  'آپدیت فیش انجام نشد. اطلاعات مرخصی، وام و مساعده را بررسی کنید.',
+            ),
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _updatingRecordIds.remove(id));
+    }
   }
 
   Future<void> _delete(SalaryRecord record) async {
@@ -506,10 +599,80 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       ),
     ),
     ResponsiveTableColumn(
+      label: 'وضعیت فیش',
+      width: 150,
+      sortValue: (r) => _outdatedSnapshots.containsKey(r.id) ? 0 : 1,
+      cellBuilder: (r) => _payslipStatus(r, scheme),
+    ),
+    ResponsiveTableColumn(
       label: 'عملیات',
       cellBuilder: (r) => _recordActions(r, scheme),
     ),
   ];
+
+  Widget _payslipStatus(SalaryRecord record, ColorScheme scheme) {
+    final id = record.id;
+    final snapshot = id == null ? null : _outdatedSnapshots[id];
+    final updating = id != null && _updatingRecordIds.contains(id);
+    if (snapshot == null) {
+      return Tooltip(
+        message: 'فیش با وضعیت فعلی هماهنگ است',
+        child: Container(
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: AppTheme.successColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: AppTheme.successColor.withValues(alpha: 0.28),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.check_circle_rounded,
+                size: 16,
+                color: AppTheme.successColor,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'به‌روز',
+                style: TextStyle(
+                  color: AppTheme.successColor,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Tooltip(
+      message:
+          'تغییر در ${snapshot.changedLabelsComparedTo(record).join('، ')}',
+      child: FilledButton.tonalIcon(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 34),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+        ),
+        onPressed: updating ? null : () => _updatePayslip(record),
+        icon: updating
+            ? SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: scheme.primary,
+                ),
+              )
+            : const Icon(Icons.update_rounded, size: 18),
+        label: const Text('آپدیت فیش'),
+      ),
+    );
+  }
 
   Widget _recordActions(SalaryRecord record, ColorScheme scheme) {
     return Row(
@@ -539,6 +702,7 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
   }
 
   Widget _recordCard(SalaryRecord record, int index, ColorScheme scheme) {
+    final snapshot = record.id == null ? null : _outdatedSnapshots[record.id];
     return MobileDataCard(
       leading: CircleAvatar(
         backgroundColor: scheme.secondaryContainer,
@@ -568,8 +732,15 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
           value: CurrencyText(record.finalPayment),
           color: AppTheme.successColor,
         ),
+        if (snapshot != null)
+          MobileMetric(
+            label: 'وضعیت فیش',
+            value: const Text('نیاز به آپدیت'),
+            color: AppTheme.warningColor,
+          ),
       ],
       actions: [
+        if (snapshot != null) _payslipStatus(record, scheme),
         IconButton(
           icon: Icon(Icons.edit_rounded, color: AppTheme.warningColor),
           tooltip: 'ویرایش فیش',

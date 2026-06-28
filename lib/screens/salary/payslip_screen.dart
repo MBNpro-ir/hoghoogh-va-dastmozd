@@ -61,6 +61,8 @@ extension _PayslipPaperDetails on _PayslipPaper {
 }
 
 class PayslipScreen extends StatelessWidget {
+  static const double _pdfSafePadding = 28;
+
   final Employee employee;
   final AppSettings settings;
   final SalaryRecord record;
@@ -430,14 +432,50 @@ class PayslipScreen extends StatelessWidget {
         ),
         if (record.rounding != 0) ...[
           const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                'رند کسورات: ${PersianNumberFormatter.toPersian(record.rounding.toString())}',
-                style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.warningColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              border: Border.all(
+                color: AppTheme.warningColor.withValues(alpha: 0.28),
               ),
-            ],
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.functions_rounded,
+                  size: 16,
+                  color: AppTheme.warningColor,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'رند حقوق',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                CurrencyText(
+                  record.rounding,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'ریال',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
         if (_employeeFooterNote.isNotEmpty) ...[
@@ -985,7 +1023,7 @@ class PayslipScreen extends StatelessWidget {
         theme: pw.ThemeData.withFont(base: fontRegular, bold: fontBold),
         build: (ctx) => pw.Container(
           color: PdfColors.white,
-          padding: const pw.EdgeInsets.all(18),
+          padding: const pw.EdgeInsets.all(_pdfSafePadding),
           child: pw.FittedBox(
             fit: pw.BoxFit.contain,
             alignment: pw.Alignment.topCenter,
@@ -1444,6 +1482,36 @@ class PayslipScreen extends StatelessWidget {
             ],
           ),
         ),
+        if (record.rounding != 0) ...[
+          pw.SizedBox(height: 6),
+          pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.orange50,
+              border: pw.Border.all(color: PdfColors.orange300, width: 0.7),
+              borderRadius: pw.BorderRadius.circular(3),
+            ),
+            child: pw.Row(
+              children: [
+                pw.Text(
+                  'رند حقوق',
+                  style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.Spacer(),
+                pw.Text(
+                  '${PersianNumberFormatter.formatRial(record.rounding)} ریال',
+                  style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         if (_employeeFooterNote.isNotEmpty) ...[
           pw.SizedBox(height: 8),
           pw.Container(
@@ -1455,6 +1523,16 @@ class PayslipScreen extends StatelessWidget {
             ),
           ),
         ],
+        pw.SizedBox(height: 18),
+        pw.Row(
+          children: [
+            _pdfSignatureBox('امضای کارمند'),
+            pw.SizedBox(width: 22),
+            _pdfSignatureBox('امضای حسابدار'),
+            pw.SizedBox(width: 22),
+            _pdfSignatureBox('امضای مدیریت'),
+          ],
+        ),
       ],
     );
   }
@@ -1483,6 +1561,19 @@ class PayslipScreen extends StatelessWidget {
 
   pw.Widget _pdfTable(List<(String, double)> rows) {
     return pw.Column(children: rows.map((r) => _pdfRow(r.$1, r.$2)).toList());
+  }
+
+  pw.Widget _pdfSignatureBox(String label) {
+    return pw.Expanded(
+      child: pw.Column(
+        children: [
+          pw.SizedBox(height: 26),
+          pw.Container(height: 0.8, color: PdfColors.black),
+          pw.SizedBox(height: 5),
+          pw.Text(label, style: const pw.TextStyle(fontSize: 9)),
+        ],
+      ),
+    );
   }
 
   pw.Widget _pdfRow(String label, double value, {bool bold = false}) {
