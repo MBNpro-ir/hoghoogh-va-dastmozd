@@ -111,7 +111,7 @@ jobs:
       - name: Restore Flutter SDK cache
         uses: actions/cache/restore@v5
         with:
-          path: ${{ runner.tool_cache }}/flutter/stable-3.44.4-x64
+          path: C:\hostedtoolcache\windows\flutter\stable-3.44.4-x64
           key: ${{ env.FLUTTER_WINDOWS_CACHE_KEY }}
           fail-on-cache-miss: true
 
