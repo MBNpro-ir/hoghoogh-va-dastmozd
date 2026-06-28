@@ -15,6 +15,14 @@ concurrency:
 env:
   FLUTTER_STORAGE_BASE_URL: https://storage.googleapis.com
   PUB_HOSTED_URL: https://pub.dev
+  # Pinned to the caches created by the first successful v0.9.9-alpha release.
+  # Change these keys only when a cache refresh is intentional.
+  FLUTTER_LINUX_CACHE_KEY: flutter-linux-stable-3.44.4-x64-ad70ec4617166f1c38e5d2bfd388af71fda14f06
+  FLUTTER_LINUX_PUB_CACHE_KEY: flutter-pub-linux-stable-3.44.4-x64-ad70ec4617166f1c38e5d2bfd388af71fda14f06-fa5096b38cdd9bb7e0a5c4eabc8033b1182508354db4e470ab1392c6d8202edd
+  FLUTTER_WINDOWS_CACHE_KEY: flutter-windows-stable-3.44.4-x64-ad70ec4617166f1c38e5d2bfd388af71fda14f06
+  FLUTTER_WINDOWS_PUB_CACHE_KEY: flutter-pub-windows-stable-3.44.4-x64-ad70ec4617166f1c38e5d2bfd388af71fda14f06-449345a9d4d0b1fc88512b9858f419c9a00d07467462fc9d2dae80cb65fd48b7
+  ANDROID_BUILD_CACHE_KEY: Linux-android-build-153b399a8e0a50b12af65e6a8f877c460715a63f1fe2f9b8b35a36af8d326afe
+  WINDOWS_BUILD_CACHE_KEY: Windows-windows-build-eab3f076b15ba2439a8b158e148e342962dd4f41f1ab049020ea05bce7aeb87d
 
 jobs:
   build_android:
@@ -32,6 +40,8 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: true
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -39,19 +49,18 @@ jobs:
           channel: stable
           cache: true
           pub-cache: true
-          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
-          pub-cache-key: 'flutter-pub-:os:-:channel:-:version:-:arch:-:hash:'
+          cache-key: ${{ env.FLUTTER_LINUX_CACHE_KEY }}
+          pub-cache-key: ${{ env.FLUTTER_LINUX_PUB_CACHE_KEY }}
 
       - name: Restore Android build cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: |
             .dart_tool
             build
             android/.gradle
-          key: ${{ runner.os }}-android-build-${{ hashFiles('pubspec.lock', 'android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-android-build-
+          key: ${{ env.ANDROID_BUILD_CACHE_KEY }}
+          fail-on-cache-miss: false
 
       - name: Build APKs
         run: flutter build apk --release --split-per-abi --target-platform=android-arm,android-arm64
@@ -88,19 +97,18 @@ jobs:
           channel: stable
           cache: true
           pub-cache: true
-          cache-key: 'flutter-:os:-:channel:-:version:-:arch:-:hash:'
-          pub-cache-key: 'flutter-pub-:os:-:channel:-:version:-:arch:-:hash:'
+          cache-key: ${{ env.FLUTTER_WINDOWS_CACHE_KEY }}
+          pub-cache-key: ${{ env.FLUTTER_WINDOWS_PUB_CACHE_KEY }}
 
       - name: Restore Windows build cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: |
             .dart_tool
             build/windows
             ~/.nuget/packages
-          key: ${{ runner.os }}-windows-build-${{ hashFiles('pubspec.lock', 'windows/CMakeLists.txt', 'windows/flutter/CMakeLists.txt', 'windows/runner/CMakeLists.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-windows-build-
+          key: ${{ env.WINDOWS_BUILD_CACHE_KEY }}
+          fail-on-cache-miss: false
 
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
