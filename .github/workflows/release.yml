@@ -53,9 +53,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-android-build-
 
-      - name: Get dependencies
-        run: flutter pub get
-
       - name: Build APKs
         run: flutter build apk --release --split-per-abi --target-platform=android-arm,android-arm64
 
@@ -107,9 +104,6 @@ jobs:
 
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
-
-      - name: Get dependencies
-        run: flutter pub get
 
       - name: Build Windows x64
         run: flutter build windows --release

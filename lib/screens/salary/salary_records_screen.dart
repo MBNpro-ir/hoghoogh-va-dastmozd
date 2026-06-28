@@ -606,6 +606,7 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
     ),
     ResponsiveTableColumn(
       label: 'عملیات',
+      width: 150,
       cellBuilder: (r) => _recordActions(r, scheme),
     ),
   ];
@@ -679,6 +680,8 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
           icon: Icon(
             Icons.edit_rounded,
             size: 20,
@@ -688,11 +691,15 @@ class _SalaryRecordsScreenState extends State<SalaryRecordsScreen> {
           onPressed: () => _editPayslip(record),
         ),
         IconButton(
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
           icon: Icon(Icons.print_rounded, size: 20, color: scheme.primary),
           tooltip: 'مشاهده / چاپ',
           onPressed: () => _openPayslip(record),
         ),
         IconButton(
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints.tightFor(width: 36, height: 36),
           icon: Icon(Icons.delete_rounded, size: 20, color: scheme.error),
           tooltip: 'حذف',
           onPressed: () => _delete(record),

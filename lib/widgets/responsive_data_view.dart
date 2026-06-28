@@ -652,7 +652,12 @@ class MobileDataCard extends StatelessWidget {
               const SizedBox(height: 10),
               Divider(color: scheme.outlineVariant, height: 1),
               const SizedBox(height: 6),
-              Row(mainAxisAlignment: MainAxisAlignment.end, children: actions),
+              Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 4,
+                runSpacing: 4,
+                children: actions,
+              ),
             ],
           ],
         ),
