@@ -469,7 +469,7 @@ class _LoansListScreenState extends State<LoansListScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (loan.isActive)
-          IconButton(
+          _compactActionButton(
             icon: const Icon(
               Icons.payment_rounded,
               size: 20,
@@ -478,17 +478,32 @@ class _LoansListScreenState extends State<LoansListScreen> {
             tooltip: 'ثبت قسط بعدی',
             onPressed: () => _payInstallment(loan),
           ),
-        IconButton(
+        _compactActionButton(
           icon: Icon(Icons.edit_rounded, size: 20, color: scheme.primary),
           tooltip: 'ویرایش',
           onPressed: () => _openForm(loan: loan),
         ),
-        IconButton(
+        _compactActionButton(
           icon: Icon(Icons.delete_rounded, size: 20, color: scheme.error),
           tooltip: 'حذف',
           onPressed: () => _delete(loan),
         ),
       ],
+    );
+  }
+
+  Widget _compactActionButton({
+    required Widget icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      constraints: const BoxConstraints.tightFor(width: 30, height: 40),
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      icon: icon,
+      tooltip: tooltip,
+      onPressed: onPressed,
     );
   }
 
