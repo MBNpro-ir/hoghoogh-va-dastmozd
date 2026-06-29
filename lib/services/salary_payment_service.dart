@@ -21,6 +21,8 @@ class PaymentSlipRow {
   final double finalPayment;
   final int? statusId;
   final bool? isPaid;
+  final bool statusSet;
+  final bool paymentUnlocked;
   final String unpaidReason;
   final String updatedByUsername;
   final String updatedByRole;
@@ -39,6 +41,8 @@ class PaymentSlipRow {
     required this.finalPayment,
     required this.statusId,
     required this.isPaid,
+    required this.statusSet,
+    required this.paymentUnlocked,
     required this.unpaidReason,
     required this.updatedByUsername,
     required this.updatedByRole,
@@ -47,7 +51,7 @@ class PaymentSlipRow {
     required this.history,
   });
 
-  bool get hasStatus => statusId != null;
+  bool get hasStatus => statusSet;
 
   factory PaymentSlipRow.fromMap(Map<String, Object?> map) {
     final snapshotName = map['employee_full_name_snapshot']?.toString().trim();
@@ -70,7 +74,9 @@ class PaymentSlipRow {
       month: (map['month'] as num).toInt(),
       finalPayment: (map['final_payment'] as num).toDouble(),
       statusId: (map['status_id'] as num?)?.toInt(),
-      isPaid: map['is_paid'] == null
+      statusSet: (map['status_set'] as num? ?? 0) != 0,
+      paymentUnlocked: (map['payment_unlocked'] as num? ?? 0) != 0,
+      isPaid: (map['status_set'] as num? ?? 0) == 0 || map['is_paid'] == null
           ? null
           : ((map['is_paid'] as num?)?.toInt() ?? 0) != 0,
       unpaidReason: map['unpaid_reason']?.toString() ?? '',
@@ -81,7 +87,9 @@ class PaymentSlipRow {
         map['status_changed_at']?.toString() ?? '',
       ),
       history: PaymentStatusLogEntry.listFromJson(
-        map['change_log']?.toString(),
+        (map['status_set'] as num? ?? 0) == 0
+            ? null
+            : map['change_log']?.toString(),
       ),
     );
   }
@@ -182,6 +190,8 @@ class SalaryPaymentService {
         e.national_id,
         ps.id AS status_id,
         ps.is_paid,
+        ps.status_set,
+        ps.payment_unlocked,
         ps.unpaid_reason,
         ps.updated_by_username,
         ps.updated_by_role,
@@ -231,17 +241,15 @@ class SalaryPaymentService {
       );
     }
     final db = await _db.database;
-    final user = await _api.getUser();
-    final username = user?['full_name']?.toString().trim().isNotEmpty == true
-        ? user!['full_name'].toString().trim()
-        : user?['username']?.toString().trim() ?? '';
-    final role = user?['role']?.toString() ?? '';
+    final identity = await _currentUserIdentity();
     final now = DateTime.now().toUtc();
     final existing = await db.query(
       'salary_payment_statuses',
       columns: [
         'id',
         'is_paid',
+        'status_set',
+        'payment_unlocked',
         'unpaid_reason',
         'updated_by_username',
         'updated_by_role',
@@ -252,32 +260,44 @@ class SalaryPaymentService {
       whereArgs: [employeeId, year, month],
       limit: 1,
     );
+    final unlocked = existing.isNotEmpty
+        ? (existing.first['payment_unlocked'] as num? ?? 0) != 0
+        : false;
+    if (identity.role == 'payment' && !unlocked) {
+      throw const BusinessValidationException(
+        'این فیش برای ثبت وضعیت پرداخت باز نشده است.',
+      );
+    }
     final history = existing.isEmpty
         ? <PaymentStatusLogEntry>[]
         : PaymentStatusLogEntry.listFromJson(
             existing.first['change_log']?.toString(),
           );
     if (existing.isNotEmpty && history.isEmpty) {
-      history.add(
-        PaymentStatusLogEntry(
-          isPaid: (existing.first['is_paid'] as num? ?? 0) != 0,
-          reason: existing.first['unpaid_reason']?.toString() ?? '',
-          actor: existing.first['updated_by_username']?.toString() ?? '',
-          role: existing.first['updated_by_role']?.toString() ?? '',
-          changedAt:
-              DateTime.tryParse(
-                existing.first['status_changed_at']?.toString() ?? '',
-              ) ??
-              now,
-        ),
-      );
+      final previousStatusSet =
+          (existing.first['status_set'] as num? ?? 1) != 0;
+      if (previousStatusSet) {
+        history.add(
+          PaymentStatusLogEntry(
+            isPaid: (existing.first['is_paid'] as num? ?? 0) != 0,
+            reason: existing.first['unpaid_reason']?.toString() ?? '',
+            actor: existing.first['updated_by_username']?.toString() ?? '',
+            role: existing.first['updated_by_role']?.toString() ?? '',
+            changedAt:
+                DateTime.tryParse(
+                  existing.first['status_changed_at']?.toString() ?? '',
+                ) ??
+                now,
+          ),
+        );
+      }
     }
     history.add(
       PaymentStatusLogEntry(
         isPaid: isPaid,
         reason: isPaid ? '' : reason,
-        actor: username,
-        role: role,
+        actor: identity.username,
+        role: identity.role,
         changedAt: now,
       ),
     );
@@ -289,9 +309,11 @@ class SalaryPaymentService {
       year: year,
       month: month,
       isPaid: isPaid,
+      statusSet: true,
+      paymentUnlocked: unlocked,
       unpaidReason: isPaid ? '' : reason,
-      updatedByUsername: username,
-      updatedByRole: role,
+      updatedByUsername: identity.username,
+      updatedByRole: identity.role,
       statusChangedAt: now,
       changeLog: jsonEncode(
         limitedHistory.map((entry) => entry.toJson()).toList(),
@@ -310,6 +332,134 @@ class SalaryPaymentService {
       );
     }
     await _sync.markUpsert('salary_payment_statuses', id, schedule: false);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
+  }
+
+  Future<void> setPaymentUnlocked({
+    required int employeeId,
+    required int year,
+    required int month,
+    required bool unlocked,
+  }) async {
+    final identity = await _currentUserIdentity();
+    if (identity.role == 'payment') {
+      throw const BusinessValidationException(
+        'فقط ادمین می‌تواند قفل پرداخت فیش را تغییر دهد.',
+      );
+    }
+    final db = await _db.database;
+    final now = DateTime.now().toUtc();
+    final existing = await db.query(
+      'salary_payment_statuses',
+      where: 'employee_id = ? AND year = ? AND month = ?',
+      whereArgs: [employeeId, year, month],
+      limit: 1,
+    );
+    int id;
+    if (existing.isEmpty) {
+      id = await db.insert('salary_payment_statuses', {
+        'employee_id': employeeId,
+        'year': year,
+        'month': month,
+        'is_paid': 0,
+        'status_set': 0,
+        'payment_unlocked': unlocked ? 1 : 0,
+        'unpaid_reason': '',
+        'updated_by_username': identity.username,
+        'updated_by_role': identity.role,
+        'status_changed_at': now.toIso8601String(),
+        'change_log': '[]',
+      });
+    } else {
+      id = (existing.first['id'] as num).toInt();
+      await db.update(
+        'salary_payment_statuses',
+        {
+          'payment_unlocked': unlocked ? 1 : 0,
+          'updated_by_username': identity.username,
+          'updated_by_role': identity.role,
+          'deleted_at': null,
+        },
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+    await _sync.markUpsert('salary_payment_statuses', id, schedule: false);
+    await _sync.syncNow(silent: true, throwOnServerError: true);
+  }
+
+  Future<void> setPaymentUnlockedForRows({
+    required Iterable<PaymentSlipRow> rows,
+    required bool unlocked,
+  }) async {
+    for (final row in rows) {
+      await setPaymentUnlocked(
+        employeeId: row.employeeId,
+        year: row.year,
+        month: row.month,
+        unlocked: unlocked,
+      );
+    }
+  }
+
+  Future<void> deleteHistoryEntry({
+    required PaymentSlipRow row,
+    required int historyIndex,
+  }) async {
+    final identity = await _currentUserIdentity();
+    if (identity.role == 'payment') {
+      throw const BusinessValidationException(
+        'فقط ادمین می‌تواند لاگ پرداخت را حذف کند.',
+      );
+    }
+    if (row.statusId == null) return;
+    final history = [...row.history];
+    if (historyIndex < 0 || historyIndex >= history.length) return;
+    history.removeAt(historyIndex);
+
+    final db = await _db.database;
+    final now = DateTime.now().toUtc();
+    if (history.isEmpty) {
+      await db.update(
+        'salary_payment_statuses',
+        {
+          'status_set': 0,
+          'is_paid': 0,
+          'unpaid_reason': '',
+          'updated_by_username': identity.username,
+          'updated_by_role': identity.role,
+          'status_changed_at': now.toIso8601String(),
+          'change_log': '[]',
+          'deleted_at': null,
+        },
+        where: 'id = ?',
+        whereArgs: [row.statusId],
+      );
+    } else {
+      final latest = history.last;
+      await db.update(
+        'salary_payment_statuses',
+        {
+          'status_set': 1,
+          'is_paid': latest.isPaid ? 1 : 0,
+          'unpaid_reason': latest.isPaid ? '' : latest.reason,
+          'updated_by_username': latest.actor,
+          'updated_by_role': latest.role,
+          'status_changed_at': latest.changedAt.toUtc().toIso8601String(),
+          'change_log': jsonEncode(
+            history.map((entry) => entry.toJson()).toList(),
+          ),
+          'deleted_at': null,
+        },
+        where: 'id = ?',
+        whereArgs: [row.statusId],
+      );
+    }
+    await _sync.markUpsert(
+      'salary_payment_statuses',
+      row.statusId!,
+      schedule: false,
+    );
     await _sync.syncNow(silent: true, throwOnServerError: true);
   }
 
@@ -336,5 +486,14 @@ class SalaryPaymentService {
       settings: settings,
       record: record,
     );
+  }
+
+  Future<({String username, String role})> _currentUserIdentity() async {
+    final user = await _api.getUser();
+    final fullName = user?['full_name']?.toString().trim();
+    final username = fullName != null && fullName.isNotEmpty
+        ? fullName
+        : user?['username']?.toString().trim() ?? '';
+    return (username: username, role: user?['role']?.toString() ?? '');
   }
 }

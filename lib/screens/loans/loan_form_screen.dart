@@ -487,8 +487,10 @@ class _LoanFormScreenState extends State<LoanFormScreen> {
                           children: [
                             TextFormField(
                               controller: _startDateCtrl,
-                              readOnly: true,
+                              readOnly: false,
                               onTap: _pickStartDate,
+                              keyboardType: TextInputType.datetime,
+                              enableInteractiveSelection: true,
                               inputFormatters: const [
                                 PersianDateInputFormatter(),
                               ],

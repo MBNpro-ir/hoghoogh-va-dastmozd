@@ -4,6 +4,8 @@ class SalaryPaymentStatus {
   final int year;
   final int month;
   final bool isPaid;
+  final bool statusSet;
+  final bool paymentUnlocked;
   final String unpaidReason;
   final String updatedByUsername;
   final String updatedByRole;
@@ -16,6 +18,8 @@ class SalaryPaymentStatus {
     required this.year,
     required this.month,
     required this.isPaid,
+    this.statusSet = true,
+    this.paymentUnlocked = false,
     this.unpaidReason = '',
     this.updatedByUsername = '',
     this.updatedByRole = '',
@@ -29,6 +33,8 @@ class SalaryPaymentStatus {
     'year': year,
     'month': month,
     'is_paid': isPaid ? 1 : 0,
+    'status_set': statusSet ? 1 : 0,
+    'payment_unlocked': paymentUnlocked ? 1 : 0,
     'unpaid_reason': unpaidReason,
     'updated_by_username': updatedByUsername,
     'updated_by_role': updatedByRole,
@@ -46,6 +52,8 @@ class SalaryPaymentStatus {
       year: (map['year'] as num).toInt(),
       month: (map['month'] as num).toInt(),
       isPaid: (map['is_paid'] as num? ?? 0) != 0,
+      statusSet: (map['status_set'] as num? ?? 1) != 0,
+      paymentUnlocked: (map['payment_unlocked'] as num? ?? 0) != 0,
       unpaidReason: map['unpaid_reason']?.toString() ?? '',
       updatedByUsername: map['updated_by_username']?.toString() ?? '',
       updatedByRole: map['updated_by_role']?.toString() ?? '',

@@ -385,8 +385,10 @@ class _EmployeeLeaveFormScreenState extends State<EmployeeLeaveFormScreen> {
   }) {
     return TextFormField(
       controller: controller,
-      readOnly: true,
+      readOnly: false,
       onTap: onTap,
+      keyboardType: TextInputType.datetime,
+      enableInteractiveSelection: true,
       inputFormatters: const [PersianDateInputFormatter()],
       textDirection: TextDirection.ltr,
       decoration: InputDecoration(

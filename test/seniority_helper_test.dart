@@ -35,7 +35,21 @@ void main() {
         startDate: '1404/01/01',
         settings: settings,
       ),
-      settings.dailySeniority,
+      166667,
+    );
+    expect(
+      SeniorityHelper.calculateDailySeniority(
+        startDate: '1403/01/01',
+        settings: settings,
+      ),
+      302967,
+    );
+    expect(
+      SeniorityHelper.calculateDailySeniority(
+        startDate: '1395/01/01',
+        settings: settings,
+      ),
+      1504088,
     );
   });
 }

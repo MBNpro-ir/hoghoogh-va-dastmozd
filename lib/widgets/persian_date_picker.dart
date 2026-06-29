@@ -156,8 +156,14 @@ class _PersianDatePickerDialogState extends State<_PersianDatePickerDialog> {
           for (final month in monthOptions)
             DropdownMenuItem(
               value: month,
-              child: Text(PersianDateHelper.monthName(month)),
+              child: Text(
+                '${PersianDateHelper.monthName(month)} ${PersianNumberFormatter.toPersian(month.toString())}',
+              ),
             ),
+        ],
+        selectedItemBuilder: (context) => [
+          for (final month in monthOptions)
+            Text(PersianDateHelper.monthName(month)),
         ],
         onChanged: (month) {
           if (month == null) return;

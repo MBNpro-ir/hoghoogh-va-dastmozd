@@ -18,6 +18,7 @@ import '../../services/salary_draft_service.dart';
 import '../../services/salary_service.dart';
 import '../../services/settings_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/constants.dart';
 import '../../utils/persian_date_helper.dart';
 import '../../utils/persian_digit_input_formatter.dart';
 import '../../utils/persian_number_formatter.dart';
@@ -525,6 +526,19 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   double get _payableDays =>
       (_totalDays - _sickLeaveDays).clamp(0.0, _totalDays.toDouble());
 
+  int get _defaultTotalDays => PersianDateHelper.daysInMonth(_year, _month);
+
+  double get _defaultOvertimeBaseDaily => _selectedEmployee?.dailyWage1405 ?? 0;
+
+  double get _defaultShiftWork =>
+      (_result?.baseSalary ?? 0) * AppConstants.shiftWorkRate;
+
+  double get _defaultHourlyBenefitHours =>
+      _selectedEmployee?.hourlyBenefits ?? 0;
+
+  double get _defaultOtherBenefitsDaily =>
+      _selectedEmployee?.otherBenefitsDaily ?? 0;
+
   String? get _attendanceError {
     if (_leaveDays < 0 || _sickLeaveDays < 0) {
       return 'تعداد روزهای مرخصی و استعلاجی نمی‌تواند منفی باشد.';
@@ -955,36 +969,60 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               _responsiveRow(
                 isMobile: _isMobile,
                 children: [
-                  _intField(
-                    label: 'کل کارکرد (روز)',
-                    icon: Icons.date_range_rounded,
+                  _withDefaultReset(
                     value: _totalDays,
-                    onChanged: (v) {
-                      setState(() => _totalDays = v);
+                    defaultValue: _defaultTotalDays,
+                    onReset: () {
+                      setState(() => _totalDays = _defaultTotalDays);
                       _calculate();
                     },
+                    child: _intField(
+                      label: 'کل کارکرد (روز)',
+                      icon: Icons.date_range_rounded,
+                      value: _totalDays,
+                      onChanged: (v) {
+                        setState(() => _totalDays = v);
+                        _calculate();
+                      },
+                    ),
                   ),
-                  PersianNumberField(
-                    label: 'مرخصی (روز)',
-                    prefixIcon: Icons.beach_access_rounded,
-                    suffix: 'روز',
-                    initialValue: _leaveDays,
-                    maxDecimalDigits: 1,
-                    onChanged: (v) {
-                      setState(() => _leaveDays = v?.toDouble() ?? 0);
+                  _withDefaultReset(
+                    value: _leaveDays,
+                    defaultValue: _activeAnnualLeaveDays,
+                    onReset: () {
+                      setState(() => _leaveDays = _activeAnnualLeaveDays);
                       _calculate();
                     },
+                    child: PersianNumberField(
+                      label: 'مرخصی (روز)',
+                      prefixIcon: Icons.beach_access_rounded,
+                      suffix: 'روز',
+                      initialValue: _leaveDays,
+                      maxDecimalDigits: 1,
+                      onChanged: (v) {
+                        setState(() => _leaveDays = v?.toDouble() ?? 0);
+                        _calculate();
+                      },
+                    ),
                   ),
-                  PersianNumberField(
-                    label: 'استعلاجی (روز)',
-                    prefixIcon: Icons.medical_services_rounded,
-                    suffix: 'روز',
-                    initialValue: _sickLeaveDays,
-                    maxDecimalDigits: 1,
-                    onChanged: (v) {
-                      setState(() => _sickLeaveDays = v?.toDouble() ?? 0);
+                  _withDefaultReset(
+                    value: _sickLeaveDays,
+                    defaultValue: _activeSickLeaveDays,
+                    onReset: () {
+                      setState(() => _sickLeaveDays = _activeSickLeaveDays);
                       _calculate();
                     },
+                    child: PersianNumberField(
+                      label: 'استعلاجی (روز)',
+                      prefixIcon: Icons.medical_services_rounded,
+                      suffix: 'روز',
+                      initialValue: _sickLeaveDays,
+                      maxDecimalDigits: 1,
+                      onChanged: (v) {
+                        setState(() => _sickLeaveDays = v?.toDouble() ?? 0);
+                        _calculate();
+                      },
+                    ),
                   ),
                   _workDaysCard(),
                 ],
@@ -1042,17 +1080,29 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 },
               ),
               if (!_useAutoOtherBenefits)
-                PersianNumberField(
-                  label: 'سایر مزایا روزانه (ریال) - دستی',
-                  isCurrency: true,
-                  prefixIcon: Icons.edit_rounded,
-                  initialValue: _otherBenefitsOverride >= 0
+                _withDefaultReset(
+                  value: _otherBenefitsOverride >= 0
                       ? _otherBenefitsOverride
                       : 0,
-                  onChanged: (v) {
-                    _otherBenefitsOverride = v?.toDouble() ?? 0;
+                  defaultValue: _defaultOtherBenefitsDaily,
+                  onReset: () {
+                    setState(
+                      () => _otherBenefitsOverride = _defaultOtherBenefitsDaily,
+                    );
                     _calculate();
                   },
+                  child: PersianNumberField(
+                    label: 'سایر مزایا روزانه (ریال) - دستی',
+                    isCurrency: true,
+                    prefixIcon: Icons.edit_rounded,
+                    initialValue: _otherBenefitsOverride >= 0
+                        ? _otherBenefitsOverride
+                        : 0,
+                    onChanged: (v) {
+                      _otherBenefitsOverride = v?.toDouble() ?? 0;
+                      _calculate();
+                    },
+                  ),
                 ),
             ],
           ),
@@ -1153,16 +1203,26 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                       },
               ),
               if (!_useAutoLoanInstallment && !_skipLoanInstallmentThisMonth)
-                PersianNumberField(
-                  key: ValueKey('lin_$_loanInstallment'),
-                  label: 'قسط وام (ریال)',
-                  isCurrency: true,
-                  prefixIcon: Icons.account_balance_wallet_rounded,
-                  initialValue: _loanInstallment,
-                  onChanged: (v) {
-                    _loanInstallment = v?.toDouble() ?? 0;
+                _withDefaultReset(
+                  value: _loanInstallment,
+                  defaultValue: _activeLoanInstallmentTotal,
+                  onReset: () {
+                    setState(
+                      () => _loanInstallment = _activeLoanInstallmentTotal,
+                    );
                     _calculate();
                   },
+                  child: PersianNumberField(
+                    key: ValueKey('lin_$_loanInstallment'),
+                    label: 'قسط وام (ریال)',
+                    isCurrency: true,
+                    prefixIcon: Icons.account_balance_wallet_rounded,
+                    initialValue: _loanInstallment,
+                    onChanged: (v) {
+                      _loanInstallment = v?.toDouble() ?? 0;
+                      _calculate();
+                    },
+                  ),
                 ),
               if (_useAutoLoanInstallment &&
                   _employeeLoans.isNotEmpty &&
@@ -1216,27 +1276,43 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                 isMobile: _isMobile,
                 children: [
                   if (!_useAutoAdvances || _employeeAdvances.isEmpty)
-                    PersianNumberField(
-                      label: 'مساعده (ریال)',
-                      isCurrency: true,
-                      prefixIcon: Icons.attach_money_rounded,
-                      initialValue: _advance,
-                      onChanged: (v) {
-                        _advance = v?.toDouble() ?? 0;
+                    _withDefaultReset(
+                      value: _advance,
+                      defaultValue: _activeAdvanceTotal,
+                      onReset: () {
+                        setState(() => _advance = _activeAdvanceTotal);
                         _calculate();
                       },
+                      child: PersianNumberField(
+                        label: 'مساعده (ریال)',
+                        isCurrency: true,
+                        prefixIcon: Icons.attach_money_rounded,
+                        initialValue: _advance,
+                        onChanged: (v) {
+                          _advance = v?.toDouble() ?? 0;
+                          _calculate();
+                        },
+                      ),
                     )
                   else
                     _autoAdvanceSummary(),
-                  PersianNumberField(
-                    label: 'سایر کسورات / مابه تفاوت',
-                    isCurrency: true,
-                    prefixIcon: Icons.remove_circle_outline_rounded,
-                    initialValue: _otherDeductions,
-                    onChanged: (v) {
-                      _otherDeductions = v?.toDouble() ?? 0;
+                  _withDefaultReset(
+                    value: _otherDeductions,
+                    defaultValue: 0,
+                    onReset: () {
+                      setState(() => _otherDeductions = 0);
                       _calculate();
                     },
+                    child: PersianNumberField(
+                      label: 'سایر کسورات / مابه تفاوت',
+                      isCurrency: true,
+                      prefixIcon: Icons.remove_circle_outline_rounded,
+                      initialValue: _otherDeductions,
+                      onChanged: (v) {
+                        _otherDeductions = v?.toDouble() ?? 0;
+                        _calculate();
+                      },
+                    ),
                   ),
                 ],
               ),
@@ -1347,15 +1423,25 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               },
             ),
             if (_useCustomOvertimeBase)
-              PersianNumberField(
-                label: 'مبنای روزانه اضافه‌کاری (ریال)',
-                isCurrency: true,
-                prefixIcon: Icons.calculate_rounded,
-                initialValue: _overtimeBaseDaily,
-                onChanged: (value) {
-                  _overtimeBaseDaily = value?.toDouble() ?? 0;
+              _withDefaultReset(
+                value: _overtimeBaseDaily,
+                defaultValue: _defaultOvertimeBaseDaily,
+                onReset: () {
+                  setState(
+                    () => _overtimeBaseDaily = _defaultOvertimeBaseDaily,
+                  );
                   _calculate();
                 },
+                child: PersianNumberField(
+                  label: 'مبنای روزانه اضافه‌کاری (ریال)',
+                  isCurrency: true,
+                  prefixIcon: Icons.calculate_rounded,
+                  initialValue: _overtimeBaseDaily,
+                  onChanged: (value) {
+                    _overtimeBaseDaily = value?.toDouble() ?? 0;
+                    _calculate();
+                  },
+                ),
               ),
           ],
         ),
@@ -1372,15 +1458,23 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               onChanged: _onAutoShiftWorkChanged,
             ),
             if (!_useAutoShiftWork)
-              PersianNumberField(
-                label: 'مبلغ نوبت‌کاری (ریال)',
-                isCurrency: true,
-                prefixIcon: Icons.nightlight_round,
-                initialValue: _shiftWork,
-                onChanged: (v) {
-                  _shiftWork = v?.toDouble() ?? 0;
+              _withDefaultReset(
+                value: _shiftWork,
+                defaultValue: _defaultShiftWork,
+                onReset: () {
+                  setState(() => _shiftWork = _defaultShiftWork);
                   _calculate();
                 },
+                child: PersianNumberField(
+                  label: 'مبلغ نوبت‌کاری (ریال)',
+                  isCurrency: true,
+                  prefixIcon: Icons.nightlight_round,
+                  initialValue: _shiftWork,
+                  onChanged: (v) {
+                    _shiftWork = v?.toDouble() ?? 0;
+                    _calculate();
+                  },
+                ),
               ),
           ],
         ),
@@ -1407,26 +1501,44 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               },
             ),
             if (_useAutoHourlyBenefits)
-              PersianNumberField(
-                label: 'ساعت مزایای ساعتی',
-                prefixIcon: Icons.access_time_filled_rounded,
-                suffix: 'ساعت',
-                initialValue: _hourlyBenefitHours,
-                onChanged: (v) {
-                  _hourlyBenefitHours = v?.toDouble() ?? 0;
+              _withDefaultReset(
+                value: _hourlyBenefitHours,
+                defaultValue: _defaultHourlyBenefitHours,
+                onReset: () {
+                  setState(
+                    () => _hourlyBenefitHours = _defaultHourlyBenefitHours,
+                  );
                   _calculate();
                 },
+                child: PersianNumberField(
+                  label: 'ساعت مزایای ساعتی',
+                  prefixIcon: Icons.access_time_filled_rounded,
+                  suffix: 'ساعت',
+                  initialValue: _hourlyBenefitHours,
+                  onChanged: (v) {
+                    _hourlyBenefitHours = v?.toDouble() ?? 0;
+                    _calculate();
+                  },
+                ),
               )
             else
-              PersianNumberField(
-                label: 'مزایای ساعتی (مبلغ دستی)',
-                isCurrency: true,
-                prefixIcon: Icons.access_time_filled_rounded,
-                initialValue: _hourlyBenefitsAmount,
-                onChanged: (v) {
-                  _hourlyBenefitsAmount = v?.toDouble() ?? 0;
+              _withDefaultReset(
+                value: _hourlyBenefitsAmount,
+                defaultValue: 0,
+                onReset: () {
+                  setState(() => _hourlyBenefitsAmount = 0);
                   _calculate();
                 },
+                child: PersianNumberField(
+                  label: 'مزایای ساعتی (مبلغ دستی)',
+                  isCurrency: true,
+                  prefixIcon: Icons.access_time_filled_rounded,
+                  initialValue: _hourlyBenefitsAmount,
+                  onChanged: (v) {
+                    _hourlyBenefitsAmount = v?.toDouble() ?? 0;
+                    _calculate();
+                  },
+                ),
               ),
           ],
         ),
@@ -1480,6 +1592,33 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         ? value.toStringAsFixed(0)
         : value.toStringAsFixed(1);
     return PersianNumberFormatter.toPersian(text);
+  }
+
+  bool _differsFromDefault(num value, num defaultValue) =>
+      (value - defaultValue).abs() >= 0.001;
+
+  Widget _withDefaultReset({
+    required Widget child,
+    required num value,
+    required num defaultValue,
+    required VoidCallback onReset,
+  }) {
+    if (!_differsFromDefault(value, defaultValue)) return child;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: child),
+        const SizedBox(width: 6),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: IconButton.filledTonal(
+            tooltip: 'بازگشت به مقدار پیش‌فرض',
+            onPressed: onReset,
+            icon: const Icon(Icons.restart_alt_rounded),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _employeeLoansList() {

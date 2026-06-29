@@ -857,7 +857,11 @@ class SyncService {
     final employeeId = await _localEmployeeId(db, payload);
     if (employeeId == null) return null;
     return SalaryPaymentStatus.fromMap({
-      ..._boolsToInts(payload, const {'is_paid'}),
+      ..._boolsToInts(payload, const {
+        'is_paid',
+        'status_set',
+        'payment_unlocked',
+      }),
       'employee_id': employeeId,
     }).toMap()..remove('id');
   }
@@ -1143,6 +1147,8 @@ class SyncService {
         'دوره پرداخت معتبر نیست. سال و ماه را بررسی کنید.',
       'invalid_payment_reason' =>
         'برای وضعیت پرداخت‌نشده باید دلیل معتبر وارد شود.',
+      'payment_status_locked' =>
+        'این فیش برای ثبت وضعیت پرداخت باز نشده است. ادمین باید ابتدا قفل پرداخت را فعال کند.',
       'invalid_salary_amount' =>
         'یکی از مقادیر حقوق یا ساعات نامعتبر است و امکان ذخیره وجود ندارد.',
       'invalid_settings' =>

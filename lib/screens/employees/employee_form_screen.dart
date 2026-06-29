@@ -37,6 +37,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   bool _loading = true;
   bool _saving = false;
   AppSettings? _settings;
+  final Set<String> _collapsedSections = {};
 
   late final TextEditingController _personnelCodeCtrl;
   late final TextEditingController _firstNameCtrl;
@@ -133,6 +134,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     _notesCtrl = TextEditingController(text: _visibleText(e?.notes));
 
     if (e != null) {
+      _collapsedSections.addAll(_employeeSectionTitles);
       _isActive = e.isActive;
       _isMarried = e.isMarried;
       _hasPriorExperience = e.hasPriorExperience;
@@ -164,6 +166,19 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     }
     _init();
   }
+
+  static const _employeeSectionTitles = [
+    'وضعیت کاری',
+    'اطلاعات هویتی',
+    'تماس و محل خدمت',
+    'استخدام، بیمه و شغل',
+    'اطلاعات بانکی',
+    'وضعیت تاهل و فرزند',
+    'محاسبه دستمزد ۱۴۰۵',
+    'مزایای روزانه',
+    'مزایای ماهانه',
+    'یادداشت‌ها',
+  ];
 
   String _visibleText(String? value) =>
       PersianNumberFormatter.toPersian(value ?? '');
@@ -237,23 +252,13 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
 
   void _autoCalculate1405({bool notify = true}) {
     if (_settings == null) return;
-    _dailyWage1405 = SalaryCalculator.calculateDailyWage1405(
-      dailyWage1404: _dailyWage1404,
-      rate: _selectedRate,
-      fixedRial: _settings!.fixedRial,
-    );
-    _baseSalary30Days = _dailyWage1405 * AppConstants.standardMonthDays;
-    _dailyHousing = _settings!.monthlyHousing / AppConstants.standardMonthDays;
-    _dailyFood = _settings!.monthlyFood / AppConstants.standardMonthDays;
-    _dailyChildAllowance = _childrenCount > 0
-        ? _settings!.monthlyChild / AppConstants.standardMonthDays
-        : 0;
-    if (_hasPriorExperience && _dailySeniority == 0) {
-      _dailySeniority = _settings!.dailySeniority;
-    }
-    _dailyMarriage = _isMarried
-        ? _settings!.monthlyMarriage / AppConstants.standardMonthDays
-        : 0;
+    _dailyWage1405 = _defaultDailyWage1405;
+    _baseSalary30Days = _defaultBaseSalary30Days;
+    _dailyHousing = _defaultDailyHousing;
+    _dailyFood = _defaultDailyFood;
+    _dailyChildAllowance = _defaultDailyChildAllowance;
+    _dailySeniority = _defaultDailySeniority;
+    _dailyMarriage = _defaultDailyMarriage;
     if (notify && mounted) setState(() {});
   }
 
@@ -367,6 +372,66 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   void _setDailyFromMonthly(double monthly, ValueChanged<double> updateDaily) {
     updateDaily(monthly / AppConstants.standardMonthDays);
     if (mounted) setState(() {});
+  }
+
+  double get _defaultDailyWage1405 {
+    if (_settings == null) return 0;
+    return SalaryCalculator.calculateDailyWage1405(
+      dailyWage1404: _dailyWage1404,
+      rate: _selectedRate,
+      fixedRial: _settings!.fixedRial,
+    );
+  }
+
+  double get _defaultBaseSalary30Days =>
+      _defaultDailyWage1405 * AppConstants.standardMonthDays;
+
+  double get _defaultDailyHousing =>
+      (_settings?.monthlyHousing ?? 0) / AppConstants.standardMonthDays;
+
+  double get _defaultDailyFood =>
+      (_settings?.monthlyFood ?? 0) / AppConstants.standardMonthDays;
+
+  double get _defaultDailyMarriage => _isMarried
+      ? (_settings?.monthlyMarriage ?? 0) / AppConstants.standardMonthDays
+      : 0;
+
+  double get _defaultDailyChildAllowance => _childrenCount > 0
+      ? (_settings?.monthlyChild ?? 0) / AppConstants.standardMonthDays
+      : 0;
+
+  double get _defaultDailySeniority => _hasPriorExperience && _settings != null
+      ? SeniorityHelper.calculateDailySeniority(
+          startDate: _startDateEnglish,
+          settings: _settings!,
+        )
+      : 0;
+
+  bool _differsFromDefault(double value, double defaultValue) =>
+      (value - defaultValue).abs() >= 1;
+
+  Widget _withDefaultReset({
+    required Widget child,
+    required double value,
+    required double defaultValue,
+    required VoidCallback onReset,
+  }) {
+    if (!_differsFromDefault(value, defaultValue)) return child;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: child),
+        const SizedBox(width: 6),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: IconButton.filledTonal(
+            tooltip: 'بازگشت به مقدار پیش‌فرض',
+            onPressed: onReset,
+            icon: const Icon(Icons.restart_alt_rounded),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -1085,27 +1150,41 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 ),
               ),
             ),
-            PersianNumberField(
-              label: 'دستمزد ۱۴۰۵',
-              isCurrency: true,
-              prefixIcon: Icons.calculate_rounded,
-              initialValue: _dailyWage1405,
-              onChanged: (value) {
-                _dailyWage1405 = value?.toDouble() ?? 0;
-                _baseSalary30Days =
-                    _dailyWage1405 * AppConstants.standardMonthDays;
-                if (mounted) setState(() {});
-              },
+            _withDefaultReset(
+              value: _dailyWage1405,
+              defaultValue: _defaultDailyWage1405,
+              onReset: () => setState(() {
+                _dailyWage1405 = _defaultDailyWage1405;
+                _baseSalary30Days = _defaultBaseSalary30Days;
+              }),
+              child: PersianNumberField(
+                label: 'دستمزد ۱۴۰۵',
+                isCurrency: true,
+                prefixIcon: Icons.calculate_rounded,
+                initialValue: _dailyWage1405,
+                onChanged: (value) {
+                  _dailyWage1405 = value?.toDouble() ?? 0;
+                  _baseSalary30Days =
+                      _dailyWage1405 * AppConstants.standardMonthDays;
+                  if (mounted) setState(() {});
+                },
+              ),
             ),
           ],
         ),
         SizedBox(height: isMobile ? 8 : 12),
-        PersianNumberField(
-          label: 'حقوق پایه (۳۰ روز)',
-          isCurrency: true,
-          prefixIcon: Icons.attach_money_rounded,
-          initialValue: _baseSalary30Days,
-          onChanged: (value) => _baseSalary30Days = value?.toDouble() ?? 0,
+        _withDefaultReset(
+          value: _baseSalary30Days,
+          defaultValue: _defaultBaseSalary30Days,
+          onReset: () =>
+              setState(() => _baseSalary30Days = _defaultBaseSalary30Days),
+          child: PersianNumberField(
+            label: 'حقوق پایه (۳۰ روز)',
+            isCurrency: true,
+            prefixIcon: Icons.attach_money_rounded,
+            initialValue: _baseSalary30Days,
+            onChanged: (value) => _baseSalary30Days = value?.toDouble() ?? 0,
+          ),
         ),
       ],
     );
@@ -1126,12 +1205,17 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               Icons.home_rounded,
               _dailyHousing,
               (v) => setState(() => _dailyHousing = v),
+              defaultValue: _defaultDailyHousing,
+              onReset: () =>
+                  setState(() => _dailyHousing = _defaultDailyHousing),
             ),
             _moneyField(
               'حق خواروبار روزانه',
               Icons.shopping_basket_rounded,
               _dailyFood,
               (v) => setState(() => _dailyFood = v),
+              defaultValue: _defaultDailyFood,
+              onReset: () => setState(() => _dailyFood = _defaultDailyFood),
             ),
           ],
         ),
@@ -1144,12 +1228,19 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               Icons.favorite_rounded,
               _dailyMarriage,
               (v) => setState(() => _dailyMarriage = v),
+              defaultValue: _defaultDailyMarriage,
+              onReset: () =>
+                  setState(() => _dailyMarriage = _defaultDailyMarriage),
             ),
             _moneyField(
               'حق هر فرزند روزانه',
               Icons.child_care_rounded,
               _dailyChildAllowance,
               (v) => setState(() => _dailyChildAllowance = v),
+              defaultValue: _defaultDailyChildAllowance,
+              onReset: () => setState(
+                () => _dailyChildAllowance = _defaultDailyChildAllowance,
+              ),
             ),
           ],
         ),
@@ -1162,6 +1253,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               Icons.workspace_premium_rounded,
               _dailySeniority,
               (v) => setState(() => _dailySeniority = v),
+              defaultValue: _defaultDailySeniority,
+              onReset: () =>
+                  setState(() => _dailySeniority = _defaultDailySeniority),
             ),
             _moneyField(
               'سنوات سال گذشته روزانه',
@@ -1221,12 +1315,17 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               Icons.home_work_rounded,
               _toMonthly(_dailyHousing),
               (v) => _setDailyFromMonthly(v, (d) => _dailyHousing = d),
+              defaultValue: _toMonthly(_defaultDailyHousing),
+              onReset: () =>
+                  setState(() => _dailyHousing = _defaultDailyHousing),
             ),
             _moneyField(
               'حق خواروبار ماهانه',
               Icons.shopping_cart_rounded,
               _toMonthly(_dailyFood),
               (v) => _setDailyFromMonthly(v, (d) => _dailyFood = d),
+              defaultValue: _toMonthly(_defaultDailyFood),
+              onReset: () => setState(() => _dailyFood = _defaultDailyFood),
             ),
           ],
         ),
@@ -1239,12 +1338,19 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               Icons.favorite_rounded,
               _toMonthly(_dailyMarriage),
               (v) => _setDailyFromMonthly(v, (d) => _dailyMarriage = d),
+              defaultValue: _toMonthly(_defaultDailyMarriage),
+              onReset: () =>
+                  setState(() => _dailyMarriage = _defaultDailyMarriage),
             ),
             _moneyField(
               'حق هر فرزند ماهانه',
               Icons.child_friendly_rounded,
               _toMonthly(_dailyChildAllowance),
               (v) => _setDailyFromMonthly(v, (d) => _dailyChildAllowance = d),
+              defaultValue: _toMonthly(_defaultDailyChildAllowance),
+              onReset: () => setState(
+                () => _dailyChildAllowance = _defaultDailyChildAllowance,
+              ),
             ),
           ],
         ),
@@ -1257,6 +1363,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               Icons.workspace_premium_rounded,
               _toMonthly(_dailySeniority),
               (v) => _setDailyFromMonthly(v, (d) => _dailySeniority = d),
+              defaultValue: _toMonthly(_defaultDailySeniority),
+              onReset: () =>
+                  setState(() => _dailySeniority = _defaultDailySeniority),
             ),
             _moneyField(
               'سایر مزایا ماهانه',
@@ -1330,14 +1439,23 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     String label,
     IconData icon,
     double value,
-    ValueChanged<double> onChanged,
-  ) {
-    return PersianNumberField(
+    ValueChanged<double> onChanged, {
+    double? defaultValue,
+    VoidCallback? onReset,
+  }) {
+    final field = PersianNumberField(
       label: label,
       isCurrency: true,
       prefixIcon: icon,
       initialValue: value,
       onChanged: (value) => onChanged(value?.toDouble() ?? 0),
+    );
+    if (defaultValue == null || onReset == null) return field;
+    return _withDefaultReset(
+      value: value,
+      defaultValue: defaultValue,
+      onReset: onReset,
+      child: field,
     );
   }
 
@@ -1374,8 +1492,10 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   }) {
     return TextFormField(
       controller: controller,
-      readOnly: true,
+      readOnly: false,
       onTap: () => _pickDate(controller, syncStartDate: syncStartDate),
+      keyboardType: TextInputType.datetime,
+      enableInteractiveSelection: true,
       inputFormatters: const [PersianDateInputFormatter()],
       textDirection: TextDirection.ltr,
       decoration: InputDecoration(
@@ -1424,35 +1544,52 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     required List<Widget> children,
   }) {
     final isMobile = _isMobile;
+    final collapsed = _collapsedSections.contains(title);
     return Card(
       child: Padding(
         padding: EdgeInsets.all(isMobile ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            InkWell(
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              onTap: () {
+                setState(() {
+                  if (collapsed) {
+                    _collapsedSections.remove(title);
+                  } else {
+                    _collapsedSections.add(title);
+                  }
+                });
+              },
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                    ),
+                    child: Icon(icon, color: accent, size: isMobile ? 20 : 22),
                   ),
-                  child: Icon(icon, color: accent, size: isMobile ? 20 : 22),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: isMobile
-                        ? Theme.of(context).textTheme.titleMedium
-                        : Theme.of(context).textTheme.titleLarge,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: isMobile
+                          ? Theme.of(context).textTheme.titleMedium
+                          : Theme.of(context).textTheme.titleLarge,
+                    ),
                   ),
-                ),
-              ],
+                  Icon(
+                    collapsed
+                        ? Icons.keyboard_arrow_down_rounded
+                        : Icons.keyboard_arrow_up_rounded,
+                  ),
+                ],
+              ),
             ),
-            const Divider(height: 24),
-            ...children,
+            if (!collapsed) ...[const Divider(height: 24), ...children],
           ],
         ),
       ),

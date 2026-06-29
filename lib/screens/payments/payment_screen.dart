@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../services/api_client.dart';
 import '../../services/salary_payment_service.dart';
 import '../../utils/business_validation.dart';
 import '../../utils/persian_date_helper.dart';
@@ -12,6 +13,18 @@ import '../../widgets/app_notification.dart';
 import '../../widgets/currency_text.dart';
 import '../../widgets/period_filter_bar.dart';
 import '../salary/payslip_screen.dart';
+
+enum _PaymentFilter { all, paid, unpaid, pending, unlocked, locked }
+
+enum _PaymentSort {
+  periodDesc,
+  personnelAsc,
+  nameAsc,
+  amountDesc,
+  amountAsc,
+  status,
+  lastChangedDesc,
+}
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
@@ -25,21 +38,32 @@ class _PaymentScreenState extends State<PaymentScreen> {
   static const _cardScalePrefsKey = 'hvm_payment_card_scale_v1';
 
   final _service = SalaryPaymentService();
+  final _api = ApiClient();
   final _searchController = TextEditingController();
   List<PaymentSlipRow> _rows = const [];
   List<(int, int)> _periods = const [];
   (int, int)? _selectedPeriod;
   String _search = '';
   String? _savingKey;
+  final Set<String> _selectedKeys = {};
   bool _loading = true;
+  bool _batchSaving = false;
   String _error = '';
+  String _userRole = '';
+  bool _roleLoaded = false;
   int _gridColumns = 0;
   double _cardScale = 1;
+  _PaymentFilter _filter = _PaymentFilter.all;
+  _PaymentSort _sort = _PaymentSort.periodDesc;
+
+  bool get _isPaymentRole => _userRole == 'payment';
+  bool get _canManagePayments => _roleLoaded && !_isPaymentRole;
 
   @override
   void initState() {
     super.initState();
     _loadViewPreferences();
+    _loadUserRole();
     _load();
   }
 
@@ -66,6 +90,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
         _periods = periods;
         _selectedPeriod = selected;
         _rows = rows;
+        _selectedKeys.removeWhere(
+          (key) => !rows.any((row) => _keyOf(row) == key),
+        );
       });
     } catch (e) {
       if (!mounted) return;
@@ -73,6 +100,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _loadUserRole() async {
+    final user = await _api.getUser();
+    if (!mounted) return;
+    setState(() {
+      _userRole = user?['role']?.toString() ?? '';
+      _roleLoaded = true;
+    });
   }
 
   Future<void> _loadViewPreferences() async {
@@ -98,7 +134,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     await prefs.setDouble(_cardScalePrefsKey, clean);
   }
 
-  List<PaymentSlipRow> get _filteredRows {
+  List<PaymentSlipRow> get _searchedRows {
     final query = PersianNumberFormatter.toEnglish(
       _search.trim(),
     ).toLowerCase();
@@ -112,8 +148,51 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }).toList();
   }
 
+  List<PaymentSlipRow> get _filteredRows {
+    final rows = _searchedRows.where(_matchesFilter).toList();
+    rows.sort(_compareRows);
+    return rows;
+  }
+
+  bool _matchesFilter(PaymentSlipRow row) {
+    return switch (_filter) {
+      _PaymentFilter.all => true,
+      _PaymentFilter.paid => row.isPaid == true,
+      _PaymentFilter.unpaid => row.isPaid == false,
+      _PaymentFilter.pending => row.isPaid == null,
+      _PaymentFilter.unlocked => row.paymentUnlocked,
+      _PaymentFilter.locked => !row.paymentUnlocked,
+    };
+  }
+
+  int _compareRows(PaymentSlipRow a, PaymentSlipRow b) {
+    final result = switch (_sort) {
+      _PaymentSort.periodDesc => (b.year * 100 + b.month).compareTo(
+        a.year * 100 + a.month,
+      ),
+      _PaymentSort.personnelAsc => a.personnelCode.compareTo(b.personnelCode),
+      _PaymentSort.nameAsc => a.employeeName.compareTo(b.employeeName),
+      _PaymentSort.amountDesc => b.finalPayment.compareTo(a.finalPayment),
+      _PaymentSort.amountAsc => a.finalPayment.compareTo(b.finalPayment),
+      _PaymentSort.status => _statusRank(a).compareTo(_statusRank(b)),
+      _PaymentSort.lastChangedDesc =>
+        (b.statusChangedAt ?? DateTime(0)).compareTo(
+          a.statusChangedAt ?? DateTime(0),
+        ),
+    };
+    if (result != 0) return result;
+    return a.personnelCode.compareTo(b.personnelCode);
+  }
+
+  int _statusRank(PaymentSlipRow row) {
+    if (row.isPaid == null) return 0;
+    if (row.isPaid == false) return 1;
+    return 2;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final searched = _searchedRows;
     final visible = _filteredRows;
     return RefreshIndicator(
       onRefresh: _load,
@@ -131,17 +210,45 @@ class _PaymentScreenState extends State<PaymentScreen> {
               searchController: _searchController,
               onSearchChanged: (value) => setState(() => _search = value),
               searchHint: 'جستجوی نام، کد پرسنلی یا کد ملی',
-              trailing: _PaymentSummary(rows: visible),
+              trailing: _PaymentSummary(
+                rows: searched,
+                filter: _filter,
+                onFilterChanged: (filter) => setState(() {
+                  _filter = filter;
+                  _selectedKeys.clear();
+                }),
+              ),
             ),
           ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: _PaymentLayoutControls(
-                columns: _gridColumns,
-                cardScale: _cardScale,
-                onColumnsChanged: _setGridColumns,
-                onCardScaleChanged: _setCardScale,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _PaymentLayoutControls(
+                    columns: _gridColumns,
+                    cardScale: _cardScale,
+                    onColumnsChanged: _setGridColumns,
+                    onCardScaleChanged: _setCardScale,
+                  ),
+                  const SizedBox(height: 8),
+                  _PaymentActionBar(
+                    sort: _sort,
+                    canManagePayments: _canManagePayments,
+                    selectedCount: _selectedKeys.length,
+                    visibleCount: visible.length,
+                    busy: _batchSaving,
+                    onSortChanged: (sort) => setState(() => _sort = sort),
+                    onSelectAll: () => _selectVisible(visible),
+                    onClearSelection: () =>
+                        setState(() => _selectedKeys.clear()),
+                    onUnlockSelected: () =>
+                        _setSelectedUnlocked(visible, unlocked: true),
+                    onLockSelected: () =>
+                        _setSelectedUnlocked(visible, unlocked: false),
+                  ),
+                ],
               ),
             ),
           ),
@@ -184,10 +291,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
                               row: row,
                               scale: _cardScale,
                               saving: _savingKey == _keyOf(row),
+                              selected: _selectedKeys.contains(_keyOf(row)),
+                              canManagePayments: _canManagePayments,
+                              isPaymentRole: _isPaymentRole,
+                              onSelectionChanged: (selected) =>
+                                  _setSelected(row, selected),
                               onCopyAmount: () => _copyFinalPayment(row),
                               onOpenPayslip: () => _openPayslip(row),
                               onPaid: () => _save(row: row, isPaid: true),
                               onUnpaid: () => _markUnpaid(row),
+                              onToggleUnlocked: (unlocked) =>
+                                  _setPaymentUnlocked(row, unlocked),
+                              onDeleteHistoryEntry: (index) =>
+                                  _deleteHistoryEntry(row, index),
                             ),
                           ),
                       ],
@@ -291,39 +407,310 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
+  void _setSelected(PaymentSlipRow row, bool selected) {
+    setState(() {
+      final key = _keyOf(row);
+      if (selected) {
+        _selectedKeys.add(key);
+      } else {
+        _selectedKeys.remove(key);
+      }
+    });
+  }
+
+  void _selectVisible(List<PaymentSlipRow> visible) {
+    setState(() {
+      final visibleKeys = visible.map(_keyOf).toSet();
+      if (visibleKeys.isNotEmpty && visibleKeys.every(_selectedKeys.contains)) {
+        _selectedKeys.removeAll(visibleKeys);
+      } else {
+        _selectedKeys.addAll(visibleKeys);
+      }
+    });
+  }
+
+  Future<void> _setPaymentUnlocked(PaymentSlipRow row, bool unlocked) async {
+    final key = _keyOf(row);
+    setState(() {
+      _savingKey = key;
+      _error = '';
+    });
+    try {
+      await _service.setPaymentUnlocked(
+        employeeId: row.employeeId,
+        year: row.year,
+        month: row.month,
+        unlocked: unlocked,
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _savingKey = null);
+    }
+  }
+
+  Future<void> _setSelectedUnlocked(
+    List<PaymentSlipRow> visible, {
+    required bool unlocked,
+  }) async {
+    final selectedRows = visible
+        .where((row) => _selectedKeys.contains(_keyOf(row)))
+        .toList();
+    if (selectedRows.isEmpty) return;
+    setState(() {
+      _batchSaving = true;
+      _error = '';
+    });
+    try {
+      await _service.setPaymentUnlockedForRows(
+        rows: selectedRows,
+        unlocked: unlocked,
+      );
+      await _load();
+      if (!mounted) return;
+      setState(() => _selectedKeys.clear());
+      AppNotification.success(
+        context,
+        unlocked ? 'قفل پرداخت باز شد' : 'قفل پرداخت بسته شد',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _batchSaving = false);
+    }
+  }
+
+  Future<void> _deleteHistoryEntry(PaymentSlipRow row, int index) async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('حذف لاگ پرداخت'),
+            content: const Text('این مورد از تاریخچه پرداخت حذف شود؟'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('انصراف'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('حذف'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed) return;
+    final key = _keyOf(row);
+    setState(() {
+      _savingKey = key;
+      _error = '';
+    });
+    try {
+      await _service.deleteHistoryEntry(row: row, historyIndex: index);
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _savingKey = null);
+    }
+  }
+
   String _keyOf(PaymentSlipRow row) =>
       '${row.employeeId}-${row.year}-${row.month}';
 }
 
 class _PaymentSummary extends StatelessWidget {
   final List<PaymentSlipRow> rows;
-  const _PaymentSummary({required this.rows});
+  final _PaymentFilter filter;
+  final ValueChanged<_PaymentFilter> onFilterChanged;
+
+  const _PaymentSummary({
+    required this.rows,
+    required this.filter,
+    required this.onFilterChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     final paid = rows.where((row) => row.isPaid == true).length;
     final unpaid = rows.where((row) => row.isPaid == false).length;
     final pending = rows.length - paid - unpaid;
+    final unlocked = rows.where((row) => row.paymentUnlocked).length;
+    final locked = rows.length - unlocked;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
         _SummaryChip(
+          label: 'همه',
+          value: rows.length,
+          icon: Icons.filter_alt_off_rounded,
+          selected: filter == _PaymentFilter.all,
+          onSelected: () => onFilterChanged(_PaymentFilter.all),
+        ),
+        _SummaryChip(
           label: 'پرداخت‌شده',
           value: paid,
           icon: Icons.check_rounded,
+          selected: filter == _PaymentFilter.paid,
+          onSelected: () => onFilterChanged(_PaymentFilter.paid),
         ),
         _SummaryChip(
           label: 'پرداخت‌نشده',
           value: unpaid,
           icon: Icons.close_rounded,
+          selected: filter == _PaymentFilter.unpaid,
+          onSelected: () => onFilterChanged(_PaymentFilter.unpaid),
         ),
         _SummaryChip(
           label: 'ثبت‌نشده',
           value: pending,
           icon: Icons.pending_actions_rounded,
+          selected: filter == _PaymentFilter.pending,
+          onSelected: () => onFilterChanged(_PaymentFilter.pending),
+        ),
+        _SummaryChip(
+          label: 'باز',
+          value: unlocked,
+          icon: Icons.lock_open_rounded,
+          selected: filter == _PaymentFilter.unlocked,
+          onSelected: () => onFilterChanged(_PaymentFilter.unlocked),
+        ),
+        _SummaryChip(
+          label: 'قفل',
+          value: locked,
+          icon: Icons.lock_rounded,
+          selected: filter == _PaymentFilter.locked,
+          onSelected: () => onFilterChanged(_PaymentFilter.locked),
         ),
       ],
+    );
+  }
+}
+
+class _PaymentActionBar extends StatelessWidget {
+  final _PaymentSort sort;
+  final bool canManagePayments;
+  final int selectedCount;
+  final int visibleCount;
+  final bool busy;
+  final ValueChanged<_PaymentSort> onSortChanged;
+  final VoidCallback onSelectAll;
+  final VoidCallback onClearSelection;
+  final VoidCallback onUnlockSelected;
+  final VoidCallback onLockSelected;
+
+  const _PaymentActionBar({
+    required this.sort,
+    required this.canManagePayments,
+    required this.selectedCount,
+    required this.visibleCount,
+    required this.busy,
+    required this.onSortChanged,
+    required this.onSelectAll,
+    required this.onClearSelection,
+    required this.onUnlockSelected,
+    required this.onLockSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            SizedBox(
+              width: 220,
+              child: DropdownButtonFormField<_PaymentSort>(
+                initialValue: sort,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'مرتب‌سازی',
+                  prefixIcon: Icon(Icons.sort_rounded),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: _PaymentSort.periodDesc,
+                    child: Text('جدیدترین دوره'),
+                  ),
+                  DropdownMenuItem(
+                    value: _PaymentSort.personnelAsc,
+                    child: Text('کد پرسنلی'),
+                  ),
+                  DropdownMenuItem(
+                    value: _PaymentSort.nameAsc,
+                    child: Text('نام کارمند'),
+                  ),
+                  DropdownMenuItem(
+                    value: _PaymentSort.amountDesc,
+                    child: Text('بیشترین مبلغ'),
+                  ),
+                  DropdownMenuItem(
+                    value: _PaymentSort.amountAsc,
+                    child: Text('کمترین مبلغ'),
+                  ),
+                  DropdownMenuItem(
+                    value: _PaymentSort.status,
+                    child: Text('وضعیت پرداخت'),
+                  ),
+                  DropdownMenuItem(
+                    value: _PaymentSort.lastChangedDesc,
+                    child: Text('آخرین تغییر'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) onSortChanged(value);
+                },
+              ),
+            ),
+            if (canManagePayments) ...[
+              FilterChip(
+                avatar: const Icon(Icons.checklist_rounded, size: 18),
+                label: Text(
+                  selectedCount == 0
+                      ? 'انتخاب فیش‌ها'
+                      : 'انتخاب‌شده: ${PersianNumberFormatter.toPersian(selectedCount.toString())}',
+                ),
+                selected: selectedCount > 0,
+                onSelected: visibleCount == 0 || busy
+                    ? null
+                    : (_) => onSelectAll(),
+              ),
+              OutlinedButton.icon(
+                onPressed: selectedCount == 0 || busy ? null : onUnlockSelected,
+                icon: busy
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.lock_open_rounded),
+                label: const Text('باز کردن قفل'),
+              ),
+              OutlinedButton.icon(
+                onPressed: selectedCount == 0 || busy ? null : onLockSelected,
+                icon: const Icon(Icons.lock_rounded),
+                label: const Text('بستن قفل'),
+              ),
+              if (selectedCount > 0)
+                IconButton(
+                  tooltip: 'پاک‌کردن انتخاب',
+                  onPressed: busy ? null : onClearSelection,
+                  icon: Icon(Icons.clear_rounded, color: scheme.onSurface),
+                ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -436,19 +823,26 @@ class _SummaryChip extends StatelessWidget {
   final String label;
   final int value;
   final IconData icon;
+  final bool selected;
+  final VoidCallback onSelected;
 
   const _SummaryChip({
     required this.label,
     required this.value,
     required this.icon,
+    required this.selected,
+    required this.onSelected,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Chip(
+    return FilterChip(
       avatar: Icon(icon, size: 18, color: scheme.primary),
+      selected: selected,
+      onSelected: (_) => onSelected(),
       backgroundColor: scheme.surfaceContainerLowest,
+      selectedColor: scheme.primaryContainer.withValues(alpha: 0.65),
       side: BorderSide(color: scheme.outlineVariant),
       shape: const StadiumBorder(),
       labelStyle: TextStyle(
@@ -466,19 +860,31 @@ class _PaymentCard extends StatelessWidget {
   final PaymentSlipRow row;
   final double scale;
   final bool saving;
+  final bool selected;
+  final bool canManagePayments;
+  final bool isPaymentRole;
+  final ValueChanged<bool> onSelectionChanged;
   final VoidCallback onCopyAmount;
   final VoidCallback onOpenPayslip;
   final VoidCallback onPaid;
   final VoidCallback onUnpaid;
+  final ValueChanged<bool> onToggleUnlocked;
+  final ValueChanged<int> onDeleteHistoryEntry;
 
   const _PaymentCard({
     required this.row,
     required this.scale,
     required this.saving,
+    required this.selected,
+    required this.canManagePayments,
+    required this.isPaymentRole,
+    required this.onSelectionChanged,
     required this.onCopyAmount,
     required this.onOpenPayslip,
     required this.onPaid,
     required this.onUnpaid,
+    required this.onToggleUnlocked,
+    required this.onDeleteHistoryEntry,
   });
 
   @override
@@ -498,6 +904,7 @@ class _PaymentCard extends StatelessWidget {
         : unpaid
         ? 'پرداخت‌نشده'
         : 'ثبت‌نشده';
+    final canChangeStatus = !saving && (!isPaymentRole || row.paymentUnlocked);
     final padding = 14.0 * scale;
     final gap = 10.0 * scale;
     return Card(
@@ -509,6 +916,16 @@ class _PaymentCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (canManagePayments) ...[
+                  Checkbox(
+                    value: selected,
+                    onChanged: saving
+                        ? null
+                        : (value) => onSelectionChanged(value ?? false),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  SizedBox(width: gap * 0.3),
+                ],
                 CircleAvatar(
                   backgroundColor: scheme.primaryContainer,
                   foregroundColor: scheme.onPrimaryContainer,
@@ -538,16 +955,30 @@ class _PaymentCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(width: gap * 0.8),
-                Chip(
-                  side: BorderSide(color: statusColor.withValues(alpha: 0.45)),
-                  backgroundColor: statusColor.withValues(alpha: 0.12),
-                  label: Text(
-                    statusText,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.w800,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Chip(
+                      side: BorderSide(
+                        color: statusColor.withValues(alpha: 0.45),
+                      ),
+                      backgroundColor: statusColor.withValues(alpha: 0.12),
+                      label: Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    _PaymentLockControl(
+                      unlocked: row.paymentUnlocked,
+                      canManage: canManagePayments,
+                      saving: saving,
+                      onChanged: onToggleUnlocked,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -596,7 +1027,11 @@ class _PaymentCard extends StatelessWidget {
             ],
             if (row.history.isNotEmpty) ...[
               SizedBox(height: gap + 2),
-              _PaymentHistoryTimeline(entries: row.history),
+              _PaymentHistoryTimeline(
+                entries: row.history,
+                canDelete: canManagePayments && !saving,
+                onDelete: onDeleteHistoryEntry,
+              ),
             ],
             SizedBox(height: gap + 4),
             OutlinedButton.icon(
@@ -609,7 +1044,7 @@ class _PaymentCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: saving ? null : onPaid,
+                    onPressed: canChangeStatus ? onPaid : null,
                     icon: saving && !unpaid
                         ? const SizedBox.square(
                             dimension: 18,
@@ -622,9 +1057,17 @@ class _PaymentCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: saving ? null : onUnpaid,
-                    icon: const Icon(Icons.report_problem_rounded),
-                    label: const Text('پرداخت نشد'),
+                    onPressed: canChangeStatus ? onUnpaid : null,
+                    icon: Icon(
+                      isPaymentRole && !row.paymentUnlocked
+                          ? Icons.lock_rounded
+                          : Icons.report_problem_rounded,
+                    ),
+                    label: Text(
+                      isPaymentRole && !row.paymentUnlocked
+                          ? 'قفل است'
+                          : 'پرداخت نشد',
+                    ),
                   ),
                 ),
               ],
@@ -636,14 +1079,75 @@ class _PaymentCard extends StatelessWidget {
   }
 }
 
-class _PaymentHistoryTimeline extends StatelessWidget {
-  final List<PaymentStatusLogEntry> entries;
-  const _PaymentHistoryTimeline({required this.entries});
+class _PaymentLockControl extends StatelessWidget {
+  final bool unlocked;
+  final bool canManage;
+  final bool saving;
+  final ValueChanged<bool> onChanged;
+
+  const _PaymentLockControl({
+    required this.unlocked,
+    required this.canManage,
+    required this.saving,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final latest = entries.reversed.take(4).toList();
+    final color = unlocked ? scheme.primary : scheme.outline;
+    if (canManage) {
+      return Tooltip(
+        message: unlocked ? 'پرداخت باز است' : 'پرداخت قفل است',
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              unlocked ? Icons.lock_open_rounded : Icons.lock_rounded,
+              size: 18,
+              color: color,
+            ),
+            Switch.adaptive(
+              value: unlocked,
+              onChanged: saving ? null : onChanged,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      );
+    }
+    return Chip(
+      visualDensity: VisualDensity.compact,
+      avatar: Icon(
+        unlocked ? Icons.lock_open_rounded : Icons.lock_rounded,
+        size: 16,
+        color: color,
+      ),
+      label: Text(unlocked ? 'باز' : 'قفل'),
+      side: BorderSide(color: color.withValues(alpha: 0.45)),
+      backgroundColor: color.withValues(alpha: 0.08),
+    );
+  }
+}
+
+class _PaymentHistoryTimeline extends StatelessWidget {
+  final List<PaymentStatusLogEntry> entries;
+  final bool canDelete;
+  final ValueChanged<int> onDelete;
+
+  const _PaymentHistoryTimeline({
+    required this.entries,
+    required this.canDelete,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final latest = <({PaymentStatusLogEntry entry, int index})>[];
+    for (var i = entries.length - 1; i >= 0 && latest.length < 4; i--) {
+      latest.add((entry: entries[i], index: i));
+    }
     return DecoratedBox(
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHighest.withValues(alpha: 0.35),
@@ -662,7 +1166,12 @@ class _PaymentHistoryTimeline extends StatelessWidget {
               ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
-            for (final entry in latest) _PaymentHistoryRow(entry: entry),
+            for (final item in latest)
+              _PaymentHistoryRow(
+                entry: item.entry,
+                canDelete: canDelete,
+                onDelete: () => onDelete(item.index),
+              ),
           ],
         ),
       ),
@@ -672,7 +1181,14 @@ class _PaymentHistoryTimeline extends StatelessWidget {
 
 class _PaymentHistoryRow extends StatelessWidget {
   final PaymentStatusLogEntry entry;
-  const _PaymentHistoryRow({required this.entry});
+  final bool canDelete;
+  final VoidCallback onDelete;
+
+  const _PaymentHistoryRow({
+    required this.entry,
+    required this.canDelete,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -709,6 +1225,17 @@ class _PaymentHistoryRow extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
+          if (canDelete)
+            IconButton(
+              tooltip: 'حذف لاگ',
+              visualDensity: VisualDensity.compact,
+              onPressed: onDelete,
+              icon: Icon(
+                Icons.delete_outline_rounded,
+                size: 18,
+                color: scheme.error,
+              ),
+            ),
         ],
       ),
     );

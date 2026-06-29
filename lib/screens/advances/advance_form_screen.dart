@@ -247,8 +247,10 @@ class _AdvanceFormScreenState extends State<AdvanceFormScreen> {
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _dateCtrl,
-                              readOnly: true,
+                              readOnly: false,
                               onTap: _pickDate,
+                              keyboardType: TextInputType.datetime,
+                              enableInteractiveSelection: true,
                               inputFormatters: const [
                                 PersianDateInputFormatter(),
                               ],

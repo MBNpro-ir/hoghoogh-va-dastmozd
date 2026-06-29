@@ -61,6 +61,7 @@ class PaymentNotificationService {
       JOIN employees e ON e.id = ps.employee_id
       WHERE ps.deleted_at IS NULL
         AND ps.updated_by_role = 'payment'
+        AND ps.status_set = 1
         AND ps.sync_id IS NOT NULL
       ORDER BY COALESCE(ps.server_updated_at, ps.updated_at) DESC
       LIMIT 20

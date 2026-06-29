@@ -850,6 +850,24 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
                   icon: const Icon(Icons.content_copy_rounded, size: 17),
                   onPressed: _saving ? null : () => _copyRow(index),
                 ),
+                if (_settings != null &&
+                    draft.hasAutomaticDeviation(_settings!))
+                  IconButton(
+                    tooltip: 'بازگشت مقادیر خودکار',
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 30,
+                      height: 34,
+                    ),
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                    onPressed: _saving
+                        ? null
+                        : () {
+                            draft.resetAutomaticPayroll(_settings!);
+                            setState(() {});
+                          },
+                  ),
                 IconButton(
                   tooltip: 'حذف ردیف',
                   visualDensity: VisualDensity.compact,
@@ -1939,7 +1957,7 @@ class EmployeeBatchDraft {
       setDailyAndMonthly(
         dailySeniority,
         monthlySeniority,
-        settings.dailySeniority,
+        _defaultDailySeniority(settings),
       );
     } else {
       syncMonthlyFromDaily(dailySeniority, monthlySeniority);
@@ -1952,6 +1970,61 @@ class EmployeeBatchDraft {
     syncMonthlyFromDaily(otherBenefitsDaily, monthlyOtherBenefits);
   }
 
+  bool hasAutomaticDeviation(AppSettings settings) {
+    final wage1404 = parseNumber(dailyWage1404.text) ?? 0;
+    final wage1405 = SalaryCalculator.calculateDailyWage1405(
+      dailyWage1404: wage1404,
+      rate: selectedRate,
+      fixedRial: settings.fixedRial,
+    );
+    final defaults = <(TextEditingController controller, double value)>[
+      (dailyWage1405, wage1405),
+      (baseSalary30Days, wage1405 * AppConstants.standardMonthDays),
+      (dailyHousing, settings.monthlyHousing / AppConstants.standardMonthDays),
+      (monthlyHousing, settings.monthlyHousing),
+      (dailyFood, settings.monthlyFood / AppConstants.standardMonthDays),
+      (monthlyFood, settings.monthlyFood),
+      (
+        dailyMarriage,
+        isMarried
+            ? settings.monthlyMarriage / AppConstants.standardMonthDays
+            : 0,
+      ),
+      (monthlyMarriage, isMarried ? settings.monthlyMarriage : 0),
+      (
+        dailyChildAllowance,
+        childrenCountValue > 0
+            ? settings.monthlyChild / AppConstants.standardMonthDays
+            : 0,
+      ),
+      (
+        monthlyChildAllowance,
+        childrenCountValue > 0 ? settings.monthlyChild : 0,
+      ),
+      (dailySeniority, _defaultDailySeniority(settings)),
+      (
+        monthlySeniority,
+        _defaultDailySeniority(settings) * AppConstants.standardMonthDays,
+      ),
+      (
+        monthlyOtherBenefits,
+        (parseNumber(otherBenefitsDaily.text) ?? 0) *
+            AppConstants.standardMonthDays,
+      ),
+    ];
+    for (final item in defaults) {
+      final current = parseNumber(item.$1.text) ?? 0;
+      if ((current - item.$2).abs() >= 1) return true;
+    }
+    return false;
+  }
+
+  void resetAutomaticPayroll(AppSettings settings) {
+    autoCalculate(settings);
+    syncExperienceAndSeniority(settings);
+    markTouched();
+  }
+
   void syncExperienceAndSeniority(AppSettings settings) {
     final eligible = SeniorityHelper.isEligibleForPriorExperience(
       startDate: startDateEnglish,
@@ -1961,12 +2034,14 @@ class EmployeeBatchDraft {
     setDailyAndMonthly(
       dailySeniority,
       monthlySeniority,
-      eligible
-          ? SeniorityHelper.calculateDailySeniority(
-              startDate: startDateEnglish,
-              settings: settings,
-            )
-          : 0,
+      eligible ? _defaultDailySeniority(settings) : 0,
+    );
+  }
+
+  double _defaultDailySeniority(AppSettings settings) {
+    return SeniorityHelper.calculateDailySeniority(
+      startDate: startDateEnglish,
+      settings: settings,
     );
   }
 
