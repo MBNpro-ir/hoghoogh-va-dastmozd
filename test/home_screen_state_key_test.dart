@@ -22,4 +22,17 @@ void main() {
     expect(source, contains('bottomNavigationBar: Platform.isAndroid'));
     expect(source, contains('? null'));
   });
+
+  test('calculator page does not duplicate the mobile app bar title', () {
+    final source = File('lib/screens/home_screen.dart').readAsStringSync();
+
+    expect(source, contains("bool get _hideMobilePageTitle"));
+    expect(source, contains("label == 'محاسبه‌گرها'"));
+    expect(
+      source,
+      contains(
+        'title: _hideMobilePageTitle ? null : Text(_items[_index].label)',
+      ),
+    );
+  });
 }

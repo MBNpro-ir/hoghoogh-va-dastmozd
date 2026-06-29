@@ -61,6 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool get _isPaymentRole => _userRole == 'payment';
   int get _settingsIndex => _items.length - 1;
+  bool get _hideMobilePageTitle => _items[_index].label == 'محاسبه‌گرها';
 
   List<Widget> get _pages => [
     if (_isPaymentRole)
@@ -252,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         appBar: AppBar(
-          title: Text(_items[_index].label),
+          title: _hideMobilePageTitle ? null : Text(_items[_index].label),
           leading: Builder(
             builder: (ctx) => IconButton(
               icon: const Icon(Icons.menu_rounded),

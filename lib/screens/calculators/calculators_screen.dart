@@ -168,7 +168,6 @@ class _CalculatorsScreenState extends State<CalculatorsScreen> {
           );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('محاسبه‌گرها')),
       body: SingleChildScrollView(
         padding: FloatingNavSafeArea.scrollPadding(
           context,
