@@ -638,7 +638,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('تنظیمات حقوق پایه ۱۴۰۵'),
+          title: const Text('تنظیمات'),
           actions: [
             IconButton(
               icon: const Icon(Icons.restore_rounded),
@@ -694,499 +694,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         FadeInUp(child: _buildInfoBanner()),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 22),
                         FadeInUp(
-                          delay: const Duration(milliseconds: 60),
-                          child: _section(
-                            title: 'اطلاعات کلی',
-                            subtitle: 'شناسه شرکت و اطلاعات پایه پرونده حقوق',
-                            icon: Icons.business_rounded,
-                            color: Theme.of(context).colorScheme.tertiary,
-                            initiallyExpanded: true,
-                            children: [
-                              TextFormField(
-                                controller: _companyNameCtrl,
-                                enabled: false,
-                                inputFormatters: const [
-                                  PersianDigitsInputFormatter(),
-                                ],
-                                decoration: const InputDecoration(
-                                  labelText: 'نام شرکت',
-                                  prefixIcon: Icon(Icons.apartment_rounded),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 120),
-                          child: _section(
-                            title: 'حقوق و دستمزد پایه',
+                          delay: const Duration(milliseconds: 80),
+                          child: _SettingsGroupSection(
+                            title: 'تنظیمات حقوق و دستمزد',
                             subtitle:
-                                'مبالغ ثابت مصوب که در محاسبه ماهانه استفاده می‌شوند',
+                                'مقادیر پایه، بیمه، مالیات، کارکرد و مرخصی که در صدور فیش استفاده می‌شوند',
                             icon: Icons.payments_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                            initiallyExpanded: true,
-                            children: [
-                              _row([
-                                PersianNumberField(
-                                  label: 'دستمزد روزانه پایه',
-                                  isCurrency: true,
-                                  prefixIcon: Icons.attach_money_rounded,
-                                  initialValue: _dailyWage,
-                                  onChanged: (v) {
-                                    _dailyWage = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                                PersianNumberField(
-                                  label: 'پایه سنوات (روزانه)',
-                                  isCurrency: true,
-                                  prefixIcon: Icons.workspace_premium_rounded,
-                                  initialValue: _dailySeniority,
-                                  onChanged: (v) {
-                                    _dailySeniority = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                              ]),
-                              const SizedBox(height: 14),
-                              _row([
-                                PersianNumberField(
-                                  label: 'حق مسکن (ماهانه)',
-                                  isCurrency: true,
-                                  prefixIcon: Icons.home_rounded,
-                                  initialValue: _monthlyHousing,
-                                  onChanged: (v) {
-                                    _monthlyHousing = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                                PersianNumberField(
-                                  label: 'حق خواروبار / بن (ماهانه)',
-                                  isCurrency: true,
-                                  prefixIcon: Icons.shopping_basket_rounded,
-                                  initialValue: _monthlyFood,
-                                  onChanged: (v) {
-                                    _monthlyFood = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                              ]),
-                              const SizedBox(height: 14),
-                              _row([
-                                PersianNumberField(
-                                  label: 'حق تاهل (ماهانه)',
-                                  isCurrency: true,
-                                  prefixIcon: Icons.favorite_rounded,
-                                  initialValue: _monthlyMarriage,
-                                  onChanged: (v) {
-                                    _monthlyMarriage = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                                PersianNumberField(
-                                  label: 'حق فرزند (ماهانه - هر فرزند)',
-                                  isCurrency: true,
-                                  prefixIcon: Icons.child_care_rounded,
-                                  initialValue: _monthlyChild,
-                                  onChanged: (v) {
-                                    _monthlyChild = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                              ]),
-                            ],
+                            accent: Theme.of(context).colorScheme.primary,
+                            children: _buildPayrollSettingsCards(),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 28),
                         FadeInUp(
-                          delay: const Duration(milliseconds: 180),
-                          child: _section(
-                            title: 'ضرایب افزایش دستمزد ۱۴۰۵',
-                            subtitle: 'فرمول تبدیل دستمزد سال قبل به سال جاری',
-                            icon: Icons.trending_up_rounded,
-                            color: Theme.of(context).colorScheme.tertiary,
-                            initiallyExpanded: false,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .tertiaryContainer
-                                      .withValues(alpha: 0.25),
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.radiusMd,
-                                  ),
-                                  border: Border.all(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .tertiary
-                                        .withValues(alpha: 0.3),
-                                  ),
-                                ),
-                                child: Row(
-                                  textDirection: TextDirection.rtl,
-                                  children: [
-                                    Icon(
-                                      Icons.info_rounded,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.tertiary,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'فرمول: دستمزد ۱۴۰۵ = دستمزد ۱۴۰۴ × ضریب + ثابت ریالی',
-                                        style: TextStyle(
-                                          fontFamily: 'Vazirmatn',
-                                          fontSize: 13,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              _row([
-                                PersianNumberField(
-                                  label: 'ضریب الف (کارگری)',
-                                  prefixIcon: Icons.engineering_rounded,
-                                  initialValue: _salaryRateA,
-                                  onChanged: (v) {
-                                    _salaryRateA = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                                PersianNumberField(
-                                  label: 'ضریب ب (سایر سطوح)',
-                                  prefixIcon: Icons.work_rounded,
-                                  initialValue: _salaryRateB,
-                                  onChanged: (v) {
-                                    _salaryRateB = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                              ]),
-                              const SizedBox(height: 14),
-                              PersianNumberField(
-                                label: 'ثابت ریالی',
-                                isCurrency: true,
-                                prefixIcon: Icons.add_rounded,
-                                initialValue: _fixedRial,
-                                onChanged: (v) {
-                                  _fixedRial = v?.toDouble() ?? 0;
-                                  _checkChanges();
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 240),
-                          child: _section(
-                            title: 'بیمه تامین اجتماعی',
-                            subtitle: 'نرخ سهم کارمند، کارفرما و بیمه بیکاری',
-                            icon: Icons.health_and_safety_rounded,
-                            color: Theme.of(context).colorScheme.secondary,
-                            initiallyExpanded: false,
-                            children: [
-                              _row([
-                                PersianNumberField(
-                                  label: 'سهم کارمند (۰.۰۷ = ۷٪)',
-                                  prefixIcon: Icons.person_rounded,
-                                  initialValue: _employeeInsuranceRate,
-                                  onChanged: (v) {
-                                    _employeeInsuranceRate = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                                PersianNumberField(
-                                  label: 'سهم کارفرما (۰.۲۰ = ۲۰٪)',
-                                  prefixIcon: Icons.business_rounded,
-                                  initialValue: _employerInsuranceRate,
-                                  onChanged: (v) {
-                                    _employerInsuranceRate = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                              ]),
-                              const SizedBox(height: 14),
-                              PersianNumberField(
-                                label: 'بیمه بیکاری (۰.۰۳ = ۳٪)',
-                                prefixIcon: Icons.work_off_rounded,
-                                initialValue: _unemploymentInsuranceRate,
-                                onChanged: (v) {
-                                  _unemploymentInsuranceRate =
-                                      v?.toDouble() ?? 0;
-                                  _checkChanges();
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 270),
-                          child: _section(
-                            title: 'ضرایب کارکرد و ماموریت',
+                          delay: const Duration(milliseconds: 160),
+                          child: _SettingsGroupSection(
+                            title: 'تنظیمات برنامه',
                             subtitle:
-                                'نرخ‌های قابل ویرایش برای شب کاری، جمعه کاری، تعطیل کاری، ماموریت و غیبت',
-                            icon: Icons.event_repeat_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                            initiallyExpanded: false,
-                            children: [
-                              _row([
-                                PersianNumberField(
-                                  label: 'شب کاری (۰.۳۵ = ۳۵٪)',
-                                  prefixIcon: Icons.dark_mode_rounded,
-                                  initialValue: _nightWorkRate,
-                                  onChanged: (v) {
-                                    _nightWorkRate = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                                PersianNumberField(
-                                  label: 'جمعه کاری (۰.۴۰ = ۴۰٪)',
-                                  prefixIcon: Icons.weekend_rounded,
-                                  initialValue: _fridayWorkRate,
-                                  onChanged: (v) {
-                                    _fridayWorkRate = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                              ]),
-                              const SizedBox(height: 14),
-                              _row([
-                                PersianNumberField(
-                                  label: 'ضریب تعطیل کاری',
-                                  prefixIcon: Icons.event_busy_rounded,
-                                  initialValue: _holidayWorkMultiplier,
-                                  onChanged: (v) {
-                                    _holidayWorkMultiplier = v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                                PersianNumberField(
-                                  label: 'ضریب روز ماموریت',
-                                  prefixIcon: Icons.business_center_rounded,
-                                  initialValue: _missionDailyMultiplier,
-                                  onChanged: (v) {
-                                    _missionDailyMultiplier =
-                                        v?.toDouble() ?? 0;
-                                    _checkChanges();
-                                  },
-                                ),
-                              ]),
-                              const SizedBox(height: 14),
-                              PersianNumberField(
-                                label: 'ضریب کسر ساعت غیبت',
-                                prefixIcon: Icons.timer_off_rounded,
-                                initialValue: _absenceHourlyMultiplier,
-                                onChanged: (v) {
-                                  _absenceHourlyMultiplier = v?.toDouble() ?? 0;
-                                  _checkChanges();
-                                },
-                              ),
-                            ],
+                                'امنیت، ظاهر، دسترسی‌پذیری، آپدیت و پشتیبان‌گیری برنامه',
+                            icon: Icons.settings_rounded,
+                            accent: Theme.of(context).colorScheme.secondary,
+                            children: _buildApplicationSettingsCards(),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 300),
-                          child: _section(
-                            title: 'معافیت مالیاتی دو هفتم',
-                            subtitle: 'ضریب معافیت قابل اعمال برای صنایع سخت',
-                            icon: Icons.discount_rounded,
-                            color: Theme.of(context).colorScheme.tertiary,
-                            initiallyExpanded: false,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer
-                                      .withValues(alpha: 0.18),
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.radiusMd,
-                                  ),
-                                  border: Border.all(
-                                    color: Theme.of(context).colorScheme.primary
-                                        .withValues(alpha: 0.3),
-                                  ),
-                                ),
-                                child: Row(
-                                  textDirection: TextDirection.rtl,
-                                  children: [
-                                    Icon(
-                                      Icons.info_rounded,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'این معافیت برای شاغلین در صنایع سخت اعمال می‌شود. طبق فایل اکسل، مبلغ معافیت برابر دو هفتم حق بیمه کارگر است.',
-                                        style: TextStyle(
-                                          fontFamily: 'Vazirmatn',
-                                          fontSize: 13,
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurface,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              PersianNumberField(
-                                label:
-                                    'ضریب معافیت دو هفتم بیمه (مثلاً ۰.۲۸۵۷)',
-                                prefixIcon: Icons.percent_rounded,
-                                initialValue: _twoSevenBaseRate,
-                                onChanged: (v) {
-                                  _twoSevenBaseRate = v?.toDouble() ?? 0;
-                                  _checkChanges();
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 360),
-                          child: _section(
-                            title: 'جدول مالیات بر حقوق ۱۴۰۵',
-                            subtitle: 'پله‌های مالیاتی ماهانه و نرخ هر بازه',
-                            icon: Icons.account_balance_rounded,
-                            color: Theme.of(context).colorScheme.error,
-                            initiallyExpanded: false,
-                            children: [_buildTaxBracketTable()],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 420),
-                          child: _section(
-                            title: 'مرخصی کارکنان',
-                            subtitle: 'سقف مرخصی استحقاقی ماهانه و سالانه',
-                            icon: Icons.beach_access_rounded,
-                            color: AppTheme.successColor,
-                            initiallyExpanded: false,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.successColor.withValues(
-                                    alpha: 0.08,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    AppTheme.radiusMd,
-                                  ),
-                                  border: Border.all(
-                                    color: AppTheme.successColor.withValues(
-                                      alpha: 0.25,
-                                    ),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'سقف پیش‌فرض مرخصی استحقاقی ۲.۵ روز در ماه است که در سال برابر ۳۰ روز می‌شود. هر دو مقدار قابل ویرایش هستند و مقدار مقابل به صورت خودکار محاسبه می‌شود.',
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              _row([
-                                PersianNumberField(
-                                  label: 'مرخصی مجاز ماهانه',
-                                  prefixIcon: Icons.calendar_view_month_rounded,
-                                  suffix: 'روز',
-                                  initialValue: _monthlyLeaveAllowance,
-                                  onChanged: _setMonthlyLeaveAllowance,
-                                ),
-                                PersianNumberField(
-                                  label: 'مرخصی مجاز سالانه',
-                                  prefixIcon: Icons.event_available_rounded,
-                                  suffix: 'روز',
-                                  initialValue: _annualLeaveAllowance,
-                                  onChanged: _setAnnualLeaveAllowance,
-                                ),
-                              ]),
-                            ],
-                          ),
-                        ),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 600),
-                          child: _SecuritySection(
-                            hasCredential: _hasLocalCredential,
-                            method: _localMethod,
-                            biometricEnabled: _biometricEnabled,
-                            onChangeCredential: _changeLocalCredential,
-                            onToggleBiometrics: _toggleBiometrics,
-                            onClearCredential: _clearLocalCredential,
-                            onChangeServerAccount: _changeServerAccount,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 620),
-                          child: _UpdateSection(
-                            preferences: _updatePreferences,
-                            checking: _checkingUpdate,
-                            onAutoCheckChanged: (value) =>
-                                _setUpdatePreferences(
-                                  _updatePreferences.copyWith(autoCheck: value),
-                                ),
-                            onAutoDownloadChanged: (value) =>
-                                _setUpdatePreferences(
-                                  _updatePreferences.copyWith(
-                                    autoDownload: value,
-                                  ),
-                                ),
-                            onCheckNow: _checkUpdateNow,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (Platform.isWindows) ...[
-                          FadeInUp(
-                            delay: const Duration(milliseconds: 630),
-                            child: _WindowCloseSection(
-                              selected: _closeBehavior,
-                              onChanged: _setCloseBehavior,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 660),
-                          child: const _ColorSection(),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 540),
-                          child: const _AccessibilitySection(),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 600),
-                          child: _BackupSection(
-                            onBackup: _backup,
-                            onRestore: _restore,
-                            onServerBackup: _serverBackup,
-                            onServerRestore: _serverRestore,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        FadeInUp(
-                          delay: const Duration(milliseconds: 660),
-                          child: const _AboutSection(),
                         ),
                       ],
                     ),
@@ -1198,6 +728,397 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  List<Widget> _buildPayrollSettingsCards() {
+    final scheme = Theme.of(context).colorScheme;
+    return [
+      _section(
+        title: 'اطلاعات کلی',
+        subtitle: 'شناسه شرکت و اطلاعات پایه پرونده حقوق',
+        icon: Icons.business_rounded,
+        color: scheme.tertiary,
+        initiallyExpanded: true,
+        children: [
+          TextFormField(
+            controller: _companyNameCtrl,
+            enabled: false,
+            inputFormatters: const [PersianDigitsInputFormatter()],
+            decoration: const InputDecoration(
+              labelText: 'نام شرکت',
+              prefixIcon: Icon(Icons.apartment_rounded),
+            ),
+          ),
+        ],
+      ),
+      _section(
+        title: 'حقوق و دستمزد پایه',
+        subtitle: 'مبالغ ثابت مصوب که در محاسبه ماهانه استفاده می‌شوند',
+        icon: Icons.payments_rounded,
+        color: scheme.primary,
+        initiallyExpanded: true,
+        children: [
+          _row([
+            PersianNumberField(
+              label: 'دستمزد روزانه پایه',
+              isCurrency: true,
+              prefixIcon: Icons.attach_money_rounded,
+              initialValue: _dailyWage,
+              onChanged: (v) {
+                _dailyWage = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+            PersianNumberField(
+              label: 'پایه سنوات (روزانه)',
+              isCurrency: true,
+              prefixIcon: Icons.workspace_premium_rounded,
+              initialValue: _dailySeniority,
+              onChanged: (v) {
+                _dailySeniority = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+          ]),
+          const SizedBox(height: 14),
+          _row([
+            PersianNumberField(
+              label: 'حق مسکن (ماهانه)',
+              isCurrency: true,
+              prefixIcon: Icons.home_rounded,
+              initialValue: _monthlyHousing,
+              onChanged: (v) {
+                _monthlyHousing = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+            PersianNumberField(
+              label: 'حق خواروبار / بن (ماهانه)',
+              isCurrency: true,
+              prefixIcon: Icons.shopping_basket_rounded,
+              initialValue: _monthlyFood,
+              onChanged: (v) {
+                _monthlyFood = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+          ]),
+          const SizedBox(height: 14),
+          _row([
+            PersianNumberField(
+              label: 'حق تاهل (ماهانه)',
+              isCurrency: true,
+              prefixIcon: Icons.favorite_rounded,
+              initialValue: _monthlyMarriage,
+              onChanged: (v) {
+                _monthlyMarriage = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+            PersianNumberField(
+              label: 'حق فرزند (ماهانه - هر فرزند)',
+              isCurrency: true,
+              prefixIcon: Icons.child_care_rounded,
+              initialValue: _monthlyChild,
+              onChanged: (v) {
+                _monthlyChild = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+          ]),
+        ],
+      ),
+      _section(
+        title: 'ضرایب افزایش دستمزد ۱۴۰۵',
+        subtitle: 'فرمول تبدیل دستمزد سال قبل به سال جاری',
+        icon: Icons.trending_up_rounded,
+        color: scheme.tertiary,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: scheme.tertiaryContainer.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              border: Border.all(color: scheme.tertiary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                Icon(Icons.info_rounded, color: scheme.tertiary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'فرمول: دستمزد ۱۴۰۵ = دستمزد ۱۴۰۴ × ضریب + ثابت ریالی',
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 13,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _row([
+            PersianNumberField(
+              label: 'ضریب الف (کارگری)',
+              prefixIcon: Icons.engineering_rounded,
+              initialValue: _salaryRateA,
+              onChanged: (v) {
+                _salaryRateA = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+            PersianNumberField(
+              label: 'ضریب ب (سایر سطوح)',
+              prefixIcon: Icons.work_rounded,
+              initialValue: _salaryRateB,
+              onChanged: (v) {
+                _salaryRateB = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+          ]),
+          const SizedBox(height: 14),
+          PersianNumberField(
+            label: 'ثابت ریالی',
+            isCurrency: true,
+            prefixIcon: Icons.add_rounded,
+            initialValue: _fixedRial,
+            onChanged: (v) {
+              _fixedRial = v?.toDouble() ?? 0;
+              _checkChanges();
+            },
+          ),
+        ],
+      ),
+      _section(
+        title: 'بیمه تامین اجتماعی',
+        subtitle: 'نرخ سهم کارمند، کارفرما و بیمه بیکاری',
+        icon: Icons.health_and_safety_rounded,
+        color: scheme.secondary,
+        children: [
+          _row([
+            PersianNumberField(
+              label: 'سهم کارمند (۰.۰۷ = ۷٪)',
+              prefixIcon: Icons.person_rounded,
+              initialValue: _employeeInsuranceRate,
+              onChanged: (v) {
+                _employeeInsuranceRate = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+            PersianNumberField(
+              label: 'سهم کارفرما (۰.۲۰ = ۲۰٪)',
+              prefixIcon: Icons.business_rounded,
+              initialValue: _employerInsuranceRate,
+              onChanged: (v) {
+                _employerInsuranceRate = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+          ]),
+          const SizedBox(height: 14),
+          PersianNumberField(
+            label: 'بیمه بیکاری (۰.۰۳ = ۳٪)',
+            prefixIcon: Icons.work_off_rounded,
+            initialValue: _unemploymentInsuranceRate,
+            onChanged: (v) {
+              _unemploymentInsuranceRate = v?.toDouble() ?? 0;
+              _checkChanges();
+            },
+          ),
+        ],
+      ),
+      _section(
+        title: 'ضرایب کارکرد و ماموریت',
+        subtitle:
+            'نرخ‌های قابل ویرایش برای شب کاری، جمعه کاری، تعطیل کاری، ماموریت و غیبت',
+        icon: Icons.event_repeat_rounded,
+        color: scheme.primary,
+        children: [
+          _row([
+            PersianNumberField(
+              label: 'شب کاری (۰.۳۵ = ۳۵٪)',
+              prefixIcon: Icons.dark_mode_rounded,
+              initialValue: _nightWorkRate,
+              onChanged: (v) {
+                _nightWorkRate = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+            PersianNumberField(
+              label: 'جمعه کاری (۰.۴۰ = ۴۰٪)',
+              prefixIcon: Icons.weekend_rounded,
+              initialValue: _fridayWorkRate,
+              onChanged: (v) {
+                _fridayWorkRate = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+          ]),
+          const SizedBox(height: 14),
+          _row([
+            PersianNumberField(
+              label: 'ضریب تعطیل کاری',
+              prefixIcon: Icons.event_busy_rounded,
+              initialValue: _holidayWorkMultiplier,
+              onChanged: (v) {
+                _holidayWorkMultiplier = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+            PersianNumberField(
+              label: 'ضریب روز ماموریت',
+              prefixIcon: Icons.business_center_rounded,
+              initialValue: _missionDailyMultiplier,
+              onChanged: (v) {
+                _missionDailyMultiplier = v?.toDouble() ?? 0;
+                _checkChanges();
+              },
+            ),
+          ]),
+          const SizedBox(height: 14),
+          PersianNumberField(
+            label: 'ضریب کسر ساعت غیبت',
+            prefixIcon: Icons.timer_off_rounded,
+            initialValue: _absenceHourlyMultiplier,
+            onChanged: (v) {
+              _absenceHourlyMultiplier = v?.toDouble() ?? 0;
+              _checkChanges();
+            },
+          ),
+        ],
+      ),
+      _section(
+        title: 'معافیت مالیاتی دو هفتم',
+        subtitle: 'ضریب معافیت قابل اعمال برای صنایع سخت',
+        icon: Icons.discount_rounded,
+        color: scheme.tertiary,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              border: Border.all(color: scheme.primary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              textDirection: TextDirection.rtl,
+              children: [
+                Icon(Icons.info_rounded, color: scheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'این معافیت برای شاغلین در صنایع سخت اعمال می‌شود. طبق فایل اکسل، مبلغ معافیت برابر دو هفتم حق بیمه کارگر است.',
+                    style: TextStyle(
+                      fontFamily: 'Vazirmatn',
+                      fontSize: 13,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          PersianNumberField(
+            label: 'ضریب معافیت دو هفتم بیمه (مثلاً ۰.۲۸۵۷)',
+            prefixIcon: Icons.percent_rounded,
+            initialValue: _twoSevenBaseRate,
+            onChanged: (v) {
+              _twoSevenBaseRate = v?.toDouble() ?? 0;
+              _checkChanges();
+            },
+          ),
+        ],
+      ),
+      _section(
+        title: 'جدول مالیات بر حقوق ۱۴۰۵',
+        subtitle: 'پله‌های مالیاتی ماهانه و نرخ هر بازه',
+        icon: Icons.account_balance_rounded,
+        color: scheme.error,
+        children: [_buildTaxBracketTable()],
+      ),
+      _section(
+        title: 'مرخصی کارکنان',
+        subtitle: 'سقف مرخصی استحقاقی ماهانه و سالانه',
+        icon: Icons.beach_access_rounded,
+        color: AppTheme.successColor,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppTheme.successColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              border: Border.all(
+                color: AppTheme.successColor.withValues(alpha: 0.25),
+              ),
+            ),
+            child: const Text(
+              'سقف پیش‌فرض مرخصی استحقاقی ۲.۵ روز در ماه است که در سال برابر ۳۰ روز می‌شود. هر دو مقدار قابل ویرایش هستند و مقدار مقابل به صورت خودکار محاسبه می‌شود.',
+            ),
+          ),
+          const SizedBox(height: 14),
+          _row([
+            PersianNumberField(
+              label: 'مرخصی مجاز ماهانه',
+              prefixIcon: Icons.calendar_view_month_rounded,
+              suffix: 'روز',
+              initialValue: _monthlyLeaveAllowance,
+              onChanged: _setMonthlyLeaveAllowance,
+            ),
+            PersianNumberField(
+              label: 'مرخصی مجاز سالانه',
+              prefixIcon: Icons.event_available_rounded,
+              suffix: 'روز',
+              initialValue: _annualLeaveAllowance,
+              onChanged: _setAnnualLeaveAllowance,
+            ),
+          ]),
+        ],
+      ),
+    ];
+  }
+
+  List<Widget> _buildApplicationSettingsCards() {
+    return [
+      _SecuritySection(
+        hasCredential: _hasLocalCredential,
+        method: _localMethod,
+        biometricEnabled: _biometricEnabled,
+        onChangeCredential: _changeLocalCredential,
+        onToggleBiometrics: _toggleBiometrics,
+        onClearCredential: _clearLocalCredential,
+        onChangeServerAccount: _changeServerAccount,
+      ),
+      _UpdateSection(
+        preferences: _updatePreferences,
+        checking: _checkingUpdate,
+        onAutoCheckChanged: (value) => _setUpdatePreferences(
+          _updatePreferences.copyWith(autoCheck: value),
+        ),
+        onAutoDownloadChanged: (value) => _setUpdatePreferences(
+          _updatePreferences.copyWith(autoDownload: value),
+        ),
+        onCheckNow: _checkUpdateNow,
+      ),
+      if (Platform.isWindows)
+        _WindowCloseSection(
+          selected: _closeBehavior,
+          onChanged: _setCloseBehavior,
+        ),
+      const _ColorSection(),
+      const _AccessibilitySection(),
+      _BackupSection(
+        onBackup: _backup,
+        onRestore: _restore,
+        onServerBackup: _serverBackup,
+        onServerRestore: _serverRestore,
+      ),
+      const _AboutSection(),
+    ];
   }
 
   Widget _buildInfoBanner() {
@@ -1399,6 +1320,100 @@ class _TaxCell extends StatelessWidget {
   }
 }
 
+class _SettingsGroupSection extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color accent;
+  final List<Widget> children;
+
+  const _SettingsGroupSection({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.accent,
+    required this.children,
+  });
+
+  int _settingsColumnCount(double width) {
+    if (width >= 1120) return 3;
+    if (width >= 740) return 2;
+    return 1;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(4, 0, 4, 12),
+          child: Row(
+            textDirection: TextDirection.rtl,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                ),
+                child: Icon(icon, color: accent, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontFamily: 'Vazirmatn',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontFamily: 'Vazirmatn',
+                        fontSize: 12,
+                        height: 1.55,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = _settingsColumnCount(constraints.maxWidth);
+            final gap = columns == 1 ? 12.0 : 16.0;
+            final itemWidth =
+                (constraints.maxWidth - (gap * (columns - 1))) / columns;
+            return Wrap(
+              textDirection: TextDirection.rtl,
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (final child in children)
+                  SizedBox(width: itemWidth, child: child),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
 class _SettingsAccordionCard extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -1420,6 +1435,7 @@ class _SettingsAccordionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Card(
+      margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
