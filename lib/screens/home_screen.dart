@@ -32,7 +32,7 @@ import 'salary/salary_records_screen.dart';
 import 'settings/settings_screen.dart';
 
 String homePageStateKey(int index, int dataVersion) {
-  const preserveDuringSync = {2, 8};
+  const preserveDuringSync = {2, 7};
   if (preserveDuringSync.contains(index)) return 'page-$index-stable';
   return 'page-$index-$dataVersion';
 }
@@ -70,18 +70,18 @@ class _HomeScreenState extends State<HomeScreen> {
         onNavigateToEmployees: () => _goToIndex(1),
         onNavigateToSalaryCalc: () => _goToIndex(2),
         onNavigateToSalaryRecords: () => _goToIndex(3),
-        onNavigateToLoans: () => _goToIndex(6),
+        onNavigateToLoans: () => _goToIndex(5),
         onNavigateToSettings: () => _goToIndex(_settingsIndex),
       ),
       const EmployeesListScreen(),
       const SalaryCalculationScreen(),
       const SalaryRecordsScreen(),
-      const CalculatorsScreen(),
       const EmployeeLeavesScreen(),
       const LoansListScreen(),
       const AdvancesListScreen(),
       const BatchOperationsScreen(),
       const PaymentScreen(),
+      const CalculatorsScreen(),
     ],
   ];
 
@@ -97,7 +97,6 @@ class _HomeScreenState extends State<HomeScreen> {
         label: 'فیش‌های حقوقی',
         icon: Icons.receipt_long_rounded,
       ),
-      const SidebarItem(label: 'محاسبه‌گرها', icon: Icons.calculate_outlined),
       const SidebarItem(
         label: 'مرخصی کارکنان',
         icon: Icons.beach_access_rounded,
@@ -112,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
         icon: Icons.fact_check_rounded,
       ),
       const SidebarItem(label: 'بخش پرداخت', icon: Icons.fact_check_rounded),
+      const SidebarItem(label: 'محاسبه‌گرها', icon: Icons.calculate_outlined),
       const SidebarItem(label: 'تنظیمات سیستم', icon: Icons.settings_rounded),
     ],
   ];

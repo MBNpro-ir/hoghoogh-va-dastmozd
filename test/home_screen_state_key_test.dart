@@ -5,7 +5,7 @@ import 'dart:io';
 void main() {
   test('salary entry pages keep state across sync data refreshes', () {
     expect(homePageStateKey(2, 1), homePageStateKey(2, 2));
-    expect(homePageStateKey(8, 1), homePageStateKey(8, 2));
+    expect(homePageStateKey(7, 1), homePageStateKey(7, 2));
   });
 
   test('non-editing pages still refresh when synced data changes', () {
