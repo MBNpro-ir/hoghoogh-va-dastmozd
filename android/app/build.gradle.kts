@@ -1,8 +1,32 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+
+fun signingProperty(propertyName: String, envName: String): String? {
+    return keystoreProperties.getProperty(propertyName)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(envName)?.takeIf { it.isNotBlank() }
+}
+
+val releaseStoreFile = signingProperty("storeFile", "ANDROID_KEYSTORE_PATH")
+val releaseStorePassword = signingProperty("storePassword", "ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = signingProperty("keyAlias", "ANDROID_KEY_ALIAS")
+val releaseKeyPassword = signingProperty("keyPassword", "ANDROID_KEY_PASSWORD")
+val hasReleaseSigning = listOf(
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
 
 android {
     namespace = "com.hvm.app"
@@ -38,11 +62,22 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig =
+                if (hasReleaseSigning) signingConfigs.getByName("release")
+                else signingConfigs.getByName("debug")
             ndk {
                 abiFilters.clear()
                 abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))

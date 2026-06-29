@@ -207,15 +207,21 @@ class UpdateService {
     final file = File(filePath);
     final request = http.Request('GET', asset.downloadUrl)
       ..headers['user-agent'] = 'HvM updater';
-    final response = await http.Client()
-        .send(request)
-        .timeout(const Duration(seconds: 30));
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw UpdateException('دانلود آپدیت انجام نشد');
+    final client = http.Client();
+    try {
+      final response = await client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw UpdateException('دانلود آپدیت انجام نشد');
+      }
+      final sink = file.openWrite();
+      await response.stream.pipe(sink);
+      await sink.close();
+    } finally {
+      client.close();
     }
-    final sink = file.openWrite();
-    await response.stream.pipe(sink);
-    await sink.close();
+    await _validateDownloadedAsset(asset, file);
     return DownloadedUpdate(release: release, filePath: filePath);
   }
 
@@ -231,10 +237,13 @@ class UpdateService {
     if (Platform.isAndroid) {
       await _markInstallStarted(update.release.version.toString());
       final filePath = update.filePath;
-      await OpenFilex.open(
+      final result = await OpenFilex.open(
         filePath,
         type: 'application/vnd.android.package-archive',
       );
+      if (result.type != ResultType.done) {
+        throw UpdateException(_androidOpenErrorMessage(result));
+      }
       return;
     }
     final filePath = update.filePath;
@@ -390,6 +399,55 @@ class UpdateService {
         })
         .whereType<GithubReleaseAsset>()
         .toList();
+  }
+
+  Future<void> _validateDownloadedAsset(
+    GithubReleaseAsset asset,
+    File file,
+  ) async {
+    final length = await file.length();
+    if (length <= 0) {
+      throw const UpdateException(
+        'فایل آپدیت خالی است؛ دانلود را دوباره انجام دهید',
+      );
+    }
+    if (asset.size > 0 && length != asset.size) {
+      throw const UpdateException(
+        'فایل آپدیت کامل دانلود نشده است؛ دانلود را دوباره انجام دهید',
+      );
+    }
+    if (!asset.name.toLowerCase().endsWith('.apk')) return;
+
+    final handle = await file.open();
+    try {
+      final header = await handle.read(4);
+      final isZipHeader =
+          header.length == 4 &&
+          header[0] == 0x50 &&
+          header[1] == 0x4b &&
+          header[2] == 0x03 &&
+          header[3] == 0x04;
+      if (!isZipHeader) {
+        throw const UpdateException(
+          'فایل دانلودشده APK معتبر نیست؛ دانلود را دوباره انجام دهید',
+        );
+      }
+    } finally {
+      await handle.close();
+    }
+  }
+
+  String _androidOpenErrorMessage(OpenResult result) {
+    return switch (result.type) {
+      ResultType.permissionDenied =>
+        'مجوز نصب برنامه از این منبع فعال نیست؛ آن را در تنظیمات اندروید فعال کنید',
+      ResultType.fileNotFound =>
+        'فایل آپدیت پیدا نشد؛ دانلود را دوباره انجام دهید',
+      ResultType.noAppToOpen =>
+        'نصب‌کننده اندروید برای باز کردن فایل APK پیدا نشد',
+      ResultType.error => 'اندروید فایل آپدیت را باز نکرد: ${result.message}',
+      ResultType.done => result.message,
+    };
   }
 
   Future<void> _showInstallDialog(
