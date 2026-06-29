@@ -907,173 +907,209 @@ class _PaymentCard extends StatelessWidget {
     final canChangeStatus = !saving && (!isPaymentRole || row.paymentUnlocked);
     final padding = 14.0 * scale;
     final gap = 10.0 * scale;
+    final selectedBorderColor = selected
+        ? scheme.primary
+        : scheme.outlineVariant.withValues(alpha: 0.7);
+    final selectedBackground = selected
+        ? Color.alphaBlend(
+            scheme.primary.withValues(alpha: 0.12),
+            scheme.surfaceContainerLow,
+          )
+        : null;
     return Card(
-      child: Padding(
-        padding: EdgeInsets.all(padding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      color: selectedBackground,
+      elevation: selected ? 3 : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: selectedBorderColor, width: selected ? 1.8 : 1),
+      ),
+      child: Stack(
+        children: [
+          if (selected)
+            PositionedDirectional(
+              top: 0,
+              bottom: 0,
+              start: 0,
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: scheme.primary),
+                child: const SizedBox(width: 5),
+              ),
+            ),
+          Padding(
+            padding: EdgeInsets.all(padding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (canManagePayments) ...[
-                  Checkbox(
-                    value: selected,
-                    onChanged: saving
-                        ? null
-                        : (value) => onSelectionChanged(value ?? false),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  SizedBox(width: gap * 0.3),
-                ],
-                CircleAvatar(
-                  backgroundColor: scheme.primaryContainer,
-                  foregroundColor: scheme.onPrimaryContainer,
-                  child: Text(
-                    PersianNumberFormatter.toPersian(
-                      row.personnelCode.toString(),
-                    ),
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                SizedBox(width: gap),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        row.employeeName,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w900),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '$period • کد ملی ${PersianNumberFormatter.toPersian(row.nationalId)}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: gap * 0.8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Chip(
-                      side: BorderSide(
-                        color: statusColor.withValues(alpha: 0.45),
+                    if (canManagePayments) ...[
+                      Checkbox(
+                        value: selected,
+                        onChanged: saving
+                            ? null
+                            : (value) => onSelectionChanged(value ?? false),
+                        visualDensity: VisualDensity.compact,
                       ),
-                      backgroundColor: statusColor.withValues(alpha: 0.12),
-                      label: Text(
-                        statusText,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontWeight: FontWeight.w800,
+                      SizedBox(width: gap * 0.3),
+                    ],
+                    CircleAvatar(
+                      backgroundColor: selected
+                          ? scheme.primary
+                          : scheme.primaryContainer,
+                      foregroundColor: selected
+                          ? scheme.onPrimary
+                          : scheme.onPrimaryContainer,
+                      child: Text(
+                        PersianNumberFormatter.toPersian(
+                          row.personnelCode.toString(),
+                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    SizedBox(width: gap),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            row.employeeName,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$period • کد ملی ${PersianNumberFormatter.toPersian(row.nationalId)}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(width: gap * 0.8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Chip(
+                          side: BorderSide(
+                            color: statusColor.withValues(alpha: 0.45),
+                          ),
+                          backgroundColor: statusColor.withValues(alpha: 0.12),
+                          label: Text(
+                            statusText,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        _PaymentLockControl(
+                          unlocked: row.paymentUnlocked,
+                          canManage: canManagePayments,
+                          saving: saving,
+                          onChanged: onToggleUnlocked,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                SizedBox(height: gap + 4),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AmountTile(
+                        label: 'خالص دریافتی',
+                        value: row.finalPayment,
+                        onCopy: onCopyAmount,
+                      ),
+                    ),
+                    SizedBox(width: gap),
+                    Expanded(
+                      child: _MetaTile(
+                        label: 'آخرین ثبت',
+                        value: row.statusChangedAt == null
+                            ? '-'
+                            : PersianNumberFormatter.toPersian(
+                                PersianDateHelper.formatJalali(
+                                  PersianDateHelper.fromGregorian(
+                                    row.statusChangedAt!.toLocal(),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (unpaid && row.unpaidReason.trim().isNotEmpty) ...[
+                  SizedBox(height: gap + 2),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: scheme.errorContainer.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Text(
+                        row.unpaidReason,
+                        style: TextStyle(color: scheme.onErrorContainer),
+                      ),
+                    ),
+                  ),
+                ],
+                if (row.history.isNotEmpty) ...[
+                  SizedBox(height: gap + 2),
+                  _PaymentHistoryTimeline(
+                    entries: row.history,
+                    canDelete: canManagePayments && !saving,
+                    onDelete: onDeleteHistoryEntry,
+                  ),
+                ],
+                SizedBox(height: gap + 4),
+                OutlinedButton.icon(
+                  onPressed: saving ? null : onOpenPayslip,
+                  icon: const Icon(Icons.print_rounded),
+                  label: const Text('نمایش و چاپ فیش'),
+                ),
+                SizedBox(height: gap),
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: canChangeStatus ? onPaid : null,
+                        icon: saving && !unpaid
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.check_circle_rounded),
+                        label: const Text('پرداخت شد'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: canChangeStatus ? onUnpaid : null,
+                        icon: Icon(
+                          isPaymentRole && !row.paymentUnlocked
+                              ? Icons.lock_rounded
+                              : Icons.report_problem_rounded,
+                        ),
+                        label: Text(
+                          isPaymentRole && !row.paymentUnlocked
+                              ? 'قفل است'
+                              : 'پرداخت نشد',
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    _PaymentLockControl(
-                      unlocked: row.paymentUnlocked,
-                      canManage: canManagePayments,
-                      saving: saving,
-                      onChanged: onToggleUnlocked,
                     ),
                   ],
                 ),
               ],
             ),
-            SizedBox(height: gap + 4),
-            Row(
-              children: [
-                Expanded(
-                  child: _AmountTile(
-                    label: 'خالص دریافتی',
-                    value: row.finalPayment,
-                    onCopy: onCopyAmount,
-                  ),
-                ),
-                SizedBox(width: gap),
-                Expanded(
-                  child: _MetaTile(
-                    label: 'آخرین ثبت',
-                    value: row.statusChangedAt == null
-                        ? '-'
-                        : PersianNumberFormatter.toPersian(
-                            PersianDateHelper.formatJalali(
-                              PersianDateHelper.fromGregorian(
-                                row.statusChangedAt!.toLocal(),
-                              ),
-                            ),
-                          ),
-                  ),
-                ),
-              ],
-            ),
-            if (unpaid && row.unpaidReason.trim().isNotEmpty) ...[
-              SizedBox(height: gap + 2),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: scheme.errorContainer.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Text(
-                    row.unpaidReason,
-                    style: TextStyle(color: scheme.onErrorContainer),
-                  ),
-                ),
-              ),
-            ],
-            if (row.history.isNotEmpty) ...[
-              SizedBox(height: gap + 2),
-              _PaymentHistoryTimeline(
-                entries: row.history,
-                canDelete: canManagePayments && !saving,
-                onDelete: onDeleteHistoryEntry,
-              ),
-            ],
-            SizedBox(height: gap + 4),
-            OutlinedButton.icon(
-              onPressed: saving ? null : onOpenPayslip,
-              icon: const Icon(Icons.print_rounded),
-              label: const Text('نمایش و چاپ فیش'),
-            ),
-            SizedBox(height: gap),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: canChangeStatus ? onPaid : null,
-                    icon: saving && !unpaid
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.check_circle_rounded),
-                    label: const Text('پرداخت شد'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: canChangeStatus ? onUnpaid : null,
-                    icon: Icon(
-                      isPaymentRole && !row.paymentUnlocked
-                          ? Icons.lock_rounded
-                          : Icons.report_problem_rounded,
-                    ),
-                    label: Text(
-                      isPaymentRole && !row.paymentUnlocked
-                          ? 'قفل است'
-                          : 'پرداخت نشد',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
