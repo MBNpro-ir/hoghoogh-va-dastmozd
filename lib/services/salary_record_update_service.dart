@@ -126,6 +126,8 @@ class SalaryRecordUpdateService {
     }
 
     final input = SalaryCalculationInput(
+      year: record.year,
+      month: record.month,
       totalDays: record.totalDays,
       leaveDays: snapshot.leaveDays,
       sickLeaveDays: snapshot.sickLeaveDays,

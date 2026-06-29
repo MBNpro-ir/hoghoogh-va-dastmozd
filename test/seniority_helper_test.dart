@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:payroll_app/models/app_settings.dart';
 import 'package:payroll_app/utils/seniority_helper.dart';
+import 'package:shamsi_date/shamsi_date.dart';
 
 void main() {
   final settings = AppSettings(year: 1405, dailySeniority: 210000);
@@ -50,6 +51,56 @@ void main() {
         settings: settings,
       ),
       1504088,
+    );
+  });
+
+  test('1405 seniority changes on the exact employment anniversary', () {
+    expect(
+      SeniorityHelper.calculateDailySeniority(
+        startDate: '1389/07/24',
+        settings: settings,
+        asOf: Jalali(1405, 1, 1),
+      ),
+      1654567,
+    );
+    expect(
+      SeniorityHelper.calculateDailySeniority(
+        startDate: '1389/07/24',
+        settings: settings,
+        asOf: Jalali(1405, 7, 23),
+      ),
+      1654567,
+    );
+    expect(
+      SeniorityHelper.calculateDailySeniority(
+        startDate: '1389/07/24',
+        settings: settings,
+        asOf: Jalali(1405, 7, 24),
+      ),
+      1821234,
+    );
+  });
+
+  test('monthly seniority preserves the anniversary-day split', () {
+    expect(
+      SeniorityHelper.calculateMonthlySeniority(
+        startDate: '1389/07/24',
+        settings: settings,
+        year: 1405,
+        month: 1,
+        payableDays: 31,
+      ),
+      51291577,
+    );
+    expect(
+      SeniorityHelper.calculateMonthlySeniority(
+        startDate: '1389/07/24',
+        settings: settings,
+        year: 1405,
+        month: 7,
+        payableDays: 30,
+      ),
+      50803679,
     );
   });
 }

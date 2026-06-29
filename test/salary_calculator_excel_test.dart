@@ -57,6 +57,9 @@ void main() {
           overtimeHours: _asDouble(record['overtimeHours']),
           shiftWork: _asDouble(record['shiftWork']),
           hourlyBenefitsAmount: _asDouble(record['hourlyBenefitsAmount']),
+          // The workbook predates period-based seniority calculation. Preserve
+          // its explicit employee rate while validating the remaining formulas.
+          dailySeniorityOverride: employee.dailySeniority,
           includeLeaveInPayslip: false,
           insuranceExempt:
               _asDouble(record['insuranceBase']) == 0 &&

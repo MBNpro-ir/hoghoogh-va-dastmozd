@@ -836,6 +836,7 @@ class SyncService {
         'auto_shift_work',
         'auto_hourly_benefits',
         'auto_other_benefits',
+        'auto_seniority',
         'auto_loan_installment',
         'skip_loan_installment',
         'auto_advances',

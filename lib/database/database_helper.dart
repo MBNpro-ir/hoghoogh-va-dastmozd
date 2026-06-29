@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 17;
+  static const int _dbVersion = 18;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -536,6 +536,18 @@ class DatabaseHelper {
         'payment_unlocked INTEGER NOT NULL DEFAULT 0',
       );
     }
+    if (oldVersion < 18) {
+      await _safeAddColumn(
+        db,
+        'salary_drafts',
+        'daily_seniority_override REAL NOT NULL DEFAULT -1',
+      );
+      await _safeAddColumn(
+        db,
+        'salary_drafts',
+        'auto_seniority INTEGER NOT NULL DEFAULT 1',
+      );
+    }
   }
 
   Future<void> _createSalaryDraftsTable(Database db) async {
@@ -558,6 +570,8 @@ class DatabaseHelper {
         auto_hourly_benefits INTEGER NOT NULL DEFAULT 1,
         other_benefits_override REAL NOT NULL DEFAULT -1,
         auto_other_benefits INTEGER NOT NULL DEFAULT 1,
+        daily_seniority_override REAL NOT NULL DEFAULT -1,
+        auto_seniority INTEGER NOT NULL DEFAULT 1,
         loan_installment REAL NOT NULL DEFAULT 0,
         auto_loan_installment INTEGER NOT NULL DEFAULT 1,
         skip_loan_installment INTEGER NOT NULL DEFAULT 0,

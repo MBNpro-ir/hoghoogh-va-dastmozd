@@ -69,8 +69,8 @@ void main() {
     draft.startDate.text = '۱۳۹۹/۰۱/۰۱';
     draft.syncExperienceAndSeniority(settings);
     expect(draft.hasPriorExperience, isTrue);
-    expect(_value(draft.dailySeniority), 980142);
-    expect(_value(draft.monthlySeniority), 29404260);
+    expect(_value(draft.dailySeniority), 0);
+    expect(_value(draft.monthlySeniority), 0);
 
     draft.monthlyHousing.text = '45,000,000';
     draft.syncDailyFromMonthly(draft.monthlyHousing, draft.dailyHousing);

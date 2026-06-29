@@ -16,6 +16,8 @@ class SalaryDraft {
   final bool autoHourlyBenefits;
   final double otherBenefitsOverride;
   final bool autoOtherBenefits;
+  final double dailySeniorityOverride;
+  final bool autoSeniority;
   final double loanInstallment;
   final bool autoLoanInstallment;
   final bool skipLoanInstallment;
@@ -47,6 +49,8 @@ class SalaryDraft {
     this.autoHourlyBenefits = true,
     this.otherBenefitsOverride = -1,
     this.autoOtherBenefits = true,
+    this.dailySeniorityOverride = -1,
+    this.autoSeniority = true,
     this.loanInstallment = 0,
     this.autoLoanInstallment = true,
     this.skipLoanInstallment = false,
@@ -79,6 +83,8 @@ class SalaryDraft {
     'auto_hourly_benefits': autoHourlyBenefits ? 1 : 0,
     'other_benefits_override': otherBenefitsOverride,
     'auto_other_benefits': autoOtherBenefits ? 1 : 0,
+    'daily_seniority_override': dailySeniorityOverride,
+    'auto_seniority': autoSeniority ? 1 : 0,
     'loan_installment': loanInstallment,
     'auto_loan_installment': autoLoanInstallment ? 1 : 0,
     'skip_loan_installment': skipLoanInstallment ? 1 : 0,
@@ -113,6 +119,9 @@ class SalaryDraft {
     otherBenefitsOverride:
         (map['other_benefits_override'] as num?)?.toDouble() ?? -1,
     autoOtherBenefits: (map['auto_other_benefits'] as int? ?? 1) == 1,
+    dailySeniorityOverride:
+        (map['daily_seniority_override'] as num?)?.toDouble() ?? -1,
+    autoSeniority: (map['auto_seniority'] as int? ?? 1) == 1,
     loanInstallment: (map['loan_installment'] as num?)?.toDouble() ?? 0,
     autoLoanInstallment: (map['auto_loan_installment'] as int? ?? 1) == 1,
     skipLoanInstallment: (map['skip_loan_installment'] as int? ?? 0) == 1,
@@ -145,6 +154,8 @@ class SalaryDraft {
       autoHourlyBenefits: autoHourlyBenefits,
       otherBenefitsOverride: otherBenefitsOverride,
       autoOtherBenefits: autoOtherBenefits,
+      dailySeniorityOverride: dailySeniorityOverride,
+      autoSeniority: autoSeniority,
       loanInstallment: loanInstallment,
       autoLoanInstallment: autoLoanInstallment,
       skipLoanInstallment: skipLoanInstallment,

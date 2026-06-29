@@ -4,6 +4,8 @@ import 'persian_date_helper.dart';
 import '../models/app_settings.dart';
 
 class SeniorityHelper {
+  static const double dailySeniority1405 = 166667;
+
   static const Map<int, double> _cumulativeDailySeniority1405 = {
     1375: 2039736,
     1376: 2034946,
@@ -62,20 +64,77 @@ class SeniorityHelper {
   }) {
     final parsed = parseStartDate(startDate);
     if (parsed == null) return 0;
+    final effectiveDate = asOf ?? _payrollYearEnd(settings.year);
+    if (_compare(effectiveDate, parsed) < 0) return 0;
     final serviceYears = PersianDateHelper.yearsSince(
       parsed,
-      endDate: asOf ?? _payrollYearEnd(settings.year),
+      endDate: effectiveDate,
     );
     if (serviceYears < 1) return 0;
     if (settings.year == 1405) {
       if (parsed.year >= settings.year) return 0;
-      return _cumulativeDailySeniority1405[parsed.year] ??
+      final fullYearRate =
+          _cumulativeDailySeniority1405[parsed.year] ??
           _cumulativeDailySeniority1405[_cumulativeDailySeniority1405
               .keys
               .first] ??
           settings.dailySeniority;
+      final anniversary = _anniversaryInYear(parsed, settings.year);
+      return _compare(effectiveDate, anniversary) < 0
+          ? (fullYearRate - dailySeniority1405).clamp(0, double.infinity)
+          : fullYearRate;
     }
     return settings.dailySeniority;
+  }
+
+  /// Average daily rate for a payroll month. In an anniversary month this
+  /// preserves the exact split between days before and after the anniversary.
+  static double calculateEffectiveDailySeniorityForMonth({
+    required String startDate,
+    required AppSettings settings,
+    required int year,
+    required int month,
+  }) {
+    final days = PersianDateHelper.daysInMonth(year, month);
+    var total = 0.0;
+    for (var day = 1; day <= days; day++) {
+      total += calculateDailySeniority(
+        startDate: startDate,
+        settings: settings,
+        asOf: Jalali(year, month, day),
+      );
+    }
+    return total / days;
+  }
+
+  static double calculateMonthlySeniority({
+    required String startDate,
+    required AppSettings settings,
+    required int year,
+    required int month,
+    required double payableDays,
+  }) {
+    return calculateEffectiveDailySeniorityForMonth(
+          startDate: startDate,
+          settings: settings,
+          year: year,
+          month: month,
+        ) *
+        payableDays;
+  }
+
+  static Jalali _anniversaryInYear(Jalali startDate, int year) {
+    final day = startDate.day.clamp(
+      1,
+      PersianDateHelper.daysInMonth(year, startDate.month),
+    );
+    return Jalali(year, startDate.month, day);
+  }
+
+  static int _compare(Jalali left, Jalali right) {
+    if (left.year != right.year) return left.year.compareTo(right.year);
+    if (left.month != right.month) return left.month.compareTo(right.month);
+    return left.day.compareTo(right.day);
   }
 
   static Jalali _payrollYearEnd(int year) {

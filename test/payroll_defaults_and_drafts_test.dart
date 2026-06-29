@@ -106,6 +106,49 @@ void main() {
     expect(restored.seniorityExempt, isTrue);
   });
 
+  test('salary calculation derives seniority from the payslip period', () {
+    final employee = Employee(
+      personnelCode: 1,
+      firstName: 'علی',
+      lastName: 'آزمایشی',
+      nationalId: '0012345678',
+      dailyWage1405: 1000000,
+      dailySeniority: 1,
+      startDate: '1389/07/24',
+    );
+    final settings = AppSettings(
+      year: 1405,
+      employeeInsuranceRate: 0,
+      employerInsuranceRate: 0,
+      unemploymentInsuranceRate: 0,
+    );
+
+    final automatic = SalaryCalculator.calculate(
+      employee: employee,
+      settings: settings,
+      input: SalaryCalculationInput(
+        year: 1405,
+        month: 1,
+        totalDays: 31,
+        taxExempt: true,
+      ),
+    );
+    final manual = SalaryCalculator.calculate(
+      employee: employee,
+      settings: settings,
+      input: SalaryCalculationInput(
+        year: 1405,
+        month: 1,
+        totalDays: 31,
+        dailySeniorityOverride: 2000000,
+        taxExempt: true,
+      ),
+    );
+
+    expect(automatic.seniority, 51291577);
+    expect(manual.seniority, 62000000);
+  });
+
   test('salary draft preserves exact monthly form state', () {
     const draft = SalaryDraft(
       employeeId: 4,
@@ -124,6 +167,8 @@ void main() {
       housingExempt: true,
       foodExempt: true,
       seniorityExempt: true,
+      dailySeniorityOverride: 123456,
+      autoSeniority: false,
     );
 
     final restored = SalaryDraft.fromMap(draft.toMap());
@@ -138,6 +183,8 @@ void main() {
     expect(restored.housingExempt, isTrue);
     expect(restored.foodExempt, isTrue);
     expect(restored.seniorityExempt, isTrue);
+    expect(restored.dailySeniorityOverride, 123456);
+    expect(restored.autoSeniority, isFalse);
 
     final nextMonth = restored.copyForPeriod(year: 1405, month: 4);
     expect(nextMonth.id, isNull);
@@ -146,5 +193,7 @@ void main() {
     expect(nextMonth.housingExempt, isTrue);
     expect(nextMonth.foodExempt, isTrue);
     expect(nextMonth.seniorityExempt, isTrue);
+    expect(nextMonth.dailySeniorityOverride, 123456);
+    expect(nextMonth.autoSeniority, isFalse);
   });
 }

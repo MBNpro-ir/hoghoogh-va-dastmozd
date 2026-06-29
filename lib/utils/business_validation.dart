@@ -219,6 +219,9 @@ class BusinessValidation {
     if (draft.otherBenefitsOverride < -1) {
       throw const BusinessValidationException('مبلغ سایر مزایا معتبر نیست.');
     }
+    if (draft.dailySeniorityOverride < -1) {
+      throw const BusinessValidationException('مبلغ پایه سنوات معتبر نیست.');
+    }
     _nonNegative('مبالغ پیش‌نویس حقوق', [
       draft.shiftWork,
       draft.hourlyBenefitsAmount,

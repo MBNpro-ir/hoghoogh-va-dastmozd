@@ -257,7 +257,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     _dailyHousing = _defaultDailyHousing;
     _dailyFood = _defaultDailyFood;
     _dailyChildAllowance = _defaultDailyChildAllowance;
-    _dailySeniority = _defaultDailySeniority;
     _dailyMarriage = _defaultDailyMarriage;
     if (notify && mounted) setState(() {});
   }
@@ -266,12 +265,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
     if (_settings == null) return;
     final eligible = _isEligibleForPriorExperience();
     _hasPriorExperience = eligible;
-    _dailySeniority = eligible
-        ? SeniorityHelper.calculateDailySeniority(
-            startDate: _startDateEnglish,
-            settings: _settings!,
-          )
-        : 0;
     if (notify && mounted) setState(() {});
   }
 
@@ -310,51 +303,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       if (_positionCtrl.text.trim().isEmpty) {
         _positionCtrl.text = _visibleText(selected.title);
       }
-    });
-  }
-
-  Future<void> _setPriorExperienceManually(bool value) async {
-    if (_settings == null) return;
-    final expected = _isEligibleForPriorExperience();
-    if (value && !expected) {
-      _showError(
-        'برای فعال کردن «دارای سابقه»، تاریخ شروع باید تا پایان سال مالی حداقل یک سال سابقه داشته باشد.',
-      );
-      return;
-    }
-    var confirmed = true;
-    if (!value && expected) {
-      confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('تغییر دستی سابقه'),
-              content: const Text(
-                'این شخص تا پایان سال مالی حداقل یک سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را غیر فعال کنید؟',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('انصراف'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('تایید'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-    }
-    if (!confirmed) return;
-    setState(() {
-      _hasPriorExperience = value;
-      _dailySeniority = value
-          ? SeniorityHelper.calculateDailySeniority(
-              startDate: _startDateEnglish,
-              settings: _settings!,
-            )
-          : 0;
     });
   }
 
@@ -398,13 +346,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
 
   double get _defaultDailyChildAllowance => _childrenCount > 0
       ? (_settings?.monthlyChild ?? 0) / AppConstants.standardMonthDays
-      : 0;
-
-  double get _defaultDailySeniority => _hasPriorExperience && _settings != null
-      ? SeniorityHelper.calculateDailySeniority(
-          startDate: _startDateEnglish,
-          settings: _settings!,
-        )
       : 0;
 
   bool _differsFromDefault(double value, double defaultValue) =>
@@ -478,12 +419,9 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       _showError('برای کارمند غیرفعال، تاریخ ترک کار را وارد کنید');
       return;
     }
-    if (_hasPriorExperience && !_isEligibleForPriorExperience()) {
-      _showError(
-        'برای فعال بودن «دارای سابقه»، تاریخ شروع باید تا پایان سال مالی حداقل یک سال سابقه داشته باشد.',
-      );
-      return;
-    }
+    _hasPriorExperience = _isEligibleForPriorExperience();
+    _lastYearSeniority = 0;
+    _dailySeniority = 0;
 
     setState(() => _saving = true);
     try {
@@ -1002,13 +940,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                 ),
                 contentPadding: EdgeInsets.zero,
               ),
-              SwitchListTile(
-                title: const Text('دارای سابقه (حداقل ۱ سال)'),
-                value: _hasPriorExperience,
-                onChanged: _setPriorExperienceManually,
-                secondary: const Icon(Icons.workspace_premium_rounded),
-                contentPadding: EdgeInsets.zero,
-              ),
               _buildChildrenCounter(true),
             ],
           )
@@ -1029,14 +960,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
                         : Icons.favorite_border_rounded,
                     color: scheme.tertiary,
                   ),
-                ),
-              ),
-              Expanded(
-                child: SwitchListTile(
-                  title: const Text('دارای سابقه (حداقل ۱ سال)'),
-                  value: _hasPriorExperience,
-                  onChanged: _setPriorExperienceManually,
-                  secondary: const Icon(Icons.workspace_premium_rounded),
                 ),
               ),
               Expanded(child: _buildChildrenCounter(false)),
@@ -1249,27 +1172,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
           isMobile: isMobile,
           children: [
             _moneyField(
-              'پایه سنوات روزانه',
-              Icons.workspace_premium_rounded,
-              _dailySeniority,
-              (v) => setState(() => _dailySeniority = v),
-              defaultValue: _defaultDailySeniority,
-              onReset: () =>
-                  setState(() => _dailySeniority = _defaultDailySeniority),
-            ),
-            _moneyField(
-              'سنوات سال گذشته روزانه',
-              Icons.history_toggle_off_rounded,
-              _lastYearSeniority,
-              (v) => setState(() => _lastYearSeniority = v),
-            ),
-          ],
-        ),
-        SizedBox(height: isMobile ? 8 : 12),
-        _responsiveRow(
-          isMobile: isMobile,
-          children: [
-            _moneyField(
               'سایر مزایا روزانه',
               Icons.add_box_rounded,
               _otherBenefitsDaily,
@@ -1358,15 +1260,6 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         _responsiveRow(
           isMobile: isMobile,
           children: [
-            _moneyField(
-              'پایه سنوات ماهانه',
-              Icons.workspace_premium_rounded,
-              _toMonthly(_dailySeniority),
-              (v) => _setDailyFromMonthly(v, (d) => _dailySeniority = d),
-              defaultValue: _toMonthly(_defaultDailySeniority),
-              onReset: () =>
-                  setState(() => _dailySeniority = _defaultDailySeniority),
-            ),
             _moneyField(
               'سایر مزایا ماهانه',
               Icons.add_card_rounded,

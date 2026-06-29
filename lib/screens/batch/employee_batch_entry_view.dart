@@ -957,12 +957,6 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           (d, value) => d.isActive = value,
         ),
         _dateColumn('تاریخ ترک کار', 130, (d) => d.endDate),
-        _boolColumn(
-          'دارای سابقه',
-          120,
-          (d) => d.hasPriorExperience,
-          _setPriorExperience,
-        ),
         _boolColumn('متاهل', 90, (d) => d.isMarried, (draft, value) {
           draft.isMarried = value;
           draft.autoCalculate(settings);
@@ -1037,17 +1031,6 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           ),
         ),
         _textColumn(
-          'سنوات روزانه',
-          150,
-          (d) => d.dailySeniority,
-          numeric: true,
-          separateThousands: true,
-          onChanged: (draft, _) => draft.syncMonthlyFromDaily(
-            draft.dailySeniority,
-            draft.monthlySeniority,
-          ),
-        ),
-        _textColumn(
           'سایر مزایای روزانه',
           170,
           (d) => d.otherBenefitsDaily,
@@ -1062,13 +1045,6 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           'ساعت مزایای ساعتی',
           170,
           (d) => d.hourlyBenefits,
-          numeric: true,
-          separateThousands: true,
-        ),
-        _textColumn(
-          'سنوات سال قبل',
-          150,
-          (d) => d.lastYearSeniority,
           numeric: true,
           separateThousands: true,
         ),
@@ -1099,11 +1075,6 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           'حق هر فرزند ماهانه',
           (d) => d.monthlyChildAllowance,
           (d) => d.dailyChildAllowance,
-        ),
-        _monthlyBenefitColumn(
-          'پایه سنوات ماهانه',
-          (d) => d.monthlySeniority,
-          (d) => d.dailySeniority,
         ),
         _monthlyBenefitColumn(
           'سایر مزایا ماهانه',
@@ -1432,57 +1403,6 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
         .toStringAsFixed(2)
         .replaceFirst(RegExp(r'\.?0+$'), '');
     return PersianNumberFormatter.toPersian(formatted);
-  }
-
-  Future<void> _setPriorExperience(EmployeeBatchDraft draft, bool value) async {
-    final settings = _settings!;
-    final expected = SeniorityHelper.isEligibleForPriorExperience(
-      startDate: draft.startDateEnglish,
-      settings: settings,
-    );
-    if (value && !expected) {
-      AppNotification.warning(
-        context,
-        'برای فعال کردن «دارای سابقه»، تاریخ شروع باید تا پایان سال مالی حداقل یک سال سابقه داشته باشد.',
-      );
-      return;
-    }
-    var confirmed = true;
-    if (!value && expected) {
-      confirmed =
-          await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('تغییر دستی سابقه'),
-              content: const Text(
-                'این شخص تا پایان سال مالی حداقل یک سال سابقه دارد. آیا مطمئن هستید که می‌خواهید این بخش را غیر فعال کنید؟',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('انصراف'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('تایید'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-    }
-    if (!confirmed) return;
-    draft.hasPriorExperience = value;
-    draft.setDailyAndMonthly(
-      draft.dailySeniority,
-      draft.monthlySeniority,
-      value
-          ? SeniorityHelper.calculateDailySeniority(
-              startDate: draft.startDateEnglish,
-              settings: settings,
-            )
-          : 0,
-    );
   }
 }
 
@@ -1953,15 +1873,6 @@ class EmployeeBatchDraft {
       settings.monthlyFood / AppConstants.standardMonthDays,
     );
     syncChildAllowance(settings);
-    if (hasPriorExperience && (parseNumber(dailySeniority.text) ?? 0) == 0) {
-      setDailyAndMonthly(
-        dailySeniority,
-        monthlySeniority,
-        _defaultDailySeniority(settings),
-      );
-    } else {
-      syncMonthlyFromDaily(dailySeniority, monthlySeniority);
-    }
     setDailyAndMonthly(
       dailyMarriage,
       monthlyMarriage,
@@ -2001,11 +1912,6 @@ class EmployeeBatchDraft {
         monthlyChildAllowance,
         childrenCountValue > 0 ? settings.monthlyChild : 0,
       ),
-      (dailySeniority, _defaultDailySeniority(settings)),
-      (
-        monthlySeniority,
-        _defaultDailySeniority(settings) * AppConstants.standardMonthDays,
-      ),
       (
         monthlyOtherBenefits,
         (parseNumber(otherBenefitsDaily.text) ?? 0) *
@@ -2031,18 +1937,8 @@ class EmployeeBatchDraft {
       settings: settings,
     );
     hasPriorExperience = eligible;
-    setDailyAndMonthly(
-      dailySeniority,
-      monthlySeniority,
-      eligible ? _defaultDailySeniority(settings) : 0,
-    );
-  }
-
-  double _defaultDailySeniority(AppSettings settings) {
-    return SeniorityHelper.calculateDailySeniority(
-      startDate: startDateEnglish,
-      settings: settings,
-    );
+    setDailyAndMonthly(dailySeniority, monthlySeniority, 0);
+    lastYearSeniority.text = formatNumber(0);
   }
 
   void syncChildAllowance(AppSettings settings) {
@@ -2198,7 +2094,7 @@ class EmployeeBatchDraft {
     hasPriorExperience: hasPriorExperience,
     isMarried: isMarried,
     childrenCount: parseInt(childrenCount.text) ?? 0,
-    lastYearSeniority: parseNumber(lastYearSeniority.text) ?? 0,
+    lastYearSeniority: 0,
     baseSalary30Days: parseNumber(baseSalary30Days.text) ?? 0,
     dailyWage1405: parseNumber(dailyWage1405.text) ?? 0,
     dailyWage1404: parseNumber(dailyWage1404.text) ?? 0,
@@ -2206,7 +2102,7 @@ class EmployeeBatchDraft {
     dailyFood: parseNumber(dailyFood.text) ?? 0,
     dailyMarriage: parseNumber(dailyMarriage.text) ?? 0,
     dailyChildAllowance: parseNumber(dailyChildAllowance.text) ?? 0,
-    dailySeniority: parseNumber(dailySeniority.text) ?? 0,
+    dailySeniority: 0,
     otherBenefitsDaily: parseNumber(otherBenefitsDaily.text) ?? 0,
     hourlyBenefits: parseNumber(hourlyBenefits.text) ?? 0,
     hasShiftWork: hasShiftWork,

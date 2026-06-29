@@ -25,6 +25,7 @@ import '../../utils/persian_number_formatter.dart';
 import '../../utils/app_error_message.dart';
 import '../../utils/responsive.dart';
 import '../../utils/gradient_helpers.dart';
+import '../../utils/seniority_helper.dart';
 import '../../widgets/currency_text.dart';
 import '../../widgets/app_notification.dart';
 import '../../widgets/floating_nav_safe_area.dart';
@@ -83,6 +84,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   double _hourlyBenefitsAmount = 0;
   double _hourlyBenefitHours = 0;
   double _otherBenefitsOverride = -1;
+  double _dailySeniorityOverride = -1;
   double _loanInstallment = 0;
   double _advance = 0;
   double _otherDeductions = 0;
@@ -91,6 +93,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   bool _skipLoanInstallmentThisMonth = false;
   bool _useAutoAdvances = true;
   bool _useAutoOtherBenefits = true;
+  bool _useAutoSeniority = true;
   bool _useAutoShiftWork = false;
   bool _useAutoHourlyBenefits = true;
   bool _includeLeaveInPayslip = true;
@@ -297,6 +300,17 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           ? record.otherBenefits / record.workDays
           : record.otherBenefits;
       _useAutoOtherBenefits = false;
+      final isCurrentPeriod = record.year == _year && record.month == _month;
+      final recordPayableDays = record.totalDays - record.sickLeaveDays;
+      final defaultSeniority = _defaultDailySeniority * recordPayableDays;
+      _useAutoSeniority =
+          !isCurrentPeriod ||
+          record.seniorityExempt ||
+          recordPayableDays <= 0 ||
+          (record.seniority - defaultSeniority).abs() < 1;
+      _dailySeniorityOverride = _useAutoSeniority || recordPayableDays <= 0
+          ? -1
+          : record.seniority / recordPayableDays;
       _loanInstallment = record.loanInstallment;
       _skipLoanInstallmentThisMonth =
           record.loanInstallment == 0 && _employeeLoans.isNotEmpty;
@@ -338,6 +352,11 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _useAutoHourlyBenefits = draft.autoHourlyBenefits;
       _otherBenefitsOverride = draft.otherBenefitsOverride;
       _useAutoOtherBenefits = draft.autoOtherBenefits;
+      final isCurrentPeriod = draft.year == _year && draft.month == _month;
+      _dailySeniorityOverride = isCurrentPeriod
+          ? draft.dailySeniorityOverride
+          : -1;
+      _useAutoSeniority = isCurrentPeriod ? draft.autoSeniority : true;
       _loanInstallment = draft.loanInstallment;
       _useAutoLoanInstallment = draft.autoLoanInstallment;
       _skipLoanInstallmentThisMonth = draft.skipLoanInstallment;
@@ -376,6 +395,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _includeLeaveInPayslip = true;
       _otherBenefitsOverride = -1;
       _useAutoOtherBenefits = true;
+      _dailySeniorityOverride = -1;
+      _useAutoSeniority = true;
       _useAutoLoanInstallment = true;
       _skipLoanInstallmentThisMonth = false;
       _loanInstallment = _activeLoanInstallmentTotal;
@@ -416,6 +437,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       return;
     }
     final input = SalaryCalculationInput(
+      year: _year,
+      month: _month,
       totalDays: _totalDays,
       leaveDays: _leaveDays,
       sickLeaveDays: _sickLeaveDays,
@@ -433,6 +456,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       housingExempt: _housingExempt,
       foodExempt: _foodExempt,
       seniorityExempt: _seniorityExempt,
+      dailySeniorityOverride: _useAutoSeniority ? -1 : _dailySeniorityOverride,
       otherBenefitsOverride: _useAutoOtherBenefits
           ? -1
           : _otherBenefitsOverride,
@@ -476,6 +500,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       autoHourlyBenefits: _useAutoHourlyBenefits,
       otherBenefitsOverride: _otherBenefitsOverride,
       autoOtherBenefits: _useAutoOtherBenefits,
+      dailySeniorityOverride: _dailySeniorityOverride,
+      autoSeniority: _useAutoSeniority,
       loanInstallment: _loanInstallment,
       autoLoanInstallment: _useAutoLoanInstallment,
       skipLoanInstallment: _skipLoanInstallmentThisMonth,
@@ -538,6 +564,22 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
 
   double get _defaultOtherBenefitsDaily =>
       _selectedEmployee?.otherBenefitsDaily ?? 0;
+
+  double get _defaultDailySeniority {
+    final employee = _selectedEmployee;
+    final settings = _settings;
+    if (employee == null || settings == null) return 0;
+    return SeniorityHelper.calculateEffectiveDailySeniorityForMonth(
+      startDate: employee.startDate,
+      settings: settings,
+      year: _year,
+      month: _month,
+    );
+  }
+
+  double get _currentDailySeniority => _useAutoSeniority
+      ? _defaultDailySeniority
+      : _dailySeniorityOverride.clamp(0, double.infinity);
 
   String? get _attendanceError {
     if (_leaveDays < 0 || _sickLeaveDays < 0) {
@@ -1104,6 +1146,40 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                     },
                   ),
                 ),
+            ],
+          ),
+          _buildSection(
+            context: context,
+            title: 'پایه سنوات',
+            icon: Icons.workspace_premium_rounded,
+            accent: Theme.of(context).colorScheme.tertiary,
+            children: [
+              _withDefaultReset(
+                value: _currentDailySeniority,
+                defaultValue: _defaultDailySeniority,
+                onReset: () {
+                  setState(() {
+                    _dailySeniorityOverride = -1;
+                    _useAutoSeniority = true;
+                  });
+                  _calculate();
+                },
+                child: PersianNumberField(
+                  label: 'پایه سنوات روزانه این ماه (ریال)',
+                  isCurrency: true,
+                  prefixIcon: Icons.calendar_month_rounded,
+                  initialValue: _currentDailySeniority,
+                  enabled: !_seniorityExempt,
+                  maxDecimalDigits: 2,
+                  onChanged: (value) {
+                    setState(() {
+                      _dailySeniorityOverride = value?.toDouble() ?? 0;
+                      _useAutoSeniority = false;
+                    });
+                    _calculate();
+                  },
+                ),
+              ),
             ],
           ),
           _buildSection(

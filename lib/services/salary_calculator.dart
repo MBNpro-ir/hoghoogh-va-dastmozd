@@ -2,6 +2,7 @@ import '../models/app_settings.dart';
 import '../models/employee.dart';
 import '../models/salary_record.dart';
 import '../utils/constants.dart';
+import '../utils/seniority_helper.dart';
 
 /// نتیجه محاسبه فیش حقوق
 class SalaryCalculationResult {
@@ -153,6 +154,8 @@ class SalaryCalculationResult {
 
 /// ورودی‌های محاسبه ماهانه
 class SalaryCalculationInput {
+  final int? year;
+  final int? month;
   final int totalDays; // کل کارکرد (روزهای ماه)
   final double leaveDays; // مرخصی
   final double sickLeaveDays; // مرخصی استعلاجی تاییدشده
@@ -170,12 +173,15 @@ class SalaryCalculationInput {
   final bool housingExempt; // حذف حق مسکن از این فیش
   final bool foodExempt; // حذف حق خواروبار از این فیش
   final bool seniorityExempt; // حذف پایه سنوات از این فیش
+  final double dailySeniorityOverride; // نرخ روزانه دستی؛ منفی یعنی خودکار
   final double otherBenefitsOverride; // سایر مزایا - دستی
   final double loanInstallment; // قسط وام
   final double advance; // مساعده
   final double otherDeductions; // سایر کسورات (مابه‌تفاوت)
 
   SalaryCalculationInput({
+    this.year,
+    this.month,
     this.totalDays = 30,
     this.leaveDays = 0,
     this.sickLeaveDays = 0,
@@ -193,6 +199,7 @@ class SalaryCalculationInput {
     this.housingExempt = false,
     this.foodExempt = false,
     this.seniorityExempt = false,
+    this.dailySeniorityOverride = -1,
     this.otherBenefitsOverride = -1, // -1 = خودکار (از کارمند)
     this.loanInstallment = 0,
     this.advance = 0,
@@ -299,10 +306,18 @@ class SalaryCalculator {
     final childAllowance =
         employee.dailyChildAllowance * employee.childrenCount * benefitDays;
 
-    // 6) پایه سنوات در اکسل با کل کارکرد محاسبه می‌شود.
+    // 6) پایه سنوات از تاریخ شروع کار و دوره فیش محاسبه می‌شود.
     final seniority = input.seniorityExempt
         ? 0.0
-        : employee.dailySeniority * payableDays;
+        : input.dailySeniorityOverride >= 0
+        ? input.dailySeniorityOverride * payableDays
+        : SeniorityHelper.calculateMonthlySeniority(
+            startDate: employee.startDate,
+            settings: settings,
+            year: input.year ?? settings.year,
+            month: input.month ?? 1,
+            payableDays: payableDays,
+          );
 
     // 7) سایر مزایا دستی = مبلغ روزانه × کارکرد خالص؛ خودکار مطابق قرارداد/اکسل.
     final otherBenefits = input.otherBenefitsOverride >= 0
