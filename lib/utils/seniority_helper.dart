@@ -6,36 +6,37 @@ import '../models/app_settings.dart';
 class SeniorityHelper {
   static const double dailySeniority1405 = 166667;
 
-  static const Map<int, double> _cumulativeDailySeniority1405 = {
-    1376: 1929905,
-    1377: 1925108,
-    1378: 1919514,
-    1379: 1912677,
-    1380: 1912677,
-    1381: 1912677,
-    1382: 1912677,
-    1383: 1912677,
-    1384: 1912677,
-    1385: 1912677,
-    1386: 1890983,
-    1387: 1870320,
-    1388: 1850642,
-    1389: 1821216,
-    1390: 1793460,
-    1391: 1761029,
-    1392: 1725652,
-    1393: 1673007,
-    1394: 1583016,
-    1395: 1504079,
-    1396: 1384261,
-    1397: 1275730,
-    1398: 1143903,
-    1399: 980142,
-    1400: 798186,
-    1401: 600404,
-    1402: 436949,
-    1403: 302967,
-    1404: 166667,
+  static const Map<int, double> _dailySeniority1405ByServiceYears = {
+    1: 166667,
+    2: 302967,
+    3: 436947,
+    4: 600403,
+    5: 798184,
+    6: 980142,
+    7: 1143906,
+    8: 1275733,
+    9: 1384264,
+    10: 1504088,
+    11: 1583025,
+    12: 1673014,
+    13: 1725660,
+    14: 1761041,
+    15: 1793472,
+    16: 1821234,
+    17: 1850658,
+    18: 1870336,
+    19: 1890997,
+    20: 1912693,
+    21: 1936558,
+    22: 1957976,
+    23: 1976879,
+    24: 1991789,
+    25: 2004572,
+    26: 2015417,
+    27: 2024591,
+    28: 2030201,
+    29: 2034946,
+    30: 2039736,
   };
 
   static Jalali? parseStartDate(String text) {
@@ -71,17 +72,10 @@ class SeniorityHelper {
     );
     if (serviceYears < 1) return 0;
     if (settings.year == 1405) {
-      if (parsed.year >= settings.year) return 0;
-      final fullYearRate =
-          _cumulativeDailySeniority1405[parsed.year] ??
-          _cumulativeDailySeniority1405[_cumulativeDailySeniority1405
-              .keys
-              .first] ??
+      return _dailySeniority1405ByServiceYears[serviceYears] ??
+          _dailySeniority1405ByServiceYears[
+              _dailySeniority1405ByServiceYears.keys.last] ??
           settings.dailySeniority;
-      final anniversary = _anniversaryInYear(parsed, settings.year);
-      return _compare(effectiveDate, anniversary) < 0
-          ? (fullYearRate - dailySeniority1405).clamp(0, double.infinity)
-          : fullYearRate;
     }
     return settings.dailySeniority;
   }
@@ -120,14 +114,6 @@ class SeniorityHelper {
           month: month,
         ) *
         payableDays;
-  }
-
-  static Jalali _anniversaryInYear(Jalali startDate, int year) {
-    final day = startDate.day.clamp(
-      1,
-      PersianDateHelper.daysInMonth(year, startDate.month),
-    );
-    return Jalali(year, startDate.month, day);
   }
 
   static int _compare(Jalali left, Jalali right) {

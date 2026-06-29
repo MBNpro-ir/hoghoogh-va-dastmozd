@@ -50,7 +50,7 @@ void main() {
         startDate: '1395/01/01',
         settings: settings,
       ),
-      1504079,
+      1504088,
     );
   });
 
@@ -61,7 +61,7 @@ void main() {
         settings: settings,
         asOf: Jalali(1405, 1, 1),
       ),
-      1654549,
+      1793472,
     );
     expect(
       SeniorityHelper.calculateDailySeniority(
@@ -69,7 +69,7 @@ void main() {
         settings: settings,
         asOf: Jalali(1405, 7, 23),
       ),
-      1654549,
+      1793472,
     );
     expect(
       SeniorityHelper.calculateDailySeniority(
@@ -77,7 +77,7 @@ void main() {
         settings: settings,
         asOf: Jalali(1405, 7, 24),
       ),
-      1821216,
+      1821234,
     );
   });
 
@@ -90,7 +90,7 @@ void main() {
         month: 1,
         payableDays: 31,
       ),
-      51291019,
+      55597632,
     );
     expect(
       SeniorityHelper.calculateMonthlySeniority(
@@ -100,7 +100,7 @@ void main() {
         month: 7,
         payableDays: 30,
       ),
-      50803139,
+      53998494,
     );
   });
 }

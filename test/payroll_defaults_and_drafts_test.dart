@@ -145,7 +145,7 @@ void main() {
       ),
     );
 
-    expect(automatic.seniority, 51291019);
+    expect(automatic.seniority, 55597632);
     expect(manual.seniority, 62000000);
   });
 
