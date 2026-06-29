@@ -1,6 +1,7 @@
 import '../models/app_settings.dart';
 import '../models/employee.dart';
 import '../models/salary_record.dart';
+import '../utils/constants.dart';
 import 'advance_service.dart';
 import 'employee_leave_service.dart';
 import 'loan_service.dart';
@@ -135,6 +136,9 @@ class SalaryRecordUpdateService {
       useCustomOvertimeBase: record.useCustomOvertimeBase,
       overtimeBaseDaily: record.overtimeBaseDaily,
       shiftWork: record.shiftWork,
+      shiftWorkRate: record.shiftWorkRate > 0
+          ? record.shiftWorkRate
+          : AppConstants.shiftWorkRate,
       hourlyBenefitsAmount: record.hourlyBenefitsAmount,
       hourlyBenefitHours: record.hourlyBenefitHours,
       autoShiftWork: employee.hasShiftWork && record.shiftWork > 0,
@@ -148,9 +152,16 @@ class SalaryRecordUpdateService {
       otherBenefitsOverride: record.workDays > 0
           ? record.otherBenefits / record.workDays
           : record.otherBenefits,
+      jobRelatedBenefits: record.jobRelatedBenefits,
+      employeeRelatedBenefits: record.employeeRelatedBenefits,
+      welfareBenefits: record.welfareBenefits,
       loanInstallment: snapshot.loanInstallment,
       advance: snapshot.advance,
+      supplementaryInsurance: record.supplementaryInsurance,
       otherDeductions: record.otherDeductions,
+      absenceDays: record.absenceDays,
+      absenceHours: record.absenceHours,
+      taxReliefRate: record.taxReliefRate,
     );
     final result = SalaryCalculator.calculate(
       employee: employee,
@@ -171,6 +182,13 @@ class SalaryRecordUpdateService {
           sickLeaveDays: snapshot.sickLeaveDays,
           workDays: input.workDays,
           overtimeHours: record.overtimeHours,
+          nightWorkHours: record.nightWorkHours,
+          fridayWorkHours: record.fridayWorkHours,
+          holidayWorkHours: record.holidayWorkHours,
+          missionDays: record.missionDays,
+          absenceDays: record.absenceDays,
+          absenceHours: record.absenceHours,
+          shiftWorkRate: input.shiftWorkRate,
           hourlyBenefitHours: record.hourlyBenefitHours,
           includeLeaveInPayslip: record.includeLeaveInPayslip,
           housingExempt: record.housingExempt,

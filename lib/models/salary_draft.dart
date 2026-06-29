@@ -18,12 +18,16 @@ class SalaryDraft {
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double shiftWork;
+  final double shiftWorkRate;
   final bool autoShiftWork;
   final double hourlyBenefitsAmount;
   final double hourlyBenefitHours;
   final bool autoHourlyBenefits;
   final double otherBenefitsOverride;
   final bool autoOtherBenefits;
+  final double jobRelatedBenefits;
+  final double employeeRelatedBenefits;
+  final double welfareBenefits;
   final double dailySeniorityOverride;
   final bool autoSeniority;
   final double loanInstallment;
@@ -31,6 +35,7 @@ class SalaryDraft {
   final bool skipLoanInstallment;
   final double advance;
   final bool autoAdvances;
+  final double supplementaryInsurance;
   final double otherDeductions;
   final double absenceDays;
   final double absenceHours;
@@ -41,6 +46,7 @@ class SalaryDraft {
   final bool housingExempt;
   final bool foodExempt;
   final bool seniorityExempt;
+  final double taxReliefRate;
   final String payrollCalculationDetailsJson;
 
   const SalaryDraft({
@@ -63,12 +69,16 @@ class SalaryDraft {
     this.useCustomOvertimeBase = false,
     this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
+    this.shiftWorkRate = 0,
     this.autoShiftWork = false,
     this.hourlyBenefitsAmount = 0,
     this.hourlyBenefitHours = 0,
     this.autoHourlyBenefits = true,
     this.otherBenefitsOverride = -1,
     this.autoOtherBenefits = true,
+    this.jobRelatedBenefits = 0,
+    this.employeeRelatedBenefits = 0,
+    this.welfareBenefits = 0,
     this.dailySeniorityOverride = -1,
     this.autoSeniority = true,
     this.loanInstallment = 0,
@@ -76,6 +86,7 @@ class SalaryDraft {
     this.skipLoanInstallment = false,
     this.advance = 0,
     this.autoAdvances = true,
+    this.supplementaryInsurance = 0,
     this.otherDeductions = 0,
     this.absenceDays = 0,
     this.absenceHours = 0,
@@ -86,6 +97,7 @@ class SalaryDraft {
     this.housingExempt = false,
     this.foodExempt = false,
     this.seniorityExempt = false,
+    this.taxReliefRate = 0,
     this.payrollCalculationDetailsJson = '{}',
   });
 
@@ -109,12 +121,16 @@ class SalaryDraft {
     'use_custom_overtime_base': useCustomOvertimeBase ? 1 : 0,
     'overtime_base_daily': overtimeBaseDaily,
     'shift_work': shiftWork,
+    'shift_work_rate': shiftWorkRate,
     'auto_shift_work': autoShiftWork ? 1 : 0,
     'hourly_benefits_amount': hourlyBenefitsAmount,
     'hourly_benefit_hours': hourlyBenefitHours,
     'auto_hourly_benefits': autoHourlyBenefits ? 1 : 0,
     'other_benefits_override': otherBenefitsOverride,
     'auto_other_benefits': autoOtherBenefits ? 1 : 0,
+    'job_related_benefits': jobRelatedBenefits,
+    'employee_related_benefits': employeeRelatedBenefits,
+    'welfare_benefits': welfareBenefits,
     'daily_seniority_override': dailySeniorityOverride,
     'auto_seniority': autoSeniority ? 1 : 0,
     'loan_installment': loanInstallment,
@@ -122,6 +138,7 @@ class SalaryDraft {
     'skip_loan_installment': skipLoanInstallment ? 1 : 0,
     'advance': advance,
     'auto_advances': autoAdvances ? 1 : 0,
+    'supplementary_insurance': supplementaryInsurance,
     'other_deductions': otherDeductions,
     'absence_days': absenceDays,
     'absence_hours': absenceHours,
@@ -132,6 +149,7 @@ class SalaryDraft {
     'housing_exempt': housingExempt ? 1 : 0,
     'food_exempt': foodExempt ? 1 : 0,
     'seniority_exempt': seniorityExempt ? 1 : 0,
+    'tax_relief_rate': taxReliefRate,
     'payroll_calculation_details_json': payrollCalculationDetailsJson,
   };
 
@@ -155,6 +173,7 @@ class SalaryDraft {
     useCustomOvertimeBase: (map['use_custom_overtime_base'] as int? ?? 0) == 1,
     overtimeBaseDaily: (map['overtime_base_daily'] as num?)?.toDouble() ?? 0,
     shiftWork: (map['shift_work'] as num?)?.toDouble() ?? 0,
+    shiftWorkRate: (map['shift_work_rate'] as num?)?.toDouble() ?? 0,
     autoShiftWork: (map['auto_shift_work'] as int? ?? 0) == 1,
     hourlyBenefitsAmount:
         (map['hourly_benefits_amount'] as num?)?.toDouble() ?? 0,
@@ -163,6 +182,10 @@ class SalaryDraft {
     otherBenefitsOverride:
         (map['other_benefits_override'] as num?)?.toDouble() ?? -1,
     autoOtherBenefits: (map['auto_other_benefits'] as int? ?? 1) == 1,
+    jobRelatedBenefits: (map['job_related_benefits'] as num?)?.toDouble() ?? 0,
+    employeeRelatedBenefits:
+        (map['employee_related_benefits'] as num?)?.toDouble() ?? 0,
+    welfareBenefits: (map['welfare_benefits'] as num?)?.toDouble() ?? 0,
     dailySeniorityOverride:
         (map['daily_seniority_override'] as num?)?.toDouble() ?? -1,
     autoSeniority: (map['auto_seniority'] as int? ?? 1) == 1,
@@ -171,6 +194,8 @@ class SalaryDraft {
     skipLoanInstallment: (map['skip_loan_installment'] as int? ?? 0) == 1,
     advance: (map['advance'] as num?)?.toDouble() ?? 0,
     autoAdvances: (map['auto_advances'] as int? ?? 1) == 1,
+    supplementaryInsurance:
+        (map['supplementary_insurance'] as num?)?.toDouble() ?? 0,
     otherDeductions: (map['other_deductions'] as num?)?.toDouble() ?? 0,
     absenceDays: (map['absence_days'] as num?)?.toDouble() ?? 0,
     absenceHours: (map['absence_hours'] as num?)?.toDouble() ?? 0,
@@ -181,6 +206,7 @@ class SalaryDraft {
     housingExempt: (map['housing_exempt'] as int? ?? 0) == 1,
     foodExempt: (map['food_exempt'] as int? ?? 0) == 1,
     seniorityExempt: (map['seniority_exempt'] as int? ?? 0) == 1,
+    taxReliefRate: (map['tax_relief_rate'] as num?)?.toDouble() ?? 0,
     payrollCalculationDetailsJson:
         map['payroll_calculation_details_json']?.toString() ?? '{}',
   );
@@ -205,12 +231,16 @@ class SalaryDraft {
       useCustomOvertimeBase: useCustomOvertimeBase,
       overtimeBaseDaily: overtimeBaseDaily,
       shiftWork: shiftWork,
+      shiftWorkRate: shiftWorkRate,
       autoShiftWork: autoShiftWork,
       hourlyBenefitsAmount: hourlyBenefitsAmount,
       hourlyBenefitHours: hourlyBenefitHours,
       autoHourlyBenefits: autoHourlyBenefits,
       otherBenefitsOverride: otherBenefitsOverride,
       autoOtherBenefits: autoOtherBenefits,
+      jobRelatedBenefits: jobRelatedBenefits,
+      employeeRelatedBenefits: employeeRelatedBenefits,
+      welfareBenefits: welfareBenefits,
       dailySeniorityOverride: dailySeniorityOverride,
       autoSeniority: autoSeniority,
       loanInstallment: loanInstallment,
@@ -218,6 +248,7 @@ class SalaryDraft {
       skipLoanInstallment: skipLoanInstallment,
       advance: advance,
       autoAdvances: autoAdvances,
+      supplementaryInsurance: supplementaryInsurance,
       otherDeductions: otherDeductions,
       absenceDays: absenceDays,
       absenceHours: absenceHours,
@@ -228,6 +259,7 @@ class SalaryDraft {
       housingExempt: housingExempt,
       foodExempt: foodExempt,
       seniorityExempt: seniorityExempt,
+      taxReliefRate: taxReliefRate,
       payrollCalculationDetailsJson: payrollCalculationDetailsJson,
     );
   }

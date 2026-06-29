@@ -3,6 +3,7 @@ import 'package:payroll_app/models/app_settings.dart';
 import 'package:payroll_app/models/employee.dart';
 import 'package:payroll_app/models/salary_record.dart';
 import 'package:payroll_app/services/salary_calculator.dart';
+import 'package:payroll_app/utils/constants.dart';
 
 void main() {
   final employee = Employee(
@@ -67,6 +68,7 @@ void main() {
       sickLeaveDays: 1.5,
       workDays: 28.5,
       overtimeHours: 0,
+      shiftWorkRate: AppConstants.shiftWorkRate,
       hourlyBenefitHours: 0,
       includeLeaveInPayslip: true,
       housingExempt: false,

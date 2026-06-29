@@ -85,15 +85,21 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   bool _useCustomOvertimeBase = false;
   double _overtimeBaseDaily = 0;
   double _shiftWork = 0;
+  double _shiftWorkRate = AppConstants.shiftWorkRate;
   double _hourlyBenefitsAmount = 0;
   double _hourlyBenefitHours = 0;
   double _otherBenefitsOverride = -1;
+  double _jobRelatedBenefits = 0;
+  double _employeeRelatedBenefits = 0;
+  double _welfareBenefits = 0;
   double _dailySeniorityOverride = -1;
   double _loanInstallment = 0;
   double _advance = 0;
+  double _supplementaryInsurance = 0;
   double _otherDeductions = 0;
   double _absenceDays = 0;
   double _absenceHours = 0;
+  double _taxReliefRate = 0;
 
   bool _useAutoLoanInstallment = true;
   bool _skipLoanInstallmentThisMonth = false;
@@ -301,6 +307,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _useCustomOvertimeBase = record.useCustomOvertimeBase;
       _overtimeBaseDaily = record.overtimeBaseDaily;
       _shiftWork = record.shiftWork;
+      _shiftWorkRate = record.shiftWorkRate > 0
+          ? record.shiftWorkRate
+          : AppConstants.shiftWorkRate;
       _hourlyBenefitsAmount = record.hourlyBenefitsAmount;
       _hourlyBenefitHours = record.hourlyBenefitHours;
       _useAutoShiftWork =
@@ -310,6 +319,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           ? record.otherBenefits / record.workDays
           : record.otherBenefits;
       _useAutoOtherBenefits = false;
+      _jobRelatedBenefits = record.jobRelatedBenefits;
+      _employeeRelatedBenefits = record.employeeRelatedBenefits;
+      _welfareBenefits = record.welfareBenefits;
       final isCurrentPeriod = record.year == _year && record.month == _month;
       final recordPayableDays = record.totalDays - record.sickLeaveDays;
       final defaultSeniority = _defaultDailySeniority * recordPayableDays;
@@ -337,9 +349,11 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _advance = record.advance;
       _useAutoAdvances =
           _employeeAdvances.isNotEmpty && record.advance == _activeAdvanceTotal;
+      _supplementaryInsurance = record.supplementaryInsurance;
       _otherDeductions = record.otherDeductions;
       _absenceDays = record.absenceDays;
       _absenceHours = record.absenceHours;
+      _taxReliefRate = record.taxReliefRate;
     }
 
     if (notify && mounted) {
@@ -362,12 +376,18 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _useCustomOvertimeBase = draft.useCustomOvertimeBase;
       _overtimeBaseDaily = draft.overtimeBaseDaily;
       _shiftWork = draft.shiftWork;
+      _shiftWorkRate = draft.shiftWorkRate > 0
+          ? draft.shiftWorkRate
+          : AppConstants.shiftWorkRate;
       _useAutoShiftWork = draft.autoShiftWork;
       _hourlyBenefitsAmount = draft.hourlyBenefitsAmount;
       _hourlyBenefitHours = draft.hourlyBenefitHours;
       _useAutoHourlyBenefits = draft.autoHourlyBenefits;
       _otherBenefitsOverride = draft.otherBenefitsOverride;
       _useAutoOtherBenefits = draft.autoOtherBenefits;
+      _jobRelatedBenefits = draft.jobRelatedBenefits;
+      _employeeRelatedBenefits = draft.employeeRelatedBenefits;
+      _welfareBenefits = draft.welfareBenefits;
       final isCurrentPeriod = draft.year == _year && draft.month == _month;
       _dailySeniorityOverride = isCurrentPeriod
           ? draft.dailySeniorityOverride
@@ -378,6 +398,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _skipLoanInstallmentThisMonth = draft.skipLoanInstallment;
       _advance = draft.advance;
       _useAutoAdvances = draft.autoAdvances;
+      _supplementaryInsurance = draft.supplementaryInsurance;
       _otherDeductions = draft.otherDeductions;
       _absenceDays = draft.absenceDays;
       _absenceHours = draft.absenceHours;
@@ -387,6 +408,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _housingExempt = draft.housingExempt;
       _foodExempt = draft.foodExempt;
       _seniorityExempt = draft.seniorityExempt;
+      _taxReliefRate = draft.taxReliefRate;
     }
 
     if (notify && mounted) {
@@ -410,6 +432,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           _selectedEmployee?.useCustomOvertimeBase ?? false;
       _overtimeBaseDaily = _selectedEmployee?.overtimeBaseDaily ?? 0;
       _shiftWork = 0;
+      _shiftWorkRate = AppConstants.shiftWorkRate;
       _hourlyBenefitsAmount = 0;
       _hourlyBenefitHours = _selectedEmployee?.hourlyBenefits ?? 0;
       _useAutoShiftWork = _selectedEmployee?.hasShiftWork ?? false;
@@ -417,6 +440,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _includeLeaveInPayslip = true;
       _otherBenefitsOverride = -1;
       _useAutoOtherBenefits = true;
+      _jobRelatedBenefits = 0;
+      _employeeRelatedBenefits = 0;
+      _welfareBenefits = 0;
       _dailySeniorityOverride = -1;
       _useAutoSeniority = true;
       _useAutoLoanInstallment = true;
@@ -429,9 +455,11 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _foodExempt = false;
       _seniorityExempt = false;
       _advance = _useAutoAdvances ? _activeAdvanceTotal : 0;
+      _supplementaryInsurance = 0;
       _otherDeductions = 0;
       _absenceDays = 0;
       _absenceHours = 0;
+      _taxReliefRate = 0;
     }
 
     if (notify && mounted) {
@@ -474,6 +502,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       useCustomOvertimeBase: _useCustomOvertimeBase,
       overtimeBaseDaily: _overtimeBaseDaily,
       shiftWork: _shiftWork,
+      shiftWorkRate: _shiftWorkRate,
       hourlyBenefitsAmount: _hourlyBenefitsAmount,
       hourlyBenefitHours: _hourlyBenefitHours,
       autoShiftWork: _useAutoShiftWork,
@@ -488,11 +517,16 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       otherBenefitsOverride: _useAutoOtherBenefits
           ? -1
           : _otherBenefitsOverride,
+      jobRelatedBenefits: _jobRelatedBenefits,
+      employeeRelatedBenefits: _employeeRelatedBenefits,
+      welfareBenefits: _welfareBenefits,
       loanInstallment: _loanInstallment,
       advance: _advance,
+      supplementaryInsurance: _supplementaryInsurance,
       otherDeductions: _otherDeductions,
       absenceDays: _absenceDays,
       absenceHours: _absenceHours,
+      taxReliefRate: _taxReliefRate,
     );
     final result = SalaryCalculator.calculate(
       employee: _selectedEmployee!,
@@ -532,12 +566,16 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       useCustomOvertimeBase: _useCustomOvertimeBase,
       overtimeBaseDaily: _overtimeBaseDaily,
       shiftWork: _shiftWork,
+      shiftWorkRate: _shiftWorkRate,
       autoShiftWork: _useAutoShiftWork,
       hourlyBenefitsAmount: _hourlyBenefitsAmount,
       hourlyBenefitHours: _hourlyBenefitHours,
       autoHourlyBenefits: _useAutoHourlyBenefits,
       otherBenefitsOverride: _otherBenefitsOverride,
       autoOtherBenefits: _useAutoOtherBenefits,
+      jobRelatedBenefits: _jobRelatedBenefits,
+      employeeRelatedBenefits: _employeeRelatedBenefits,
+      welfareBenefits: _welfareBenefits,
       dailySeniorityOverride: _dailySeniorityOverride,
       autoSeniority: _useAutoSeniority,
       loanInstallment: _loanInstallment,
@@ -545,6 +583,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       skipLoanInstallment: _skipLoanInstallmentThisMonth,
       advance: _advance,
       autoAdvances: _useAutoAdvances,
+      supplementaryInsurance: _supplementaryInsurance,
       otherDeductions: _otherDeductions,
       absenceDays: _absenceDays,
       absenceHours: _absenceHours,
@@ -555,6 +594,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       housingExempt: _housingExempt,
       foodExempt: _foodExempt,
       seniorityExempt: _seniorityExempt,
+      taxReliefRate: _taxReliefRate,
       payrollCalculationDetailsJson:
           _result?.payrollCalculationDetailsJson ?? '{}',
     );
@@ -599,8 +639,57 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
 
   double get _defaultOvertimeBaseDaily => _selectedEmployee?.dailyWage1405 ?? 0;
 
-  double get _defaultShiftWork =>
-      (_result?.baseSalary ?? 0) * AppConstants.shiftWorkRate;
+  double get _defaultShiftWork => (_result?.baseSalary ?? 0) * _shiftWorkRate;
+
+  String _formatPercent(double value) {
+    final percent = value * 100;
+    final text = percent == percent.roundToDouble()
+        ? percent.toStringAsFixed(0)
+        : percent.toStringAsFixed(1);
+    return '${PersianNumberFormatter.toPersian(text)}٪';
+  }
+
+  List<DropdownMenuItem<double>> _taxReliefItems() {
+    final items = <DropdownMenuItem<double>>[
+      const DropdownMenuItem(value: 0.0, child: Text('بدون تخفیف')),
+      const DropdownMenuItem(value: 0.50, child: Text('مناطق محروم - ۵۰٪')),
+    ];
+    if (![0.0, 0.50].any((rate) => (rate - _taxReliefRate).abs() < 0.0001)) {
+      items.insert(
+        0,
+        DropdownMenuItem(
+          value: _taxReliefRate,
+          child: Text('سفارشی - ${_formatPercent(_taxReliefRate)}'),
+        ),
+      );
+    }
+    return items;
+  }
+
+  List<DropdownMenuItem<double>> _shiftWorkRateItems() {
+    final items = <DropdownMenuItem<double>>[
+      const DropdownMenuItem(value: 0.10, child: Text('صبح و عصر - ۱۰٪')),
+      const DropdownMenuItem(value: 0.15, child: Text('صبح، عصر و شب - ۱۵٪')),
+      const DropdownMenuItem(
+        value: 0.225,
+        child: Text('صبح و شب / عصر و شب - ۲۲.۵٪'),
+      ),
+    ];
+    if (![
+      0.10,
+      0.15,
+      0.225,
+    ].any((rate) => (rate - _shiftWorkRate).abs() < 0.0001)) {
+      items.insert(
+        0,
+        DropdownMenuItem(
+          value: _shiftWorkRate,
+          child: Text('سفارشی - ${_formatPercent(_shiftWorkRate)}'),
+        ),
+      );
+    }
+    return items;
+  }
 
   double get _defaultHourlyBenefitHours =>
       _selectedEmployee?.hourlyBenefits ?? 0;
@@ -680,6 +769,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       missionDays: _missionDays,
       absenceDays: _absenceDays,
       absenceHours: _absenceHours,
+      shiftWorkRate: _shiftWorkRate,
       hourlyBenefitHours: _useAutoHourlyBenefits ? _hourlyBenefitHours : 0,
       includeLeaveInPayslip: _includeLeaveInPayslip,
       housingExempt: _housingExempt,
@@ -914,6 +1004,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                         missionDays: _missionDays,
                         absenceDays: _absenceDays,
                         absenceHours: _absenceHours,
+                        shiftWorkRate: _shiftWorkRate,
                         hourlyBenefitHours: _useAutoHourlyBenefits
                             ? _hourlyBenefitHours
                             : 0,
@@ -1206,6 +1297,79 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
                     },
                   ),
                 ),
+            ],
+          ),
+          _buildSection(
+            context: context,
+            title: 'اقلام تکمیلی حقوق',
+            icon: Icons.rule_folder_rounded,
+            accent: Theme.of(context).colorScheme.primary,
+            children: [
+              _responsiveRow(
+                isMobile: _isMobile,
+                children: [
+                  PersianNumberField(
+                    label: 'مزایای به تبع شغل',
+                    isCurrency: true,
+                    prefixIcon: Icons.engineering_rounded,
+                    initialValue: _jobRelatedBenefits,
+                    onChanged: (value) {
+                      _jobRelatedBenefits = value?.toDouble() ?? 0;
+                      _calculate();
+                    },
+                  ),
+                  PersianNumberField(
+                    label: 'مزایای به تبع شاغل',
+                    isCurrency: true,
+                    prefixIcon: Icons.person_add_alt_1_rounded,
+                    initialValue: _employeeRelatedBenefits,
+                    onChanged: (value) {
+                      _employeeRelatedBenefits = value?.toDouble() ?? 0;
+                      _calculate();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _responsiveRow(
+                isMobile: _isMobile,
+                children: [
+                  PersianNumberField(
+                    label: 'مزایای رفاهی و سایر پرداختی‌ها',
+                    isCurrency: true,
+                    prefixIcon: Icons.volunteer_activism_rounded,
+                    initialValue: _welfareBenefits,
+                    onChanged: (value) {
+                      _welfareBenefits = value?.toDouble() ?? 0;
+                      _calculate();
+                    },
+                  ),
+                  PersianNumberField(
+                    label: 'بیمه تکمیلی سهم کارگر',
+                    isCurrency: true,
+                    prefixIcon: Icons.health_and_safety_rounded,
+                    initialValue: _supplementaryInsurance,
+                    onChanged: (value) {
+                      _supplementaryInsurance = value?.toDouble() ?? 0;
+                      _calculate();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<double>(
+                initialValue: _taxReliefRate,
+                decoration: const InputDecoration(
+                  labelText: 'تخفیف مالیات حقوق',
+                  prefixIcon: Icon(Icons.percent_rounded),
+                ),
+                items: _taxReliefItems(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _taxReliefRate = value);
+                  _calculate();
+                },
+              ),
             ],
           ),
           _buildSection(
@@ -1670,10 +1834,29 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           title: 'نوبت‌کاری',
           icon: Icons.nightlight_round,
           children: [
+            DropdownButtonFormField<double>(
+              initialValue: _shiftWorkRate,
+              decoration: const InputDecoration(
+                labelText: 'نوع نوبت‌کاری',
+                prefixIcon: Icon(Icons.swap_calls_rounded),
+              ),
+              items: _shiftWorkRateItems(),
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  _shiftWorkRate = value;
+                  if (_useAutoShiftWork) {
+                    _shiftWork = _defaultShiftWork;
+                  }
+                });
+                _calculate();
+              },
+            ),
+            const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('نوبت‌کاری خودکار'),
-              subtitle: const Text('۱۵٪ حقوق ثابت'),
+              subtitle: Text('${_formatPercent(_shiftWorkRate)} حقوق ثابت'),
               value: _useAutoShiftWork,
               onChanged: _onAutoShiftWorkChanged,
             ),
@@ -2021,6 +2204,12 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               _resultRow('حق فرزند', _result!.childAllowance),
               _resultRow('پایه سنوات', _result!.seniority),
               _resultRow('سایر مزایا', _result!.otherBenefits),
+              _resultRow('مزایای به تبع شغل', _result!.jobRelatedBenefits),
+              _resultRow(
+                'مزایای به تبع شاغل',
+                _result!.employeeRelatedBenefits,
+              ),
+              _resultRow('مزایای رفاهی', _result!.welfareBenefits),
               _resultRow('نوبت‌کاری', _result!.shiftWork),
               _resultRow('اضافه‌کاری', _result!.overtimeAmount),
               _resultRow('شب کاری', _result!.nightWorkAmount),
@@ -2042,6 +2231,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
               _resultRow('مالیات بر حقوق', _result!.tax),
               _resultRow('قسط وام', _result!.loanInstallment),
               _resultRow('مساعده', _result!.advance),
+              _resultRow('بیمه تکمیلی', _result!.supplementaryInsurance),
               _resultRow('سایر کسورات', _result!.otherDeductions),
               _resultRow('کسر غیبت', _result!.absenceDeduction),
               _resultRow('کسر مرخصی مازاد', _result!.leaveDeduction),
@@ -2165,6 +2355,16 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         _resultRow('مبنای بیمه', _result!.insuranceBase),
         _resultRow('مبنای مالیات', _result!.taxBase),
         _resultRow('معافیت دو هفتم', _result!.twoSevenExemption),
+        _resultRow('تخفیف مالیات', _result!.taxReliefAmount),
+        _plainDetailRow(
+          'نرخ نوبت‌کاری',
+          _formatPercent(_result!.shiftWorkRate),
+        ),
+        if (_result!.taxReliefRate > 0)
+          _plainDetailRow(
+            'نرخ تخفیف مالیات',
+            _formatPercent(_result!.taxReliefRate),
+          ),
         _plainDetailRow(
           'مرخصی مجاز ماهانه',
           '${_formatDays(_result!.leaveAllowanceDays)} روز',

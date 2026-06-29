@@ -121,6 +121,7 @@ SalaryRecord _record({Employee? employee, AppSettings? settings}) {
         sickLeaveDays: input.sickLeaveDays,
         workDays: input.workDays,
         overtimeHours: input.overtimeHours,
+        shiftWorkRate: input.shiftWorkRate,
         hourlyBenefitHours: input.hourlyBenefitHours,
         includeLeaveInPayslip: input.includeLeaveInPayslip,
         housingExempt: input.housingExempt,

@@ -188,6 +188,9 @@ class BusinessValidation {
       record.childAllowance,
       record.seniority,
       record.otherBenefits,
+      record.jobRelatedBenefits,
+      record.employeeRelatedBenefits,
+      record.welfareBenefits,
       record.nightWorkHours,
       record.nightWorkAmount,
       record.fridayWorkHours,
@@ -201,6 +204,7 @@ class BusinessValidation {
       record.tax,
       record.loanInstallment,
       record.advance,
+      record.supplementaryInsurance,
       record.otherDeductions,
       record.absenceDays,
       record.absenceHours,
@@ -208,8 +212,11 @@ class BusinessValidation {
       record.totalDeductions,
       record.insuranceBase,
       record.taxBase,
+      record.taxReliefAmount,
       record.finalPayment,
     ]);
+    _rate(record.shiftWorkRate, 'نرخ نوبت‌کاری');
+    _rate(record.taxReliefRate, 'نرخ تخفیف مالیات');
   }
 
   static void salaryDraft(SalaryDraft draft) {
@@ -241,16 +248,23 @@ class BusinessValidation {
     }
     _nonNegative('مبالغ پیش‌نویس حقوق', [
       draft.shiftWork,
+      draft.shiftWorkRate,
       draft.hourlyBenefitsAmount,
+      draft.jobRelatedBenefits,
+      draft.employeeRelatedBenefits,
+      draft.welfareBenefits,
       draft.nightWorkAmount,
       draft.fridayWorkAmount,
       draft.holidayWorkAmount,
       draft.missionAmount,
       draft.loanInstallment,
       draft.advance,
+      draft.supplementaryInsurance,
       draft.otherDeductions,
       draft.absenceDeduction,
     ]);
+    _rate(draft.shiftWorkRate, 'نرخ نوبت‌کاری');
+    _rate(draft.taxReliefRate, 'نرخ تخفیف مالیات');
   }
 
   static void settings(AppSettings settings) {
@@ -330,6 +344,12 @@ class BusinessValidation {
     _finite(label, values);
     if (values.any((value) => value < 0)) {
       throw BusinessValidationException('$label نمی‌تواند منفی باشد.');
+    }
+  }
+
+  static void _rate(double value, String label) {
+    if (!value.isFinite || value < 0 || value > 1) {
+      throw BusinessValidationException('$label باید بین صفر و صد درصد باشد.');
     }
   }
 }

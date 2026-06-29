@@ -103,6 +103,30 @@ class PayrollCalculatorRegistry {
   static const baseAnnuitiesUrl = 'https://bidbarg.net/blog/base-annuities/';
   static const salaryHubUrl = 'https://bidbarg.net/salary/';
   static const sitemapUrl = 'https://bidbarg.net/blog_sitemap.xml';
+  static const overtimeWorkUrl = 'https://bidbarg.net/blog/overtime-work/';
+  static const nightWorkUrl = 'https://bidbarg.net/blog/night-work/';
+  static const shiftWorkUrl = 'https://bidbarg.net/blog/shift-work/';
+  static const fridayWorkUrl = 'https://bidbarg.net/blog/friday-work/';
+  static const holidayWorkUrl = 'https://bidbarg.net/blog/holiday-work/';
+  static const missionUrl = 'https://bidbarg.net/blog/mission/';
+  static const grossSalaryToNetSalaryUrl =
+      'https://bidbarg.net/blog/gross-salary-to-net-salary/';
+  static const employeeEmployerInsurancePremiumsUrl =
+      'https://bidbarg.net/blog/employee-employer-insurance-premiums/';
+  static const leaveBalanceDaysUrl =
+      'https://bidbarg.net/blog/leave-balance-days/';
+  static const rewardUrl = 'https://bidbarg.net/blog/reward/';
+  static const calculationOfAnnuitiesUrl =
+      'https://bidbarg.net/blog/calculation-of-annuities/';
+  static const workerSettlementUrl =
+      'https://bidbarg.net/blog/worker-settlement/';
+  static const partTimeWageUrl = 'https://bidbarg.net/blog/part-time-wage/';
+  static const minimumWageUrl = 'https://bidbarg.net/blog/minimum-wage/';
+  static const workerCouponUrl = 'https://bidbarg.net/blog/worker-coupon/';
+  static const salaryComponentsUrl =
+      'https://bidbarg.net/blog/salary-components/';
+  static const fixedAndVariableWageBenefitsUrl =
+      'https://bidbarg.net/blog/fixed-and-variable-wage-benefits/';
   static const socialSecurityPenaltyUrl =
       'https://bidbarg.net/blog/social-security-penalty/';
   static const unemploymentInsuranceUrl =
@@ -121,6 +145,14 @@ class PayrollCalculatorRegistry {
   static const oneInAThousandSalaryUrl =
       'https://bidbarg.net/blog/one-in-a-thousand-salary/';
   static const unpaidLeaveUrl = 'https://bidbarg.net/blog/unpaid-leave/';
+  static const salaryTaxUrl = 'https://bidbarg.net/blog/salary-tax/';
+  static const jobWageBenefitsUrl =
+      'https://bidbarg.net/blog/job-wage-benefits/';
+  static const welfareWageBenefitsUrl =
+      'https://bidbarg.net/blog/welfare-wage-benefits/';
+  static const otherWagesUrl = 'https://bidbarg.net/blog/other-wages/';
+  static const taxSsoDeductibleUrl =
+      'https://bidbarg.net/blog/tax-sso-deductible/';
 
   static List<PayrollCalculatorDefinition> get all => _definitions;
 
@@ -137,7 +169,15 @@ class PayrollCalculatorRegistry {
       title: 'فیش حقوقی آنلاین',
       category: CalculatorCategory.payroll,
       appliesToPayslip: true,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        onlinePayslipUrl,
+        jobWageBenefitsUrl,
+        welfareWageBenefitsUrl,
+        taxSsoDeductibleUrl,
+        salaryTaxUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [
         _dailyWageField(),
         _field(
@@ -153,13 +193,38 @@ class PayrollCalculatorRegistry {
         _field('holiday_work_hours', 'تعطیل کاری', suffix: 'ساعت'),
         _field('mission_days', 'ماموریت', suffix: 'روز'),
         _field('absence_hours', 'کسری غیبت', suffix: 'ساعت'),
+        _field(
+          'shift_rate',
+          'ضریب نوبت کاری',
+          defaultValue: (_) => AppConstants.shiftWorkRate,
+        ),
+        _moneyField('job_related_benefits', 'مزایای به تبع شغل'),
+        _moneyField('employee_related_benefits', 'مزایای به تبع شاغل'),
+        _moneyField('welfare_benefits', 'مزایای رفاهی و انگیزشی'),
+        _moneyField('supplementary_insurance', 'بیمه تکمیلی سهم کارگر'),
+        _field('tax_relief_rate', 'نرخ تخفیف مالیات'),
         _moneyField('loan_installment', 'قسط وام'),
         _moneyField('advance', 'مساعده'),
         _moneyField('other_deductions', 'سایر کسورات'),
       ],
       outputs: const [
         CalculatorOutput(key: 'gross_salary', label: 'جمع ناخالص'),
+        CalculatorOutput(key: 'shift_work', label: 'نوبت کاری'),
+        CalculatorOutput(
+          key: 'job_related_benefits',
+          label: 'مزایای به تبع شغل',
+        ),
+        CalculatorOutput(
+          key: 'employee_related_benefits',
+          label: 'مزایای به تبع شاغل',
+        ),
+        CalculatorOutput(key: 'welfare_benefits', label: 'مزایای رفاهی'),
         CalculatorOutput(key: 'insurance', label: 'بیمه سهم کارگر'),
+        CalculatorOutput(
+          key: 'supplementary_insurance',
+          label: 'بیمه تکمیلی سهم کارگر',
+        ),
+        CalculatorOutput(key: 'tax_relief', label: 'تخفیف مالیات'),
         CalculatorOutput(key: 'tax', label: 'مالیات'),
         CalculatorOutput(key: 'absence_deduction', label: 'کسر غیبت'),
         CalculatorOutput(key: 'net_salary', label: 'خالص پرداختی'),
@@ -204,31 +269,71 @@ class PayrollCalculatorRegistry {
             hourly *
             settings.absenceHourlyMultiplier *
             _value(inputs, 'absence_hours');
+        final shiftRate = _rate(
+          _value(inputs, 'shift_rate', AppConstants.shiftWorkRate),
+        );
+        final shiftWork = baseSalary * shiftRate;
+        final jobRelatedBenefits = _positive(inputs, 'job_related_benefits');
+        final employeeRelatedBenefits = _positive(
+          inputs,
+          'employee_related_benefits',
+        );
+        final welfareBenefits = _positive(inputs, 'welfare_benefits');
+        final supplementaryInsurance = _positive(
+          inputs,
+          'supplementary_insurance',
+        );
         final gross =
             baseSalary +
             fixedBenefits +
             childAllowance +
+            shiftWork +
+            jobRelatedBenefits +
+            employeeRelatedBenefits +
+            welfareBenefits +
             overtime +
             nightWork +
             fridayWork +
             holidayWork +
             mission;
-        final insuranceBase = (gross - childAllowance)
+        final uncappedInsuranceBase = (gross - childAllowance)
             .clamp(0, double.infinity)
             .toDouble();
+        final insuranceCap =
+            settings.dailyWage * AppConstants.insuranceCapMultiplier * days;
+        final insuranceBase = uncappedInsuranceBase < insuranceCap
+            ? uncappedInsuranceBase
+            : insuranceCap;
         final insurance = insuranceBase * settings.employeeInsuranceRate;
-        final tax = SalaryCalculator.calculateTax(gross - insurance);
+        final twoSevenExemption = SalaryCalculator.calculateTwoSevenExemption(
+          insurance: insurance,
+          exemptionRate: settings.twoSevenBaseRate,
+        );
+        final taxBase = (gross - twoSevenExemption - supplementaryInsurance)
+            .clamp(0, double.infinity)
+            .toDouble();
+        final grossTax = SalaryCalculator.calculateTax(taxBase);
+        final taxReliefRate = _rate(_value(inputs, 'tax_relief_rate'));
+        final taxRelief = grossTax * taxReliefRate;
+        final tax = (grossTax - taxRelief).clamp(0, double.infinity).toDouble();
         final net =
             gross -
             insurance -
             tax -
+            supplementaryInsurance -
             absenceDeduction -
             _value(inputs, 'loan_installment') -
             _value(inputs, 'advance') -
             _value(inputs, 'other_deductions');
         return {
           'gross_salary': gross,
+          'shift_work': shiftWork,
+          'job_related_benefits': jobRelatedBenefits,
+          'employee_related_benefits': employeeRelatedBenefits,
+          'welfare_benefits': welfareBenefits,
           'insurance': insurance,
+          'supplementary_insurance': supplementaryInsurance,
+          'tax_relief': taxRelief,
           'tax': tax,
           'absence_deduction': absenceDeduction,
           'net_salary': net,
@@ -268,7 +373,12 @@ class PayrollCalculatorRegistry {
     _hourlyCalculator(
       id: 'overtime_work',
       title: 'اضافه کاری',
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        overtimeWorkUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       inputKey: 'overtime_hours',
       inputLabel: 'ساعت اضافه کاری',
       multiplier: (settings) => AppConstants.overtimeMultiplier,
@@ -280,7 +390,12 @@ class PayrollCalculatorRegistry {
     _hourlyCalculator(
       id: 'night_work',
       title: 'شب کاری',
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        nightWorkUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       inputKey: 'night_work_hours',
       inputLabel: 'ساعت شب کاری',
       multiplier: (settings) => settings.nightWorkRate,
@@ -293,7 +408,12 @@ class PayrollCalculatorRegistry {
       id: 'shift_work',
       title: 'نوبت کاری',
       category: CalculatorCategory.payroll,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        shiftWorkUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [
         _moneyField(
           'base_salary',
@@ -318,7 +438,12 @@ class PayrollCalculatorRegistry {
     _hourlyCalculator(
       id: 'friday_work',
       title: 'جمعه کاری',
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        fridayWorkUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       inputKey: 'friday_work_hours',
       inputLabel: 'ساعت جمعه کاری',
       multiplier: (settings) => settings.fridayWorkRate,
@@ -330,7 +455,12 @@ class PayrollCalculatorRegistry {
     _hourlyCalculator(
       id: 'holiday_work',
       title: 'تعطیل کاری',
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        holidayWorkUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       inputKey: 'holiday_work_hours',
       inputLabel: 'ساعت تعطیل کاری',
       multiplier: (settings) => settings.holidayWorkMultiplier,
@@ -343,7 +473,12 @@ class PayrollCalculatorRegistry {
       id: 'mission',
       title: 'حق ماموریت',
       category: CalculatorCategory.payroll,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        missionUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [
         _dailyWageField(),
         _field('mission_days', 'روز ماموریت', suffix: 'روز'),
@@ -390,7 +525,13 @@ class PayrollCalculatorRegistry {
       id: 'salary_tax',
       title: 'مالیات حقوق',
       category: CalculatorCategory.tax,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        salaryTaxUrl,
+        taxSsoDeductibleUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [_moneyField('taxable_income', 'حقوق مشمول مالیات')],
       outputs: const [CalculatorOutput(key: 'tax', label: 'مالیات')],
       formula: (inputs, _) => {
@@ -401,7 +542,12 @@ class PayrollCalculatorRegistry {
       id: 'employee_employer_insurance_premiums',
       title: 'حق بیمه کارگر و کارفرما',
       category: CalculatorCategory.insurance,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        employeeEmployerInsurancePremiumsUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [_moneyField('insurance_base', 'حقوق مشمول بیمه')],
       outputs: const [
         CalculatorOutput(key: 'employee_insurance', label: 'سهم کارگر'),
@@ -426,7 +572,12 @@ class PayrollCalculatorRegistry {
       id: 'gross_salary_to_net_salary',
       title: 'تبدیل ناخالص به خالص',
       category: CalculatorCategory.conversion,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        grossSalaryToNetSalaryUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [
         _moneyField('gross_salary', 'حقوق ناخالص'),
         _moneyField('deductions', 'کسورات غیر بیمه و مالیات'),
@@ -451,7 +602,12 @@ class PayrollCalculatorRegistry {
       id: 'net_salary_to_gross_salary',
       title: 'تبدیل خالص به ناخالص',
       category: CalculatorCategory.conversion,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        grossSalaryToNetSalaryUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [_moneyField('net_salary', 'حقوق خالص مورد نظر')],
       outputs: const [
         CalculatorOutput(key: 'gross_salary', label: 'حقوق ناخالص تقریبی'),
@@ -483,7 +639,12 @@ class PayrollCalculatorRegistry {
       id: 'leave_balance_days',
       title: 'مانده مرخصی',
       category: CalculatorCategory.leave,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        leaveBalanceDaysUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [
         _field(
           'monthly_leave_allowance',
@@ -518,7 +679,7 @@ class PayrollCalculatorRegistry {
       id: 'reward',
       title: 'عیدی',
       category: CalculatorCategory.settlement,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [rewardUrl, onlinePayslipUrl, salaryHubUrl, sitemapUrl],
       fields: [
         _dailyWageField(),
         _field(
@@ -540,7 +701,12 @@ class PayrollCalculatorRegistry {
       id: 'calculation_of_annuities',
       title: 'سنوات پایان کار',
       category: CalculatorCategory.settlement,
-      sourceUrls: const [baseAnnuitiesUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        calculationOfAnnuitiesUrl,
+        baseAnnuitiesUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [
         _dailyWageField(),
         _field(
@@ -566,6 +732,7 @@ class PayrollCalculatorRegistry {
       title: 'تسویه حساب کارگر',
       category: CalculatorCategory.settlement,
       sourceUrls: const [
+        workerSettlementUrl,
         baseAnnuitiesUrl,
         onlinePayslipUrl,
         salaryHubUrl,
@@ -607,7 +774,12 @@ class PayrollCalculatorRegistry {
       id: 'part_time_wage',
       title: 'حقوق پاره وقت',
       category: CalculatorCategory.worktime,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        partTimeWageUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [
         _dailyWageField(),
         _field('work_hours', 'ساعت کارکرد', suffix: 'ساعت'),
@@ -625,7 +797,12 @@ class PayrollCalculatorRegistry {
       id: 'minimum_wage',
       title: 'حداقل مزد و مزایا',
       category: CalculatorCategory.worktime,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: const [
+        minimumWageUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
       fields: [
         _field(
           'payable_days',
@@ -962,6 +1139,110 @@ class PayrollCalculatorRegistry {
             _value(inputs, 'salary_base') * _value(inputs, 'rate'),
       },
     ),
+    _proratedPayslipAmount(
+      id: 'job_wage_benefits',
+      title: 'مزایای به تبع شغل',
+      amountLabel: 'مبلغ ماهانه مزایای شغل',
+      outputKey: 'job_related_benefits',
+      outputLabel: 'مبلغ قابل درج در فیش',
+      sourceUrls: const [
+        jobWageBenefitsUrl,
+        fixedAndVariableWageBenefitsUrl,
+        salaryComponentsUrl,
+        otherWagesUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
+    ),
+    _proratedPayslipAmount(
+      id: 'employee_related_benefits',
+      title: 'مزایای به تبع شاغل',
+      amountLabel: 'مبلغ ماهانه مزایای شاغل',
+      outputKey: 'employee_related_benefits',
+      outputLabel: 'مبلغ قابل درج در فیش',
+      sourceUrls: const [
+        welfareWageBenefitsUrl,
+        fixedAndVariableWageBenefitsUrl,
+        salaryComponentsUrl,
+        otherWagesUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
+    ),
+    _proratedPayslipAmount(
+      id: 'welfare_wage_benefits',
+      title: 'مزایای رفاهی و انگیزشی',
+      amountLabel: 'مبلغ ماهانه مزایای رفاهی',
+      outputKey: 'welfare_benefits',
+      outputLabel: 'مبلغ قابل درج در فیش',
+      sourceUrls: const [
+        welfareWageBenefitsUrl,
+        fixedAndVariableWageBenefitsUrl,
+        salaryComponentsUrl,
+        otherWagesUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
+    ),
+    _simpleAmount(
+      id: 'supplementary_insurance',
+      title: 'بیمه تکمیلی',
+      category: CalculatorCategory.insurance,
+      appliesToPayslip: true,
+      sourceUrls: const [
+        taxSsoDeductibleUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
+      fields: [_moneyField('premium_amount', 'سهم کارگر')],
+      outputs: const [
+        CalculatorOutput(key: 'deduction_amount', label: 'کسر از پرداختی'),
+        CalculatorOutput(key: 'tax_deduction', label: 'کاهش مبنای مالیات'),
+      ],
+      formula: (inputs, _) {
+        final amount = _positive(inputs, 'premium_amount');
+        return {'deduction_amount': amount, 'tax_deduction': amount};
+      },
+    ),
+    _simpleAmount(
+      id: 'salary_tax_relief',
+      title: 'تخفیف مالیات حقوق',
+      category: CalculatorCategory.tax,
+      appliesToPayslip: true,
+      sourceUrls: const [
+        salaryTaxUrl,
+        taxSsoDeductibleUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
+      fields: [
+        _moneyField('taxable_income', 'حقوق مشمول مالیات'),
+        _field('relief_rate', 'نرخ تخفیف', defaultValue: (_) => 0.5),
+      ],
+      outputs: const [
+        CalculatorOutput(key: 'gross_tax', label: 'مالیات قبل از تخفیف'),
+        CalculatorOutput(key: 'tax_relief', label: 'مبلغ تخفیف'),
+        CalculatorOutput(key: 'payable_tax', label: 'مالیات قابل پرداخت'),
+      ],
+      formula: (inputs, _) {
+        final grossTax = SalaryCalculator.calculateTax(
+          _positive(inputs, 'taxable_income'),
+        );
+        final relief = grossTax * _rate(_value(inputs, 'relief_rate'));
+        return {
+          'gross_tax': grossTax,
+          'tax_relief': relief,
+          'payable_tax': (grossTax - relief)
+              .clamp(0, double.infinity)
+              .toDouble(),
+        };
+      },
+    ),
     _benefit(
       'child_allowance',
       'حق اولاد',
@@ -989,6 +1270,13 @@ class PayrollCalculatorRegistry {
       'payable_months',
       'ماه مشمول',
       (s) => s.monthlyFood,
+      sourceUrls: const [
+        workerCouponUrl,
+        welfareWageBenefitsUrl,
+        onlinePayslipUrl,
+        salaryHubUrl,
+        sitemapUrl,
+      ],
     ),
   ];
 
@@ -1070,18 +1358,56 @@ class PayrollCalculatorRegistry {
     );
   }
 
+  static PayrollCalculatorDefinition _proratedPayslipAmount({
+    required String id,
+    required String title,
+    required String amountLabel,
+    required String outputKey,
+    required String outputLabel,
+    required List<String> sourceUrls,
+  }) {
+    return _definition(
+      id: id,
+      title: title,
+      category: CalculatorCategory.payroll,
+      sourceUrls: sourceUrls,
+      appliesToPayslip: true,
+      fields: [
+        _moneyField('monthly_amount', amountLabel),
+        _field(
+          'payable_days',
+          'روز قابل پرداخت',
+          suffix: 'روز',
+          defaultValue: (_) => 30,
+        ),
+      ],
+      outputs: [CalculatorOutput(key: outputKey, label: outputLabel)],
+      formula: (inputs, _) => {
+        outputKey:
+            _positive(inputs, 'monthly_amount') *
+            _value(inputs, 'payable_days', 30) /
+            30,
+      },
+    );
+  }
+
   static PayrollCalculatorDefinition _benefit(
     String id,
     String title,
     String quantityKey,
     String quantityLabel,
-    double Function(AppSettings settings) monthlyAmount,
-  ) {
+    double Function(AppSettings settings) monthlyAmount, {
+    List<String> sourceUrls = const [
+      onlinePayslipUrl,
+      salaryHubUrl,
+      sitemapUrl,
+    ],
+  }) {
     return _definition(
       id: id,
       title: title,
       category: CalculatorCategory.payroll,
-      sourceUrls: const [onlinePayslipUrl, salaryHubUrl, sitemapUrl],
+      sourceUrls: sourceUrls,
       appliesToPayslip: true,
       fields: [
         _field(quantityKey, quantityLabel, defaultValue: (_) => 1),
@@ -1143,6 +1469,11 @@ class PayrollCalculatorRegistry {
     final value = inputs[key] ?? fallback;
     return value.isFinite ? value : fallback;
   }
+
+  static double _positive(Map<String, double> inputs, String key) =>
+      _value(inputs, key).clamp(0, double.infinity).toDouble();
+
+  static double _rate(double value) => value.clamp(0.0, 1.0).toDouble();
 
   static double _hourly(double dailyWage) =>
       dailyWage / AppConstants.dailyWorkHours;

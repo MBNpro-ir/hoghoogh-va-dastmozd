@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 19;
+  static const int _dbVersion = 20;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -169,6 +169,7 @@ class DatabaseHelper {
         use_custom_overtime_base INTEGER NOT NULL DEFAULT 0,
         overtime_base_daily REAL NOT NULL DEFAULT 0,
         shift_work REAL DEFAULT 0,
+        shift_work_rate REAL NOT NULL DEFAULT 0,
         hourly_benefits_amount REAL DEFAULT 0,
         hourly_benefit_hours REAL DEFAULT 0,
         base_salary REAL NOT NULL,
@@ -178,11 +179,15 @@ class DatabaseHelper {
         child_allowance REAL DEFAULT 0,
         seniority REAL DEFAULT 0,
         other_benefits REAL DEFAULT 0,
+        job_related_benefits REAL NOT NULL DEFAULT 0,
+        employee_related_benefits REAL NOT NULL DEFAULT 0,
+        welfare_benefits REAL NOT NULL DEFAULT 0,
         total_earnings REAL NOT NULL,
         insurance REAL DEFAULT 0,
         tax REAL DEFAULT 0,
         loan_installment REAL DEFAULT 0,
         advance REAL DEFAULT 0,
+        supplementary_insurance REAL NOT NULL DEFAULT 0,
         other_deductions REAL DEFAULT 0,
         absence_days REAL DEFAULT 0,
         absence_hours REAL DEFAULT 0,
@@ -198,6 +203,8 @@ class DatabaseHelper {
         insurance_base REAL NOT NULL,
         tax_base REAL NOT NULL,
         two_seven_exemption REAL DEFAULT 0,
+        tax_relief_rate REAL NOT NULL DEFAULT 0,
+        tax_relief_amount REAL NOT NULL DEFAULT 0,
         net_salary REAL NOT NULL,
         rounding INTEGER DEFAULT 0,
         final_payment REAL NOT NULL,
@@ -571,6 +578,9 @@ class DatabaseHelper {
       await _createCalculatorRunsTable(db);
       await _createSyncIndexes(db);
     }
+    if (oldVersion < 20) {
+      await _addComplementaryPayslipColumns(db);
+    }
   }
 
   Future<void> _addPayrollCalculatorColumns(Database db) async {
@@ -586,6 +596,13 @@ class DatabaseHelper {
       'absence_days REAL DEFAULT 0',
       'absence_hours REAL DEFAULT 0',
       'absence_deduction REAL DEFAULT 0',
+      'shift_work_rate REAL NOT NULL DEFAULT 0',
+      'job_related_benefits REAL NOT NULL DEFAULT 0',
+      'employee_related_benefits REAL NOT NULL DEFAULT 0',
+      'welfare_benefits REAL NOT NULL DEFAULT 0',
+      'supplementary_insurance REAL NOT NULL DEFAULT 0',
+      'tax_relief_rate REAL NOT NULL DEFAULT 0',
+      'tax_relief_amount REAL NOT NULL DEFAULT 0',
       "payroll_calculation_details_json TEXT NOT NULL DEFAULT '{}'",
     ];
     const salaryDraftColumns = [
@@ -600,6 +617,12 @@ class DatabaseHelper {
       'absence_days REAL NOT NULL DEFAULT 0',
       'absence_hours REAL NOT NULL DEFAULT 0',
       'absence_deduction REAL NOT NULL DEFAULT 0',
+      'shift_work_rate REAL NOT NULL DEFAULT 0',
+      'job_related_benefits REAL NOT NULL DEFAULT 0',
+      'employee_related_benefits REAL NOT NULL DEFAULT 0',
+      'welfare_benefits REAL NOT NULL DEFAULT 0',
+      'supplementary_insurance REAL NOT NULL DEFAULT 0',
+      'tax_relief_rate REAL NOT NULL DEFAULT 0',
       "payroll_calculation_details_json TEXT NOT NULL DEFAULT '{}'",
     ];
     const settingsColumns = [
@@ -617,6 +640,32 @@ class DatabaseHelper {
     }
     for (final column in settingsColumns) {
       await _safeAddColumn(db, 'app_settings', column);
+    }
+  }
+
+  Future<void> _addComplementaryPayslipColumns(Database db) async {
+    const salaryRecordColumns = [
+      'shift_work_rate REAL NOT NULL DEFAULT 0',
+      'job_related_benefits REAL NOT NULL DEFAULT 0',
+      'employee_related_benefits REAL NOT NULL DEFAULT 0',
+      'welfare_benefits REAL NOT NULL DEFAULT 0',
+      'supplementary_insurance REAL NOT NULL DEFAULT 0',
+      'tax_relief_rate REAL NOT NULL DEFAULT 0',
+      'tax_relief_amount REAL NOT NULL DEFAULT 0',
+    ];
+    const salaryDraftColumns = [
+      'shift_work_rate REAL NOT NULL DEFAULT 0',
+      'job_related_benefits REAL NOT NULL DEFAULT 0',
+      'employee_related_benefits REAL NOT NULL DEFAULT 0',
+      'welfare_benefits REAL NOT NULL DEFAULT 0',
+      'supplementary_insurance REAL NOT NULL DEFAULT 0',
+      'tax_relief_rate REAL NOT NULL DEFAULT 0',
+    ];
+    for (final column in salaryRecordColumns) {
+      await _safeAddColumn(db, 'salary_records', column);
+    }
+    for (final column in salaryDraftColumns) {
+      await _safeAddColumn(db, 'salary_drafts', column);
     }
   }
 
@@ -642,12 +691,16 @@ class DatabaseHelper {
         use_custom_overtime_base INTEGER NOT NULL DEFAULT 0,
         overtime_base_daily REAL NOT NULL DEFAULT 0,
         shift_work REAL NOT NULL DEFAULT 0,
+        shift_work_rate REAL NOT NULL DEFAULT 0,
         auto_shift_work INTEGER NOT NULL DEFAULT 0,
         hourly_benefits_amount REAL NOT NULL DEFAULT 0,
         hourly_benefit_hours REAL NOT NULL DEFAULT 0,
         auto_hourly_benefits INTEGER NOT NULL DEFAULT 1,
         other_benefits_override REAL NOT NULL DEFAULT -1,
         auto_other_benefits INTEGER NOT NULL DEFAULT 1,
+        job_related_benefits REAL NOT NULL DEFAULT 0,
+        employee_related_benefits REAL NOT NULL DEFAULT 0,
+        welfare_benefits REAL NOT NULL DEFAULT 0,
         daily_seniority_override REAL NOT NULL DEFAULT -1,
         auto_seniority INTEGER NOT NULL DEFAULT 1,
         loan_installment REAL NOT NULL DEFAULT 0,
@@ -655,6 +708,7 @@ class DatabaseHelper {
         skip_loan_installment INTEGER NOT NULL DEFAULT 0,
         advance REAL NOT NULL DEFAULT 0,
         auto_advances INTEGER NOT NULL DEFAULT 1,
+        supplementary_insurance REAL NOT NULL DEFAULT 0,
         other_deductions REAL NOT NULL DEFAULT 0,
         absence_days REAL NOT NULL DEFAULT 0,
         absence_hours REAL NOT NULL DEFAULT 0,
@@ -665,6 +719,7 @@ class DatabaseHelper {
         housing_exempt INTEGER NOT NULL DEFAULT 0,
         food_exempt INTEGER NOT NULL DEFAULT 0,
         seniority_exempt INTEGER NOT NULL DEFAULT 0,
+        tax_relief_rate REAL NOT NULL DEFAULT 0,
         payroll_calculation_details_json TEXT NOT NULL DEFAULT '{}',
         sync_id TEXT UNIQUE,
         server_updated_at TEXT,

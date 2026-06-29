@@ -624,6 +624,9 @@ class PayslipScreen extends StatelessWidget {
       ('نوبت کاری', record.shiftWork),
       ('پایه سنوات', record.seniority),
       ('سایر مزایا', record.otherBenefits),
+      ('مزایای به تبع شغل', record.jobRelatedBenefits),
+      ('مزایای به تبع شاغل', record.employeeRelatedBenefits),
+      ('مزایای رفاهی', record.welfareBenefits),
       ('اضافه کار', record.overtimeAmount),
       ('شب کاری', record.nightWorkAmount),
       ('جمعه کاری', record.fridayWorkAmount),
@@ -644,6 +647,7 @@ class PayslipScreen extends StatelessWidget {
       ('مالیات حقوق', record.tax),
       ('قسط وام', record.loanInstallment),
       ('مساعده', record.advance),
+      ('بیمه تکمیلی', record.supplementaryInsurance),
       ('سایر کسورات', record.otherDeductions),
       ('کسر غیبت', record.absenceDeduction),
       ('کسر مرخصی مازاد', record.leaveDeduction),
@@ -873,7 +877,12 @@ class PayslipScreen extends StatelessWidget {
         record.marriage +
         record.childAllowance +
         record.seniority;
-    final otherCash = record.otherBenefits + record.hourlyBenefitsAmount;
+    final otherCash =
+        record.otherBenefits +
+        record.jobRelatedBenefits +
+        record.employeeRelatedBenefits +
+        record.welfareBenefits +
+        record.hourlyBenefitsAmount;
     final fields = [
       _employeeNationalId,
       '1',
@@ -1536,6 +1545,9 @@ class PayslipScreen extends StatelessWidget {
     ('نوبت کاری', record.shiftWork),
     ('پایه سنوات', record.seniority),
     ('سایر مزایا', record.otherBenefits),
+    ('مزایای به تبع شغل', record.jobRelatedBenefits),
+    ('مزایای به تبع شاغل', record.employeeRelatedBenefits),
+    ('مزایای رفاهی', record.welfareBenefits),
     ('اضافه کار', record.overtimeAmount),
     ('شب کاری', record.nightWorkAmount),
     ('جمعه کاری', record.fridayWorkAmount),
@@ -1549,6 +1561,7 @@ class PayslipScreen extends StatelessWidget {
     ('مالیات حقوق', record.tax),
     ('قسط وام', record.loanInstallment),
     ('مساعده', record.advance),
+    ('بیمه تکمیلی', record.supplementaryInsurance),
     ('سایر کسورات', record.otherDeductions),
     ('کسر غیبت', record.absenceDeduction),
     ('کسر مرخصی مازاد', record.leaveDeduction),

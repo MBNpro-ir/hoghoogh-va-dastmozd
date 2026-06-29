@@ -29,6 +29,7 @@ class SalaryRecord {
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double shiftWork; // نوبت‌کاری
+  final double shiftWorkRate;
   final double hourlyBenefitsAmount; // مزایای 60-64-160 ساعته
   final double hourlyBenefitHours; // ساعت مزایای ساعتی
 
@@ -40,6 +41,9 @@ class SalaryRecord {
   final double childAllowance; // حق فرزند
   final double seniority; // پایه سنوات
   final double otherBenefits; // سایر مزایا
+  final double jobRelatedBenefits;
+  final double employeeRelatedBenefits;
+  final double welfareBenefits;
   final double totalEarnings; // جمع حقوق و مزایا
 
   // کسورات
@@ -47,6 +51,7 @@ class SalaryRecord {
   final double tax; // مالیات
   final double loanInstallment; // قسط وام
   final double advance; // مساعده
+  final double supplementaryInsurance;
   final double otherDeductions; // سایر کسورات (مابه‌تفاوت)
   final double absenceDays;
   final double absenceHours;
@@ -64,6 +69,8 @@ class SalaryRecord {
   final double insuranceBase; // حقوق مشمول بیمه
   final double taxBase; // مبنای مالیات
   final double twoSevenExemption; // معافیت دو هفتم
+  final double taxReliefRate;
+  final double taxReliefAmount;
   final double netSalary; // خالص حقوق
   final int rounding; // رند حقوق
   final double finalPayment; // خالص دریافتی نهایی
@@ -101,6 +108,7 @@ class SalaryRecord {
     this.useCustomOvertimeBase = false,
     this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
+    this.shiftWorkRate = 0,
     this.hourlyBenefitsAmount = 0,
     this.hourlyBenefitHours = 0,
     required this.baseSalary,
@@ -110,11 +118,15 @@ class SalaryRecord {
     required this.childAllowance,
     required this.seniority,
     this.otherBenefits = 0,
+    this.jobRelatedBenefits = 0,
+    this.employeeRelatedBenefits = 0,
+    this.welfareBenefits = 0,
     required this.totalEarnings,
     required this.insurance,
     required this.tax,
     this.loanInstallment = 0,
     this.advance = 0,
+    this.supplementaryInsurance = 0,
     this.otherDeductions = 0,
     this.absenceDays = 0,
     this.absenceHours = 0,
@@ -130,6 +142,8 @@ class SalaryRecord {
     required this.insuranceBase,
     required this.taxBase,
     this.twoSevenExemption = 0,
+    this.taxReliefRate = 0,
+    this.taxReliefAmount = 0,
     required this.netSalary,
     this.rounding = 0,
     required this.finalPayment,
@@ -164,6 +178,7 @@ class SalaryRecord {
     'use_custom_overtime_base': useCustomOvertimeBase ? 1 : 0,
     'overtime_base_daily': overtimeBaseDaily,
     'shift_work': shiftWork,
+    'shift_work_rate': shiftWorkRate,
     'hourly_benefits_amount': hourlyBenefitsAmount,
     'hourly_benefit_hours': hourlyBenefitHours,
     'base_salary': baseSalary,
@@ -173,11 +188,15 @@ class SalaryRecord {
     'child_allowance': childAllowance,
     'seniority': seniority,
     'other_benefits': otherBenefits,
+    'job_related_benefits': jobRelatedBenefits,
+    'employee_related_benefits': employeeRelatedBenefits,
+    'welfare_benefits': welfareBenefits,
     'total_earnings': totalEarnings,
     'insurance': insurance,
     'tax': tax,
     'loan_installment': loanInstallment,
     'advance': advance,
+    'supplementary_insurance': supplementaryInsurance,
     'other_deductions': otherDeductions,
     'absence_days': absenceDays,
     'absence_hours': absenceHours,
@@ -193,6 +212,8 @@ class SalaryRecord {
     'insurance_base': insuranceBase,
     'tax_base': taxBase,
     'two_seven_exemption': twoSevenExemption,
+    'tax_relief_rate': taxReliefRate,
+    'tax_relief_amount': taxReliefAmount,
     'net_salary': netSalary,
     'rounding': rounding,
     'final_payment': finalPayment,
@@ -229,6 +250,7 @@ class SalaryRecord {
     useCustomOvertimeBase: (map['use_custom_overtime_base'] as int? ?? 0) == 1,
     overtimeBaseDaily: (map['overtime_base_daily'] as num?)?.toDouble() ?? 0,
     shiftWork: (map['shift_work'] as num?)?.toDouble() ?? 0,
+    shiftWorkRate: (map['shift_work_rate'] as num?)?.toDouble() ?? 0,
     hourlyBenefitsAmount:
         (map['hourly_benefits_amount'] as num?)?.toDouble() ?? 0,
     hourlyBenefitHours: (map['hourly_benefit_hours'] as num?)?.toDouble() ?? 0,
@@ -239,11 +261,17 @@ class SalaryRecord {
     childAllowance: (map['child_allowance'] as num).toDouble(),
     seniority: (map['seniority'] as num).toDouble(),
     otherBenefits: (map['other_benefits'] as num?)?.toDouble() ?? 0,
+    jobRelatedBenefits: (map['job_related_benefits'] as num?)?.toDouble() ?? 0,
+    employeeRelatedBenefits:
+        (map['employee_related_benefits'] as num?)?.toDouble() ?? 0,
+    welfareBenefits: (map['welfare_benefits'] as num?)?.toDouble() ?? 0,
     totalEarnings: (map['total_earnings'] as num).toDouble(),
     insurance: (map['insurance'] as num).toDouble(),
     tax: (map['tax'] as num).toDouble(),
     loanInstallment: (map['loan_installment'] as num?)?.toDouble() ?? 0,
     advance: (map['advance'] as num?)?.toDouble() ?? 0,
+    supplementaryInsurance:
+        (map['supplementary_insurance'] as num?)?.toDouble() ?? 0,
     otherDeductions: (map['other_deductions'] as num?)?.toDouble() ?? 0,
     absenceDays: (map['absence_days'] as num?)?.toDouble() ?? 0,
     absenceHours: (map['absence_hours'] as num?)?.toDouble() ?? 0,
@@ -260,6 +288,8 @@ class SalaryRecord {
     insuranceBase: (map['insurance_base'] as num).toDouble(),
     taxBase: (map['tax_base'] as num).toDouble(),
     twoSevenExemption: (map['two_seven_exemption'] as num?)?.toDouble() ?? 0,
+    taxReliefRate: (map['tax_relief_rate'] as num?)?.toDouble() ?? 0,
+    taxReliefAmount: (map['tax_relief_amount'] as num?)?.toDouble() ?? 0,
     netSalary: (map['net_salary'] as num).toDouble(),
     rounding: map['rounding'] as int? ?? 0,
     finalPayment: (map['final_payment'] as num).toDouble(),
@@ -296,6 +326,7 @@ class SalaryRecord {
     useCustomOvertimeBase: useCustomOvertimeBase,
     overtimeBaseDaily: overtimeBaseDaily,
     shiftWork: shiftWork,
+    shiftWorkRate: shiftWorkRate,
     hourlyBenefitsAmount: hourlyBenefitsAmount,
     hourlyBenefitHours: hourlyBenefitHours,
     baseSalary: baseSalary,
@@ -305,11 +336,15 @@ class SalaryRecord {
     childAllowance: childAllowance,
     seniority: seniority,
     otherBenefits: otherBenefits,
+    jobRelatedBenefits: jobRelatedBenefits,
+    employeeRelatedBenefits: employeeRelatedBenefits,
+    welfareBenefits: welfareBenefits,
     totalEarnings: totalEarnings,
     insurance: insurance,
     tax: tax,
     loanInstallment: loanInstallment,
     advance: advance,
+    supplementaryInsurance: supplementaryInsurance,
     otherDeductions: otherDeductions,
     absenceDays: absenceDays,
     absenceHours: absenceHours,
@@ -325,6 +360,8 @@ class SalaryRecord {
     insuranceBase: insuranceBase,
     taxBase: taxBase,
     twoSevenExemption: twoSevenExemption,
+    taxReliefRate: taxReliefRate,
+    taxReliefAmount: taxReliefAmount,
     netSalary: netSalary,
     rounding: rounding,
     finalPayment: finalPayment,
@@ -346,6 +383,13 @@ class SalaryRecord {
     double? hourlyBenefitsAmount,
     bool? useCustomOvertimeBase,
     double? overtimeBaseDaily,
+    double? shiftWorkRate,
+    double? jobRelatedBenefits,
+    double? employeeRelatedBenefits,
+    double? welfareBenefits,
+    double? supplementaryInsurance,
+    double? taxReliefRate,
+    double? taxReliefAmount,
     double? nightWorkHours,
     double? nightWorkAmount,
     double? fridayWorkHours,
@@ -400,6 +444,7 @@ class SalaryRecord {
     useCustomOvertimeBase: useCustomOvertimeBase ?? this.useCustomOvertimeBase,
     overtimeBaseDaily: overtimeBaseDaily ?? this.overtimeBaseDaily,
     shiftWork: shiftWork,
+    shiftWorkRate: shiftWorkRate ?? this.shiftWorkRate,
     hourlyBenefitsAmount: hourlyBenefitsAmount ?? this.hourlyBenefitsAmount,
     hourlyBenefitHours: hourlyBenefitHours ?? this.hourlyBenefitHours,
     baseSalary: baseSalary,
@@ -409,11 +454,17 @@ class SalaryRecord {
     childAllowance: childAllowance,
     seniority: seniority,
     otherBenefits: otherBenefits,
+    jobRelatedBenefits: jobRelatedBenefits ?? this.jobRelatedBenefits,
+    employeeRelatedBenefits:
+        employeeRelatedBenefits ?? this.employeeRelatedBenefits,
+    welfareBenefits: welfareBenefits ?? this.welfareBenefits,
     totalEarnings: totalEarnings,
     insurance: insurance,
     tax: tax,
     loanInstallment: loanInstallment,
     advance: advance,
+    supplementaryInsurance:
+        supplementaryInsurance ?? this.supplementaryInsurance,
     otherDeductions: otherDeductions,
     absenceDays: absenceDays ?? this.absenceDays,
     absenceHours: absenceHours ?? this.absenceHours,
@@ -429,6 +480,8 @@ class SalaryRecord {
     insuranceBase: insuranceBase,
     taxBase: taxBase,
     twoSevenExemption: twoSevenExemption,
+    taxReliefRate: taxReliefRate ?? this.taxReliefRate,
+    taxReliefAmount: taxReliefAmount ?? this.taxReliefAmount,
     netSalary: netSalary ?? this.netSalary,
     rounding: rounding ?? this.rounding,
     finalPayment: finalPayment ?? this.finalPayment,

@@ -3,7 +3,9 @@ import 'package:payroll_app/models/app_settings.dart';
 import 'package:payroll_app/models/employee.dart';
 import 'package:payroll_app/models/salary_draft.dart';
 import 'package:payroll_app/models/salary_record.dart';
+import 'package:payroll_app/services/payroll_calculator_registry.dart';
 import 'package:payroll_app/services/salary_calculator.dart';
+import 'package:payroll_app/utils/constants.dart';
 
 void main() {
   test('employee payroll defaults survive database mapping', () {
@@ -89,6 +91,7 @@ void main() {
       sickLeaveDays: 0,
       workDays: 30,
       overtimeHours: 0,
+      shiftWorkRate: AppConstants.shiftWorkRate,
       hourlyBenefitHours: 0,
       includeLeaveInPayslip: true,
       housingExempt: true,
@@ -166,6 +169,7 @@ void main() {
       missionDays: 1,
       absenceDays: 0.5,
       absenceHours: 2,
+      shiftWorkRate: AppConstants.shiftWorkRate,
       hourlyBenefitHours: 0,
       includeLeaveInPayslip: true,
       housingExempt: false,
@@ -222,6 +226,110 @@ void main() {
     expect(manual.seniority, 62000000);
   });
 
+  test(
+    'complementary payslip rows affect earnings deductions and tax relief',
+    () {
+      final employee = Employee(
+        personnelCode: 1,
+        firstName: 'علی',
+        lastName: 'تکمیلی',
+        nationalId: '0012345678',
+        dailyWage1405: 10000000,
+        dailyHousing: 0,
+        dailyFood: 0,
+        dailyMarriage: 0,
+        dailyChildAllowance: 0,
+        dailySeniority: 0,
+        startDate: '1405/01/01',
+      );
+      final settings = AppSettings(
+        dailyWage: 10000000,
+        employeeInsuranceRate: 0.07,
+        employerInsuranceRate: 0.20,
+        unemploymentInsuranceRate: 0.03,
+      );
+      final result = SalaryCalculator.calculate(
+        employee: employee,
+        settings: settings,
+        input: SalaryCalculationInput(
+          totalDays: 30,
+          autoShiftWork: true,
+          shiftWorkRate: 0.225,
+          jobRelatedBenefits: 3000000,
+          employeeRelatedBenefits: 2000000,
+          welfareBenefits: 1000000,
+          supplementaryInsurance: 500000,
+          taxReliefRate: 0.50,
+          seniorityExempt: true,
+        ),
+      );
+
+      final expectedBaseSalary = 300000000.0;
+      final expectedShiftWork = expectedBaseSalary * 0.225;
+      final expectedGross =
+          expectedBaseSalary + expectedShiftWork + 3000000 + 2000000 + 1000000;
+      final expectedInsurance = expectedGross * settings.employeeInsuranceRate;
+      final expectedTwoSeven = expectedInsurance * settings.twoSevenBaseRate;
+      final expectedTaxBase = expectedGross - expectedTwoSeven - 500000;
+      final expectedGrossTax = SalaryCalculator.calculateTax(expectedTaxBase);
+
+      expect(result.shiftWorkRate, 0.225);
+      expect(result.shiftWork, closeTo(expectedShiftWork, 1));
+      expect(result.totalEarnings, closeTo(expectedGross, 1));
+      expect(result.jobRelatedBenefits, 3000000);
+      expect(result.employeeRelatedBenefits, 2000000);
+      expect(result.welfareBenefits, 1000000);
+      expect(result.supplementaryInsurance, 500000);
+      expect(result.insurance, closeTo(expectedInsurance, 1));
+      expect(result.taxBase, closeTo(expectedTaxBase, 1));
+      expect(result.taxReliefAmount, closeTo(expectedGrossTax * 0.50, 1));
+      expect(
+        result.totalDeductions,
+        closeTo(
+          expectedInsurance + result.tax + result.supplementaryInsurance,
+          1,
+        ),
+      );
+    },
+  );
+
+  test('calculator registry exposes payslip complementary rows', () {
+    final settings = AppSettings(
+      dailyWage: 10000000,
+      employeeInsuranceRate: 0,
+      employerInsuranceRate: 0,
+      unemploymentInsuranceRate: 0,
+    );
+    final online = PayrollCalculatorRegistry.byId('online_payslip')!;
+    final outputs = online.calculate({
+      'daily_wage': 10000000,
+      'payable_days': 30,
+      'shift_rate': 0.10,
+      'job_related_benefits': 1000000,
+      'employee_related_benefits': 2000000,
+      'welfare_benefits': 3000000,
+      'supplementary_insurance': 400000,
+      'tax_relief_rate': 0.50,
+    }, settings);
+
+    expect(online.appliesToPayslip, isTrue);
+    expect(outputs['shift_work'], 30000000);
+    expect(outputs['job_related_benefits'], 1000000);
+    expect(outputs['employee_related_benefits'], 2000000);
+    expect(outputs['welfare_benefits'], 3000000);
+    expect(outputs['supplementary_insurance'], 400000);
+    expect(
+      PayrollCalculatorRegistry.byId('job_wage_benefits')?.appliesToPayslip,
+      isTrue,
+    );
+    expect(
+      PayrollCalculatorRegistry.byId(
+        'supplementary_insurance',
+      )?.appliesToPayslip,
+      isTrue,
+    );
+  });
+
   test('salary draft preserves exact monthly form state', () {
     const draft = SalaryDraft(
       employeeId: 4,
@@ -239,15 +347,21 @@ void main() {
       holidayWorkAmount: 560000,
       missionDays: 1,
       missionAmount: 733000,
+      shiftWorkRate: 0.225,
+      jobRelatedBenefits: 1000000,
+      employeeRelatedBenefits: 2000000,
+      welfareBenefits: 3000000,
       useCustomOvertimeBase: true,
       overtimeBaseDaily: 5176500,
       autoShiftWork: true,
       autoLoanInstallment: false,
       skipLoanInstallment: true,
       insuranceExempt: true,
+      supplementaryInsurance: 400000,
       housingExempt: true,
       foodExempt: true,
       seniorityExempt: true,
+      taxReliefRate: 0.50,
       dailySeniorityOverride: 123456,
       autoSeniority: false,
       absenceDays: 0.5,
@@ -263,15 +377,21 @@ void main() {
     expect(restored.fridayWorkAmount, 120000);
     expect(restored.holidayWorkHours, 4);
     expect(restored.missionAmount, 733000);
+    expect(restored.shiftWorkRate, 0.225);
+    expect(restored.jobRelatedBenefits, 1000000);
+    expect(restored.employeeRelatedBenefits, 2000000);
+    expect(restored.welfareBenefits, 3000000);
     expect(restored.absenceDeduction, 566500);
     expect(restored.useCustomOvertimeBase, isTrue);
     expect(restored.overtimeBaseDaily, 5176500);
     expect(restored.autoShiftWork, isTrue);
     expect(restored.skipLoanInstallment, isTrue);
     expect(restored.insuranceExempt, isTrue);
+    expect(restored.supplementaryInsurance, 400000);
     expect(restored.housingExempt, isTrue);
     expect(restored.foodExempt, isTrue);
     expect(restored.seniorityExempt, isTrue);
+    expect(restored.taxReliefRate, 0.50);
     expect(restored.dailySeniorityOverride, 123456);
     expect(restored.autoSeniority, isFalse);
 
@@ -280,10 +400,14 @@ void main() {
     expect(nextMonth.month, 4);
     expect(nextMonth.overtimeHours, 8.25);
     expect(nextMonth.nightWorkHours, 2);
+    expect(nextMonth.shiftWorkRate, 0.225);
+    expect(nextMonth.jobRelatedBenefits, 1000000);
+    expect(nextMonth.supplementaryInsurance, 400000);
     expect(nextMonth.absenceHours, 2);
     expect(nextMonth.housingExempt, isTrue);
     expect(nextMonth.foodExempt, isTrue);
     expect(nextMonth.seniorityExempt, isTrue);
+    expect(nextMonth.taxReliefRate, 0.50);
     expect(nextMonth.dailySeniorityOverride, 123456);
     expect(nextMonth.autoSeniority, isFalse);
   });

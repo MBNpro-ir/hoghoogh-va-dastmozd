@@ -24,8 +24,12 @@ class SalaryCalculationResult {
   final double missionAmount;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
+  final double shiftWorkRate;
   final double hourlyBenefitsAmount; // مزایای ساعتی
   final double hourlyBenefitHours; // ساعت مزایای ساعتی
+  final double jobRelatedBenefits;
+  final double employeeRelatedBenefits;
+  final double welfareBenefits;
   final double totalEarnings; // جمع حقوق و مزایا
   final double payableDays; // روزهای قابل پرداخت توسط کارفرما
 
@@ -34,6 +38,7 @@ class SalaryCalculationResult {
   final double tax; // مالیات
   final double loanInstallment; // قسط وام
   final double advance; // مساعده
+  final double supplementaryInsurance;
   final double otherDeductions; // سایر کسورات
   final double leaveAllowanceDays; // مرخصی مجاز ماهانه
   final double excessLeaveDays; // مرخصی مازاد
@@ -45,6 +50,8 @@ class SalaryCalculationResult {
   final double insuranceBase; // مبنای بیمه (حقوق مشمول بیمه)
   final double taxBase; // مبنای مالیات
   final double twoSevenExemption; // معافیت دو هفتم
+  final double taxReliefRate;
+  final double taxReliefAmount;
 
   // مبالغ کارفرما
   final double employerInsurance; // سهم کارفرما (20%)
@@ -72,14 +79,19 @@ class SalaryCalculationResult {
     required this.missionAmount,
     required this.useCustomOvertimeBase,
     required this.overtimeBaseDaily,
+    required this.shiftWorkRate,
     required this.hourlyBenefitsAmount,
     required this.hourlyBenefitHours,
+    required this.jobRelatedBenefits,
+    required this.employeeRelatedBenefits,
+    required this.welfareBenefits,
     required this.totalEarnings,
     required this.payableDays,
     required this.insurance,
     required this.tax,
     required this.loanInstallment,
     required this.advance,
+    required this.supplementaryInsurance,
     required this.otherDeductions,
     required this.leaveAllowanceDays,
     required this.excessLeaveDays,
@@ -89,6 +101,8 @@ class SalaryCalculationResult {
     required this.insuranceBase,
     required this.taxBase,
     required this.twoSevenExemption,
+    required this.taxReliefRate,
+    required this.taxReliefAmount,
     required this.employerInsurance,
     required this.unemploymentInsurance,
     required this.netSalary,
@@ -116,6 +130,7 @@ class SalaryCalculationResult {
     double missionDays = 0,
     double absenceDays = 0,
     double absenceHours = 0,
+    required double shiftWorkRate,
     required double hourlyBenefitHours,
     required bool includeLeaveInPayslip,
     required bool housingExempt,
@@ -147,8 +162,12 @@ class SalaryCalculationResult {
     useCustomOvertimeBase: useCustomOvertimeBase,
     overtimeBaseDaily: overtimeBaseDaily,
     shiftWork: shiftWork,
+    shiftWorkRate: shiftWorkRate,
     hourlyBenefitsAmount: hourlyBenefitsAmount,
     hourlyBenefitHours: hourlyBenefitHours,
+    jobRelatedBenefits: jobRelatedBenefits,
+    employeeRelatedBenefits: employeeRelatedBenefits,
+    welfareBenefits: welfareBenefits,
     baseSalary: baseSalary,
     housing: housing,
     food: food,
@@ -161,6 +180,7 @@ class SalaryCalculationResult {
     tax: tax,
     loanInstallment: loanInstallment,
     advance: advance,
+    supplementaryInsurance: supplementaryInsurance,
     otherDeductions: otherDeductions,
     absenceDays: absenceDays,
     absenceHours: absenceHours,
@@ -176,6 +196,8 @@ class SalaryCalculationResult {
     insuranceBase: insuranceBase,
     taxBase: taxBase,
     twoSevenExemption: twoSevenExemption,
+    taxReliefRate: taxReliefRate,
+    taxReliefAmount: taxReliefAmount,
     netSalary: netSalary,
     rounding: rounding,
     finalPayment: finalPayment,
@@ -199,6 +221,7 @@ class SalaryCalculationInput {
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double shiftWork; // مبلغ نوبت‌کاری
+  final double shiftWorkRate;
   final double hourlyBenefitsAmount; // مزایای ساعتی محاسبه‌شده
   final double hourlyBenefitHours; // ساعت مزایای ساعتی
   final bool autoShiftWork; // محاسبه ۱۵٪ نوبت‌کاری از حقوق ثابت
@@ -211,11 +234,16 @@ class SalaryCalculationInput {
   final bool seniorityExempt; // حذف پایه سنوات از این فیش
   final double dailySeniorityOverride; // نرخ روزانه دستی؛ منفی یعنی خودکار
   final double otherBenefitsOverride; // سایر مزایا - دستی
+  final double jobRelatedBenefits;
+  final double employeeRelatedBenefits;
+  final double welfareBenefits;
   final double loanInstallment; // قسط وام
   final double advance; // مساعده
+  final double supplementaryInsurance;
   final double otherDeductions; // سایر کسورات (مابه‌تفاوت)
   final double absenceDays;
   final double absenceHours;
+  final double taxReliefRate;
 
   SalaryCalculationInput({
     this.year,
@@ -231,6 +259,7 @@ class SalaryCalculationInput {
     this.useCustomOvertimeBase = false,
     this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
+    this.shiftWorkRate = AppConstants.shiftWorkRate,
     this.hourlyBenefitsAmount = 0,
     this.hourlyBenefitHours = 0,
     this.autoShiftWork = false,
@@ -243,11 +272,16 @@ class SalaryCalculationInput {
     this.seniorityExempt = false,
     this.dailySeniorityOverride = -1,
     this.otherBenefitsOverride = -1, // -1 = خودکار (از کارمند)
+    this.jobRelatedBenefits = 0,
+    this.employeeRelatedBenefits = 0,
+    this.welfareBenefits = 0,
     this.loanInstallment = 0,
     this.advance = 0,
+    this.supplementaryInsurance = 0,
     this.otherDeductions = 0,
     this.absenceDays = 0,
     this.absenceHours = 0,
+    this.taxReliefRate = 0,
   });
 
   double get normalizedLeaveDays =>
@@ -367,6 +401,15 @@ class SalaryCalculator {
     final otherBenefits = input.otherBenefitsOverride >= 0
         ? input.otherBenefitsOverride * workDays
         : employee.otherBenefitsDaily * payableDays;
+    final jobRelatedBenefits = input.jobRelatedBenefits
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final employeeRelatedBenefits = input.employeeRelatedBenefits
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final welfareBenefits = input.welfareBenefits
+        .clamp(0.0, double.infinity)
+        .toDouble();
 
     // 8) اضافه‌کاری و مزایای ساعتی = ساعت × (دستمزد ساعتی × 1.40)
     final overtimeBaseDaily = input.useCustomOvertimeBase
@@ -401,9 +444,10 @@ class SalaryCalculator {
         ? hourlyBenefitHours * hourlyBenefitsRate
         : input.hourlyBenefitsAmount;
 
-    // 9) نوبت‌کاری در اکسل برای افراد مشمول، 15٪ حقوق ثابت است.
+    // 9) نوبت‌کاری بسته به نوع گردش شیفت می‌تواند 10٪، 15٪ یا 22.5٪ باشد.
+    final shiftWorkRate = input.shiftWorkRate.clamp(0.0, 1.0).toDouble();
     final shiftWork = input.autoShiftWork
-        ? baseSalary * AppConstants.shiftWorkRate
+        ? baseSalary * shiftWorkRate
         : input.shiftWork;
 
     // 10) جمع کل حقوق و مزایا
@@ -415,6 +459,9 @@ class SalaryCalculator {
         childAllowance +
         seniority +
         otherBenefits +
+        jobRelatedBenefits +
+        employeeRelatedBenefits +
+        welfareBenefits +
         shiftWork +
         overtimeAmount +
         nightWorkAmount +
@@ -446,12 +493,18 @@ class SalaryCalculator {
     );
 
     // 13) مبنای مالیات
-    final taxBase = (totalEarnings - twoSevenExemption).clamp(
-      0.0,
-      double.infinity,
-    );
+    final supplementaryInsurance = input.supplementaryInsurance
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final taxBase = (totalEarnings - twoSevenExemption - supplementaryInsurance)
+        .clamp(0.0, double.infinity);
 
-    final tax = input.taxExempt ? 0.0 : calculateTax(taxBase);
+    final grossTax = input.taxExempt ? 0.0 : calculateTax(taxBase);
+    final taxReliefRate = input.taxReliefRate.clamp(0.0, 1.0).toDouble();
+    final taxReliefAmount = grossTax * taxReliefRate;
+    final tax = (grossTax - taxReliefAmount)
+        .clamp(0.0, double.infinity)
+        .toDouble();
 
     final leaveAllowanceDays = settings.monthlyLeaveAllowance;
     final excessLeaveDays = input.includeLeaveInPayslip
@@ -472,6 +525,7 @@ class SalaryCalculator {
         tax +
         input.loanInstallment +
         input.advance +
+        supplementaryInsurance +
         input.otherDeductions +
         absenceDeduction +
         leaveDeduction;
@@ -497,6 +551,8 @@ class SalaryCalculator {
         'holiday_work_multiplier': settings.holidayWorkMultiplier,
         'mission_daily_multiplier': settings.missionDailyMultiplier,
         'absence_hourly_multiplier': settings.absenceHourlyMultiplier,
+        'shift_work_rate': shiftWorkRate,
+        'tax_relief_rate': taxReliefRate,
       },
     });
 
@@ -516,14 +572,19 @@ class SalaryCalculator {
       missionAmount: missionAmount,
       useCustomOvertimeBase: input.useCustomOvertimeBase,
       overtimeBaseDaily: overtimeBaseDaily,
+      shiftWorkRate: shiftWorkRate,
       hourlyBenefitsAmount: hourlyBenefitsAmount,
       hourlyBenefitHours: hourlyBenefitHours,
+      jobRelatedBenefits: jobRelatedBenefits,
+      employeeRelatedBenefits: employeeRelatedBenefits,
+      welfareBenefits: welfareBenefits,
       totalEarnings: totalEarnings,
       payableDays: payableDays,
       insurance: insurance,
       tax: tax,
       loanInstallment: input.loanInstallment,
       advance: input.advance,
+      supplementaryInsurance: supplementaryInsurance,
       otherDeductions: input.otherDeductions,
       leaveAllowanceDays: leaveAllowanceDays,
       excessLeaveDays: excessLeaveDays,
@@ -533,6 +594,8 @@ class SalaryCalculator {
       insuranceBase: insuranceBase,
       taxBase: taxBase,
       twoSevenExemption: twoSevenExemption,
+      taxReliefRate: taxReliefRate,
+      taxReliefAmount: taxReliefAmount,
       employerInsurance: employerInsurance,
       unemploymentInsurance: unemploymentInsurance,
       netSalary: netSalary,
