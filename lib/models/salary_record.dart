@@ -18,6 +18,14 @@ class SalaryRecord {
   // ساعات و مزایا
   final double overtimeHours; // ساعت اضافه‌کاری
   final double overtimeAmount; // مبلغ اضافه‌کاری
+  final double nightWorkHours;
+  final double nightWorkAmount;
+  final double fridayWorkHours;
+  final double fridayWorkAmount;
+  final double holidayWorkHours;
+  final double holidayWorkAmount;
+  final double missionDays;
+  final double missionAmount;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double shiftWork; // نوبت‌کاری
@@ -40,6 +48,9 @@ class SalaryRecord {
   final double loanInstallment; // قسط وام
   final double advance; // مساعده
   final double otherDeductions; // سایر کسورات (مابه‌تفاوت)
+  final double absenceDays;
+  final double absenceHours;
+  final double absenceDeduction;
   final bool includeLeaveInPayslip; // محاسبه محدودیت مرخصی در فیش
   final bool housingExempt; // معافیت حق مسکن برای این فیش
   final bool foodExempt; // معافیت حق خواروبار برای این فیش
@@ -56,6 +67,7 @@ class SalaryRecord {
   final double netSalary; // خالص حقوق
   final int rounding; // رند حقوق
   final double finalPayment; // خالص دریافتی نهایی
+  final String payrollCalculationDetailsJson;
 
   final String? notes;
   final DateTime createdAt;
@@ -78,6 +90,14 @@ class SalaryRecord {
     required this.workDays,
     this.overtimeHours = 0,
     this.overtimeAmount = 0,
+    this.nightWorkHours = 0,
+    this.nightWorkAmount = 0,
+    this.fridayWorkHours = 0,
+    this.fridayWorkAmount = 0,
+    this.holidayWorkHours = 0,
+    this.holidayWorkAmount = 0,
+    this.missionDays = 0,
+    this.missionAmount = 0,
     this.useCustomOvertimeBase = false,
     this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
@@ -96,6 +116,9 @@ class SalaryRecord {
     this.loanInstallment = 0,
     this.advance = 0,
     this.otherDeductions = 0,
+    this.absenceDays = 0,
+    this.absenceHours = 0,
+    this.absenceDeduction = 0,
     this.includeLeaveInPayslip = true,
     this.housingExempt = false,
     this.foodExempt = false,
@@ -110,6 +133,7 @@ class SalaryRecord {
     required this.netSalary,
     this.rounding = 0,
     required this.finalPayment,
+    this.payrollCalculationDetailsJson = '{}',
     this.notes,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -129,6 +153,14 @@ class SalaryRecord {
     'work_days': workDays,
     'overtime_hours': overtimeHours,
     'overtime_amount': overtimeAmount,
+    'night_work_hours': nightWorkHours,
+    'night_work_amount': nightWorkAmount,
+    'friday_work_hours': fridayWorkHours,
+    'friday_work_amount': fridayWorkAmount,
+    'holiday_work_hours': holidayWorkHours,
+    'holiday_work_amount': holidayWorkAmount,
+    'mission_days': missionDays,
+    'mission_amount': missionAmount,
     'use_custom_overtime_base': useCustomOvertimeBase ? 1 : 0,
     'overtime_base_daily': overtimeBaseDaily,
     'shift_work': shiftWork,
@@ -147,6 +179,9 @@ class SalaryRecord {
     'loan_installment': loanInstallment,
     'advance': advance,
     'other_deductions': otherDeductions,
+    'absence_days': absenceDays,
+    'absence_hours': absenceHours,
+    'absence_deduction': absenceDeduction,
     'include_leave_in_payslip': includeLeaveInPayslip ? 1 : 0,
     'housing_exempt': housingExempt ? 1 : 0,
     'food_exempt': foodExempt ? 1 : 0,
@@ -161,6 +196,7 @@ class SalaryRecord {
     'net_salary': netSalary,
     'rounding': rounding,
     'final_payment': finalPayment,
+    'payroll_calculation_details_json': payrollCalculationDetailsJson,
     'notes': notes,
     'created_at': createdAt.toIso8601String(),
   };
@@ -182,6 +218,14 @@ class SalaryRecord {
     workDays: (map['work_days'] as num).toDouble(),
     overtimeHours: (map['overtime_hours'] as num?)?.toDouble() ?? 0,
     overtimeAmount: (map['overtime_amount'] as num?)?.toDouble() ?? 0,
+    nightWorkHours: (map['night_work_hours'] as num?)?.toDouble() ?? 0,
+    nightWorkAmount: (map['night_work_amount'] as num?)?.toDouble() ?? 0,
+    fridayWorkHours: (map['friday_work_hours'] as num?)?.toDouble() ?? 0,
+    fridayWorkAmount: (map['friday_work_amount'] as num?)?.toDouble() ?? 0,
+    holidayWorkHours: (map['holiday_work_hours'] as num?)?.toDouble() ?? 0,
+    holidayWorkAmount: (map['holiday_work_amount'] as num?)?.toDouble() ?? 0,
+    missionDays: (map['mission_days'] as num?)?.toDouble() ?? 0,
+    missionAmount: (map['mission_amount'] as num?)?.toDouble() ?? 0,
     useCustomOvertimeBase: (map['use_custom_overtime_base'] as int? ?? 0) == 1,
     overtimeBaseDaily: (map['overtime_base_daily'] as num?)?.toDouble() ?? 0,
     shiftWork: (map['shift_work'] as num?)?.toDouble() ?? 0,
@@ -201,6 +245,9 @@ class SalaryRecord {
     loanInstallment: (map['loan_installment'] as num?)?.toDouble() ?? 0,
     advance: (map['advance'] as num?)?.toDouble() ?? 0,
     otherDeductions: (map['other_deductions'] as num?)?.toDouble() ?? 0,
+    absenceDays: (map['absence_days'] as num?)?.toDouble() ?? 0,
+    absenceHours: (map['absence_hours'] as num?)?.toDouble() ?? 0,
+    absenceDeduction: (map['absence_deduction'] as num?)?.toDouble() ?? 0,
     includeLeaveInPayslip: (map['include_leave_in_payslip'] as int? ?? 1) == 1,
     housingExempt: (map['housing_exempt'] as int? ?? 0) == 1,
     foodExempt: (map['food_exempt'] as int? ?? 0) == 1,
@@ -216,6 +263,8 @@ class SalaryRecord {
     netSalary: (map['net_salary'] as num).toDouble(),
     rounding: map['rounding'] as int? ?? 0,
     finalPayment: (map['final_payment'] as num).toDouble(),
+    payrollCalculationDetailsJson:
+        map['payroll_calculation_details_json']?.toString() ?? '{}',
     notes: map['notes'] as String?,
     createdAt:
         DateTime.tryParse(map['created_at'] as String? ?? '') ?? DateTime.now(),
@@ -236,6 +285,14 @@ class SalaryRecord {
     workDays: workDays,
     overtimeHours: overtimeHours,
     overtimeAmount: overtimeAmount,
+    nightWorkHours: nightWorkHours,
+    nightWorkAmount: nightWorkAmount,
+    fridayWorkHours: fridayWorkHours,
+    fridayWorkAmount: fridayWorkAmount,
+    holidayWorkHours: holidayWorkHours,
+    holidayWorkAmount: holidayWorkAmount,
+    missionDays: missionDays,
+    missionAmount: missionAmount,
     useCustomOvertimeBase: useCustomOvertimeBase,
     overtimeBaseDaily: overtimeBaseDaily,
     shiftWork: shiftWork,
@@ -254,6 +311,9 @@ class SalaryRecord {
     loanInstallment: loanInstallment,
     advance: advance,
     otherDeductions: otherDeductions,
+    absenceDays: absenceDays,
+    absenceHours: absenceHours,
+    absenceDeduction: absenceDeduction,
     includeLeaveInPayslip: includeLeaveInPayslip,
     housingExempt: housingExempt,
     foodExempt: foodExempt,
@@ -268,6 +328,7 @@ class SalaryRecord {
     netSalary: netSalary,
     rounding: rounding,
     finalPayment: finalPayment,
+    payrollCalculationDetailsJson: payrollCalculationDetailsJson,
     notes: notes,
     createdAt: createdAt,
   );
@@ -285,6 +346,14 @@ class SalaryRecord {
     double? hourlyBenefitsAmount,
     bool? useCustomOvertimeBase,
     double? overtimeBaseDaily,
+    double? nightWorkHours,
+    double? nightWorkAmount,
+    double? fridayWorkHours,
+    double? fridayWorkAmount,
+    double? holidayWorkHours,
+    double? holidayWorkAmount,
+    double? missionDays,
+    double? missionAmount,
     bool? includeLeaveInPayslip,
     bool? housingExempt,
     bool? foodExempt,
@@ -292,10 +361,14 @@ class SalaryRecord {
     double? leaveAllowanceDays,
     double? excessLeaveDays,
     double? leaveDeduction,
+    double? absenceDays,
+    double? absenceHours,
+    double? absenceDeduction,
     double? totalDeductions,
     double? netSalary,
     int? rounding,
     double? finalPayment,
+    String? payrollCalculationDetailsJson,
   }) => SalaryRecord(
     id: id ?? this.id,
     employeeId: employeeId,
@@ -316,6 +389,14 @@ class SalaryRecord {
     workDays: workDays ?? this.workDays,
     overtimeHours: overtimeHours,
     overtimeAmount: overtimeAmount,
+    nightWorkHours: nightWorkHours ?? this.nightWorkHours,
+    nightWorkAmount: nightWorkAmount ?? this.nightWorkAmount,
+    fridayWorkHours: fridayWorkHours ?? this.fridayWorkHours,
+    fridayWorkAmount: fridayWorkAmount ?? this.fridayWorkAmount,
+    holidayWorkHours: holidayWorkHours ?? this.holidayWorkHours,
+    holidayWorkAmount: holidayWorkAmount ?? this.holidayWorkAmount,
+    missionDays: missionDays ?? this.missionDays,
+    missionAmount: missionAmount ?? this.missionAmount,
     useCustomOvertimeBase: useCustomOvertimeBase ?? this.useCustomOvertimeBase,
     overtimeBaseDaily: overtimeBaseDaily ?? this.overtimeBaseDaily,
     shiftWork: shiftWork,
@@ -334,6 +415,9 @@ class SalaryRecord {
     loanInstallment: loanInstallment,
     advance: advance,
     otherDeductions: otherDeductions,
+    absenceDays: absenceDays ?? this.absenceDays,
+    absenceHours: absenceHours ?? this.absenceHours,
+    absenceDeduction: absenceDeduction ?? this.absenceDeduction,
     includeLeaveInPayslip: includeLeaveInPayslip ?? this.includeLeaveInPayslip,
     housingExempt: housingExempt ?? this.housingExempt,
     foodExempt: foodExempt ?? this.foodExempt,
@@ -348,6 +432,8 @@ class SalaryRecord {
     netSalary: netSalary ?? this.netSalary,
     rounding: rounding ?? this.rounding,
     finalPayment: finalPayment ?? this.finalPayment,
+    payrollCalculationDetailsJson:
+        payrollCalculationDetailsJson ?? this.payrollCalculationDetailsJson,
     notes: notes,
     createdAt: createdAt,
   );

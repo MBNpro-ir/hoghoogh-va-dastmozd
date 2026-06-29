@@ -76,7 +76,10 @@ class SalaryService {
     return SalaryRecord.fromMap(rows.first);
   }
 
-  Future<int> insertOrUpdate(SalaryRecord record) async {
+  Future<int> insertOrUpdate(
+    SalaryRecord record, {
+    bool replaceExisting = false,
+  }) async {
     BusinessValidation.salaryRecord(record);
     final db = await _db.database;
     final matchingRows = await db.query(
@@ -90,6 +93,11 @@ class SalaryService {
         ? null
         : (matchingRows.first['id'] as num?)?.toInt();
     if (existingId != null) {
+      if (!replaceExisting) {
+        throw const BusinessValidationException(
+          'برای این کارمند و این ماه قبلا فیش حقوقی ثبت شده است. جایگزینی فقط با تایید صریح انجام می‌شود.',
+        );
+      }
       final map = record.toMap()..remove('id');
       await db.update(
         'salary_records',

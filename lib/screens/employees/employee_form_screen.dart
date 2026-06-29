@@ -66,6 +66,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   bool _hasPriorExperience = true;
   bool _hardAndHarmfulJob = false;
   bool _hasShiftWork = false;
+  bool _useCustomOvertimeBase = false;
   int _childrenCount = 0;
 
   String _gender = EmployeeReferenceData.genders.first;
@@ -85,6 +86,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   double _lastYearSeniority = 0;
   double _otherBenefitsDaily = 0;
   double _hourlyBenefits = 0;
+  double _overtimeBaseDaily = 0;
 
   double _selectedRate = AppConstants.salaryRateA;
 
@@ -140,6 +142,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       _hasPriorExperience = e.hasPriorExperience;
       _hardAndHarmfulJob = e.hardAndHarmfulJob;
       _hasShiftWork = e.hasShiftWork;
+      _useCustomOvertimeBase = e.useCustomOvertimeBase;
       _childrenCount = e.childrenCount;
       _gender = _safeChoice(EmployeeReferenceData.genders, e.gender);
       _bankName = _safeChoice(EmployeeReferenceData.iranianBanks, e.bankName);
@@ -163,6 +166,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       _lastYearSeniority = e.lastYearSeniority;
       _otherBenefitsDaily = e.otherBenefitsDaily;
       _hourlyBenefits = e.hourlyBenefits;
+      _overtimeBaseDaily = e.overtimeBaseDaily;
     }
     _init();
   }
@@ -419,9 +423,11 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       _showError('برای کارمند غیرفعال، تاریخ ترک کار را وارد کنید');
       return;
     }
+    if (_useCustomOvertimeBase && _overtimeBaseDaily <= 0) {
+      _showError('مبنای روزانه اضافه‌کاری باید بزرگ‌تر از صفر باشد');
+      return;
+    }
     _hasPriorExperience = _isEligibleForPriorExperience();
-    _lastYearSeniority = 0;
-    _dailySeniority = 0;
 
     setState(() => _saving = true);
     try {
@@ -477,6 +483,8 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         otherBenefitsDaily: _otherBenefitsDaily,
         hourlyBenefits: _hourlyBenefits,
         hasShiftWork: _hasShiftWork,
+        useCustomOvertimeBase: _useCustomOvertimeBase,
+        overtimeBaseDaily: _useCustomOvertimeBase ? _overtimeBaseDaily : 0,
         startDate: PersianNumberFormatter.toEnglish(_startDateCtrl.text.trim()),
         isActive: _isActive,
         endDate: PersianNumberFormatter.toEnglish(_endDateCtrl.text.trim()),
@@ -1109,6 +1117,18 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
             onChanged: (value) => _baseSalary30Days = value?.toDouble() ?? 0,
           ),
         ),
+        SizedBox(height: isMobile ? 8 : 12),
+        _responsiveRow(
+          isMobile: isMobile,
+          children: [
+            _moneyField(
+              'سنوات سال قبل',
+              Icons.history_toggle_off_rounded,
+              _lastYearSeniority,
+              (v) => setState(() => _lastYearSeniority = v),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -1172,6 +1192,12 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
           isMobile: isMobile,
           children: [
             _moneyField(
+              'پایه سنوات روزانه',
+              Icons.trending_up_rounded,
+              _dailySeniority,
+              (v) => setState(() => _dailySeniority = v),
+            ),
+            _moneyField(
               'سایر مزایا روزانه',
               Icons.add_box_rounded,
               _otherBenefitsDaily,
@@ -1198,6 +1224,31 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
           onChanged: (value) => setState(() => _hasShiftWork = value),
           secondary: const Icon(Icons.schedule_rounded),
         ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('مبنای اضافه‌کاری سفارشی'),
+          value: _useCustomOvertimeBase,
+          onChanged: (value) {
+            setState(() {
+              _useCustomOvertimeBase = value;
+              if (value && _overtimeBaseDaily <= 0) {
+                _overtimeBaseDaily = _dailyWage1405;
+              }
+            });
+          },
+          secondary: const Icon(Icons.more_time_rounded),
+        ),
+        if (_useCustomOvertimeBase) ...[
+          SizedBox(height: isMobile ? 8 : 12),
+          _moneyField(
+            'مبنای روزانه اضافه‌کاری',
+            Icons.calculate_rounded,
+            _overtimeBaseDaily,
+            (v) => setState(() => _overtimeBaseDaily = v),
+            defaultValue: _dailyWage1405,
+            onReset: () => setState(() => _overtimeBaseDaily = _dailyWage1405),
+          ),
+        ],
       ],
     );
   }
@@ -1260,6 +1311,12 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         _responsiveRow(
           isMobile: isMobile,
           children: [
+            _moneyField(
+              'پایه سنوات ماهانه',
+              Icons.trending_up_rounded,
+              _toMonthly(_dailySeniority),
+              (v) => _setDailyFromMonthly(v, (d) => _dailySeniority = d),
+            ),
             _moneyField(
               'سایر مزایا ماهانه',
               Icons.add_card_rounded,

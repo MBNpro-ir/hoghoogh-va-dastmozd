@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 18;
+  static const int _dbVersion = 19;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -158,6 +158,14 @@ class DatabaseHelper {
         work_days REAL NOT NULL,
         overtime_hours REAL DEFAULT 0,
         overtime_amount REAL DEFAULT 0,
+        night_work_hours REAL DEFAULT 0,
+        night_work_amount REAL DEFAULT 0,
+        friday_work_hours REAL DEFAULT 0,
+        friday_work_amount REAL DEFAULT 0,
+        holiday_work_hours REAL DEFAULT 0,
+        holiday_work_amount REAL DEFAULT 0,
+        mission_days REAL DEFAULT 0,
+        mission_amount REAL DEFAULT 0,
         use_custom_overtime_base INTEGER NOT NULL DEFAULT 0,
         overtime_base_daily REAL NOT NULL DEFAULT 0,
         shift_work REAL DEFAULT 0,
@@ -176,6 +184,9 @@ class DatabaseHelper {
         loan_installment REAL DEFAULT 0,
         advance REAL DEFAULT 0,
         other_deductions REAL DEFAULT 0,
+        absence_days REAL DEFAULT 0,
+        absence_hours REAL DEFAULT 0,
+        absence_deduction REAL DEFAULT 0,
         include_leave_in_payslip INTEGER NOT NULL DEFAULT 1,
         housing_exempt INTEGER NOT NULL DEFAULT 0,
         food_exempt INTEGER NOT NULL DEFAULT 0,
@@ -190,6 +201,7 @@ class DatabaseHelper {
         net_salary REAL NOT NULL,
         rounding INTEGER DEFAULT 0,
         final_payment REAL NOT NULL,
+        payroll_calculation_details_json TEXT NOT NULL DEFAULT '{}',
         notes TEXT,
         created_at TEXT NOT NULL,
         sync_id TEXT UNIQUE,
@@ -204,6 +216,7 @@ class DatabaseHelper {
 
     await _createSalaryDraftsTable(db);
     await _createSalaryPaymentStatusesTable(db);
+    await _createCalculatorRunsTable(db);
 
     // جدول تنظیمات
     await db.execute('''
@@ -225,6 +238,11 @@ class DatabaseHelper {
         two_seven_base_rate REAL NOT NULL,
         monthly_leave_allowance REAL NOT NULL DEFAULT 2.5,
         annual_leave_allowance REAL NOT NULL DEFAULT 30,
+        night_work_rate REAL NOT NULL DEFAULT 0.35,
+        friday_work_rate REAL NOT NULL DEFAULT 0.40,
+        holiday_work_multiplier REAL NOT NULL DEFAULT 1.40,
+        mission_daily_multiplier REAL NOT NULL DEFAULT 1.0,
+        absence_hourly_multiplier REAL NOT NULL DEFAULT 1.0,
         company_name TEXT NOT NULL,
         sync_id TEXT UNIQUE,
         server_updated_at TEXT,
@@ -548,6 +566,58 @@ class DatabaseHelper {
         'auto_seniority INTEGER NOT NULL DEFAULT 1',
       );
     }
+    if (oldVersion < 19) {
+      await _addPayrollCalculatorColumns(db);
+      await _createCalculatorRunsTable(db);
+      await _createSyncIndexes(db);
+    }
+  }
+
+  Future<void> _addPayrollCalculatorColumns(Database db) async {
+    const salaryRecordColumns = [
+      'night_work_hours REAL DEFAULT 0',
+      'night_work_amount REAL DEFAULT 0',
+      'friday_work_hours REAL DEFAULT 0',
+      'friday_work_amount REAL DEFAULT 0',
+      'holiday_work_hours REAL DEFAULT 0',
+      'holiday_work_amount REAL DEFAULT 0',
+      'mission_days REAL DEFAULT 0',
+      'mission_amount REAL DEFAULT 0',
+      'absence_days REAL DEFAULT 0',
+      'absence_hours REAL DEFAULT 0',
+      'absence_deduction REAL DEFAULT 0',
+      "payroll_calculation_details_json TEXT NOT NULL DEFAULT '{}'",
+    ];
+    const salaryDraftColumns = [
+      'night_work_hours REAL NOT NULL DEFAULT 0',
+      'night_work_amount REAL NOT NULL DEFAULT 0',
+      'friday_work_hours REAL NOT NULL DEFAULT 0',
+      'friday_work_amount REAL NOT NULL DEFAULT 0',
+      'holiday_work_hours REAL NOT NULL DEFAULT 0',
+      'holiday_work_amount REAL NOT NULL DEFAULT 0',
+      'mission_days REAL NOT NULL DEFAULT 0',
+      'mission_amount REAL NOT NULL DEFAULT 0',
+      'absence_days REAL NOT NULL DEFAULT 0',
+      'absence_hours REAL NOT NULL DEFAULT 0',
+      'absence_deduction REAL NOT NULL DEFAULT 0',
+      "payroll_calculation_details_json TEXT NOT NULL DEFAULT '{}'",
+    ];
+    const settingsColumns = [
+      'night_work_rate REAL NOT NULL DEFAULT 0.35',
+      'friday_work_rate REAL NOT NULL DEFAULT 0.40',
+      'holiday_work_multiplier REAL NOT NULL DEFAULT 1.40',
+      'mission_daily_multiplier REAL NOT NULL DEFAULT 1.0',
+      'absence_hourly_multiplier REAL NOT NULL DEFAULT 1.0',
+    ];
+    for (final column in salaryRecordColumns) {
+      await _safeAddColumn(db, 'salary_records', column);
+    }
+    for (final column in salaryDraftColumns) {
+      await _safeAddColumn(db, 'salary_drafts', column);
+    }
+    for (final column in settingsColumns) {
+      await _safeAddColumn(db, 'app_settings', column);
+    }
   }
 
   Future<void> _createSalaryDraftsTable(Database db) async {
@@ -561,6 +631,14 @@ class DatabaseHelper {
         leave_days REAL NOT NULL DEFAULT 0,
         sick_leave_days REAL NOT NULL DEFAULT 0,
         overtime_hours REAL NOT NULL DEFAULT 0,
+        night_work_hours REAL NOT NULL DEFAULT 0,
+        night_work_amount REAL NOT NULL DEFAULT 0,
+        friday_work_hours REAL NOT NULL DEFAULT 0,
+        friday_work_amount REAL NOT NULL DEFAULT 0,
+        holiday_work_hours REAL NOT NULL DEFAULT 0,
+        holiday_work_amount REAL NOT NULL DEFAULT 0,
+        mission_days REAL NOT NULL DEFAULT 0,
+        mission_amount REAL NOT NULL DEFAULT 0,
         use_custom_overtime_base INTEGER NOT NULL DEFAULT 0,
         overtime_base_daily REAL NOT NULL DEFAULT 0,
         shift_work REAL NOT NULL DEFAULT 0,
@@ -578,12 +656,16 @@ class DatabaseHelper {
         advance REAL NOT NULL DEFAULT 0,
         auto_advances INTEGER NOT NULL DEFAULT 1,
         other_deductions REAL NOT NULL DEFAULT 0,
+        absence_days REAL NOT NULL DEFAULT 0,
+        absence_hours REAL NOT NULL DEFAULT 0,
+        absence_deduction REAL NOT NULL DEFAULT 0,
         include_leave_in_payslip INTEGER NOT NULL DEFAULT 1,
         insurance_exempt INTEGER NOT NULL DEFAULT 0,
         tax_exempt INTEGER NOT NULL DEFAULT 0,
         housing_exempt INTEGER NOT NULL DEFAULT 0,
         food_exempt INTEGER NOT NULL DEFAULT 0,
         seniority_exempt INTEGER NOT NULL DEFAULT 0,
+        payroll_calculation_details_json TEXT NOT NULL DEFAULT '{}',
         sync_id TEXT UNIQUE,
         server_updated_at TEXT,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -596,6 +678,41 @@ class DatabaseHelper {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_salary_drafts_employee_period '
       'ON salary_drafts(employee_id, year, month);',
+    );
+  }
+
+  Future<void> _createCalculatorRunsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS calculator_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        calculator_id TEXT NOT NULL,
+        employee_id INTEGER,
+        year INTEGER NOT NULL,
+        month INTEGER,
+        inputs_json TEXT NOT NULL DEFAULT '{}',
+        outputs_json TEXT NOT NULL DEFAULT '{}',
+        formula_version TEXT NOT NULL,
+        source_urls_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        sync_id TEXT UNIQUE,
+        server_updated_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at TEXT,
+        sync_state TEXT NOT NULL DEFAULT 'synced',
+        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
+      );
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_calculator_runs_created '
+      'ON calculator_runs(created_at DESC);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_calculator_runs_calculator '
+      'ON calculator_runs(calculator_id);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_calculator_runs_employee '
+      'ON calculator_runs(employee_id);',
     );
   }
 
@@ -844,6 +961,7 @@ class DatabaseHelper {
       'salary_records',
       'salary_payment_statuses',
       'salary_drafts',
+      'calculator_runs',
       'app_settings',
     ]) {
       await db.execute(

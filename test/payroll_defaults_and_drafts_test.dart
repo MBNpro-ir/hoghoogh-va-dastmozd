@@ -106,6 +106,79 @@ void main() {
     expect(restored.seniorityExempt, isTrue);
   });
 
+  test('special payroll work rows affect earnings and deductions', () {
+    final employee = Employee(
+      personnelCode: 1,
+      firstName: 'علی',
+      lastName: 'آزمایشی',
+      nationalId: '0012345678',
+      dailyWage1405: 733000,
+      dailyHousing: 0,
+      dailyFood: 0,
+      dailyMarriage: 0,
+      dailyChildAllowance: 0,
+      dailySeniority: 0,
+      startDate: '1405/01/01',
+    );
+    final result = SalaryCalculator.calculate(
+      employee: employee,
+      settings: AppSettings(
+        employeeInsuranceRate: 0,
+        employerInsuranceRate: 0,
+        unemploymentInsuranceRate: 0,
+        nightWorkRate: 0.35,
+        fridayWorkRate: 0.40,
+        holidayWorkMultiplier: 1.40,
+        missionDailyMultiplier: 1,
+        absenceHourlyMultiplier: 1,
+      ),
+      input: SalaryCalculationInput(
+        totalDays: 30,
+        nightWorkHours: 2,
+        fridayWorkHours: 3,
+        holidayWorkHours: 4,
+        missionDays: 1,
+        absenceDays: 0.5,
+        absenceHours: 2,
+        taxExempt: true,
+        seniorityExempt: true,
+      ),
+    );
+
+    expect(result.nightWorkAmount, closeTo(70000, 1));
+    expect(result.fridayWorkAmount, closeTo(120000, 1));
+    expect(result.holidayWorkAmount, closeTo(560000, 1));
+    expect(result.missionAmount, closeTo(733000, 1));
+    expect(result.absenceDeduction, closeTo(566500, 1));
+
+    final record = result.toRecord(
+      employeeId: 1,
+      year: 1405,
+      month: 4,
+      totalDays: 30,
+      leaveDays: 0,
+      sickLeaveDays: 0,
+      workDays: 30,
+      overtimeHours: 0,
+      nightWorkHours: 2,
+      fridayWorkHours: 3,
+      holidayWorkHours: 4,
+      missionDays: 1,
+      absenceDays: 0.5,
+      absenceHours: 2,
+      hourlyBenefitHours: 0,
+      includeLeaveInPayslip: true,
+      housingExempt: false,
+      foodExempt: false,
+      seniorityExempt: true,
+    );
+    final restored = SalaryRecord.fromMap(record.toMap());
+    expect(restored.nightWorkHours, 2);
+    expect(restored.fridayWorkAmount, closeTo(120000, 1));
+    expect(restored.absenceDeduction, closeTo(566500, 1));
+    expect(restored.payrollCalculationDetailsJson, contains('salary-1405-v2'));
+  });
+
   test('salary calculation derives seniority from the payslip period', () {
     final employee = Employee(
       personnelCode: 1,
@@ -158,6 +231,14 @@ void main() {
       leaveDays: 1.5,
       sickLeaveDays: 2,
       overtimeHours: 8.25,
+      nightWorkHours: 2,
+      nightWorkAmount: 70000,
+      fridayWorkHours: 3,
+      fridayWorkAmount: 120000,
+      holidayWorkHours: 4,
+      holidayWorkAmount: 560000,
+      missionDays: 1,
+      missionAmount: 733000,
       useCustomOvertimeBase: true,
       overtimeBaseDaily: 5176500,
       autoShiftWork: true,
@@ -169,12 +250,20 @@ void main() {
       seniorityExempt: true,
       dailySeniorityOverride: 123456,
       autoSeniority: false,
+      absenceDays: 0.5,
+      absenceHours: 2,
+      absenceDeduction: 566500,
     );
 
     final restored = SalaryDraft.fromMap(draft.toMap());
     expect(restored.leaveDays, 1.5);
     expect(restored.sickLeaveDays, 2);
     expect(restored.overtimeHours, 8.25);
+    expect(restored.nightWorkHours, 2);
+    expect(restored.fridayWorkAmount, 120000);
+    expect(restored.holidayWorkHours, 4);
+    expect(restored.missionAmount, 733000);
+    expect(restored.absenceDeduction, 566500);
     expect(restored.useCustomOvertimeBase, isTrue);
     expect(restored.overtimeBaseDaily, 5176500);
     expect(restored.autoShiftWork, isTrue);
@@ -190,6 +279,8 @@ void main() {
     expect(nextMonth.id, isNull);
     expect(nextMonth.month, 4);
     expect(nextMonth.overtimeHours, 8.25);
+    expect(nextMonth.nightWorkHours, 2);
+    expect(nextMonth.absenceHours, 2);
     expect(nextMonth.housingExempt, isTrue);
     expect(nextMonth.foodExempt, isTrue);
     expect(nextMonth.seniorityExempt, isTrue);

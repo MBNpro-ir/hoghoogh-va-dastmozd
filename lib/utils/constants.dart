@@ -8,7 +8,7 @@ class AppConstants {
   /// ورژن برنامه - فقط از pubspec.yaml خوانده می‌شود.
   /// برای تغییر ورژن، فقط فایل pubspec.yaml را ویرایش کنید.
   static String get appVersion {
-    const fallback = '0.9.24 alpha';
+    const fallback = '0.10.0 alpha';
     try {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       final match = RegExp(
@@ -75,6 +75,10 @@ class AppConstants {
   static const double overtimeMultiplier = 1.40; // 140% اضافه‌کاری
   static const double dailyWorkHours = 7.33; // ساعت کار روزانه مطابق فرمول اکسل
   static const double shiftWorkRate = 0.15; // 15% نوبت‌کاری مطابق اکسل
+  static const double fridayWorkRate = 0.40;
+  static const double holidayWorkMultiplier = overtimeMultiplier;
+  static const double missionDailyMultiplier = 1.0;
+  static const double absenceHourlyMultiplier = 1.0;
   static const double insuranceCapMultiplier =
       7; // سقف بیمه = حداقل دستمزد روزانه * 7 * کارکرد
   static const double nightShiftMultiplier = 0.35; // 35% نوبت‌کاری شب

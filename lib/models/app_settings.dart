@@ -21,6 +21,11 @@ class AppSettings {
   final double twoSevenBaseRate; // ضریب معافیت دو هفتم
   final double monthlyLeaveAllowance;
   final double annualLeaveAllowance;
+  final double nightWorkRate;
+  final double fridayWorkRate;
+  final double holidayWorkMultiplier;
+  final double missionDailyMultiplier;
+  final double absenceHourlyMultiplier;
   final String companyName; // نام شرکت
 
   AppSettings({
@@ -41,6 +46,11 @@ class AppSettings {
     this.twoSevenBaseRate = AppConstants.twoSevenBaseRate,
     this.monthlyLeaveAllowance = AppConstants.defaultMonthlyLeaveAllowance,
     this.annualLeaveAllowance = AppConstants.defaultAnnualLeaveAllowance,
+    this.nightWorkRate = AppConstants.nightShiftMultiplier,
+    this.fridayWorkRate = AppConstants.fridayWorkRate,
+    this.holidayWorkMultiplier = AppConstants.holidayWorkMultiplier,
+    this.missionDailyMultiplier = AppConstants.missionDailyMultiplier,
+    this.absenceHourlyMultiplier = AppConstants.absenceHourlyMultiplier,
     this.companyName = 'شرکت اصلی',
   });
 
@@ -62,6 +72,11 @@ class AppSettings {
     'two_seven_base_rate': twoSevenBaseRate,
     'monthly_leave_allowance': monthlyLeaveAllowance,
     'annual_leave_allowance': annualLeaveAllowance,
+    'night_work_rate': nightWorkRate,
+    'friday_work_rate': fridayWorkRate,
+    'holiday_work_multiplier': holidayWorkMultiplier,
+    'mission_daily_multiplier': missionDailyMultiplier,
+    'absence_hourly_multiplier': absenceHourlyMultiplier,
     'company_name': companyName,
   };
 
@@ -110,6 +125,21 @@ class AppSettings {
     annualLeaveAllowance:
         (map['annual_leave_allowance'] as num?)?.toDouble() ??
         AppConstants.defaultAnnualLeaveAllowance,
+    nightWorkRate:
+        (map['night_work_rate'] as num?)?.toDouble() ??
+        AppConstants.nightShiftMultiplier,
+    fridayWorkRate:
+        (map['friday_work_rate'] as num?)?.toDouble() ??
+        AppConstants.fridayWorkRate,
+    holidayWorkMultiplier:
+        (map['holiday_work_multiplier'] as num?)?.toDouble() ??
+        AppConstants.holidayWorkMultiplier,
+    missionDailyMultiplier:
+        (map['mission_daily_multiplier'] as num?)?.toDouble() ??
+        AppConstants.missionDailyMultiplier,
+    absenceHourlyMultiplier:
+        (map['absence_hourly_multiplier'] as num?)?.toDouble() ??
+        AppConstants.absenceHourlyMultiplier,
     companyName: map['company_name'] as String? ?? 'شرکت اصلی',
   );
 
@@ -130,6 +160,11 @@ class AppSettings {
     double? twoSevenBaseRate,
     double? monthlyLeaveAllowance,
     double? annualLeaveAllowance,
+    double? nightWorkRate,
+    double? fridayWorkRate,
+    double? holidayWorkMultiplier,
+    double? missionDailyMultiplier,
+    double? absenceHourlyMultiplier,
     String? companyName,
   }) => AppSettings(
     id: id,
@@ -150,6 +185,13 @@ class AppSettings {
     twoSevenBaseRate: twoSevenBaseRate ?? this.twoSevenBaseRate,
     monthlyLeaveAllowance: monthlyLeaveAllowance ?? this.monthlyLeaveAllowance,
     annualLeaveAllowance: annualLeaveAllowance ?? this.annualLeaveAllowance,
+    nightWorkRate: nightWorkRate ?? this.nightWorkRate,
+    fridayWorkRate: fridayWorkRate ?? this.fridayWorkRate,
+    holidayWorkMultiplier: holidayWorkMultiplier ?? this.holidayWorkMultiplier,
+    missionDailyMultiplier:
+        missionDailyMultiplier ?? this.missionDailyMultiplier,
+    absenceHourlyMultiplier:
+        absenceHourlyMultiplier ?? this.absenceHourlyMultiplier,
     companyName: companyName ?? this.companyName,
   );
 }

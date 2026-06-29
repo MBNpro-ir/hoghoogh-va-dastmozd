@@ -7,6 +7,14 @@ class SalaryDraft {
   final double leaveDays;
   final double sickLeaveDays;
   final double overtimeHours;
+  final double nightWorkHours;
+  final double nightWorkAmount;
+  final double fridayWorkHours;
+  final double fridayWorkAmount;
+  final double holidayWorkHours;
+  final double holidayWorkAmount;
+  final double missionDays;
+  final double missionAmount;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double shiftWork;
@@ -24,12 +32,16 @@ class SalaryDraft {
   final double advance;
   final bool autoAdvances;
   final double otherDeductions;
+  final double absenceDays;
+  final double absenceHours;
+  final double absenceDeduction;
   final bool includeLeaveInPayslip;
   final bool insuranceExempt;
   final bool taxExempt;
   final bool housingExempt;
   final bool foodExempt;
   final bool seniorityExempt;
+  final String payrollCalculationDetailsJson;
 
   const SalaryDraft({
     this.id,
@@ -40,6 +52,14 @@ class SalaryDraft {
     this.leaveDays = 0,
     this.sickLeaveDays = 0,
     this.overtimeHours = 0,
+    this.nightWorkHours = 0,
+    this.nightWorkAmount = 0,
+    this.fridayWorkHours = 0,
+    this.fridayWorkAmount = 0,
+    this.holidayWorkHours = 0,
+    this.holidayWorkAmount = 0,
+    this.missionDays = 0,
+    this.missionAmount = 0,
     this.useCustomOvertimeBase = false,
     this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
@@ -57,12 +77,16 @@ class SalaryDraft {
     this.advance = 0,
     this.autoAdvances = true,
     this.otherDeductions = 0,
+    this.absenceDays = 0,
+    this.absenceHours = 0,
+    this.absenceDeduction = 0,
     this.includeLeaveInPayslip = true,
     this.insuranceExempt = false,
     this.taxExempt = false,
     this.housingExempt = false,
     this.foodExempt = false,
     this.seniorityExempt = false,
+    this.payrollCalculationDetailsJson = '{}',
   });
 
   Map<String, dynamic> toMap() => {
@@ -74,6 +98,14 @@ class SalaryDraft {
     'leave_days': leaveDays,
     'sick_leave_days': sickLeaveDays,
     'overtime_hours': overtimeHours,
+    'night_work_hours': nightWorkHours,
+    'night_work_amount': nightWorkAmount,
+    'friday_work_hours': fridayWorkHours,
+    'friday_work_amount': fridayWorkAmount,
+    'holiday_work_hours': holidayWorkHours,
+    'holiday_work_amount': holidayWorkAmount,
+    'mission_days': missionDays,
+    'mission_amount': missionAmount,
     'use_custom_overtime_base': useCustomOvertimeBase ? 1 : 0,
     'overtime_base_daily': overtimeBaseDaily,
     'shift_work': shiftWork,
@@ -91,12 +123,16 @@ class SalaryDraft {
     'advance': advance,
     'auto_advances': autoAdvances ? 1 : 0,
     'other_deductions': otherDeductions,
+    'absence_days': absenceDays,
+    'absence_hours': absenceHours,
+    'absence_deduction': absenceDeduction,
     'include_leave_in_payslip': includeLeaveInPayslip ? 1 : 0,
     'insurance_exempt': insuranceExempt ? 1 : 0,
     'tax_exempt': taxExempt ? 1 : 0,
     'housing_exempt': housingExempt ? 1 : 0,
     'food_exempt': foodExempt ? 1 : 0,
     'seniority_exempt': seniorityExempt ? 1 : 0,
+    'payroll_calculation_details_json': payrollCalculationDetailsJson,
   };
 
   factory SalaryDraft.fromMap(Map<String, dynamic> map) => SalaryDraft(
@@ -108,6 +144,14 @@ class SalaryDraft {
     leaveDays: (map['leave_days'] as num?)?.toDouble() ?? 0,
     sickLeaveDays: (map['sick_leave_days'] as num?)?.toDouble() ?? 0,
     overtimeHours: (map['overtime_hours'] as num?)?.toDouble() ?? 0,
+    nightWorkHours: (map['night_work_hours'] as num?)?.toDouble() ?? 0,
+    nightWorkAmount: (map['night_work_amount'] as num?)?.toDouble() ?? 0,
+    fridayWorkHours: (map['friday_work_hours'] as num?)?.toDouble() ?? 0,
+    fridayWorkAmount: (map['friday_work_amount'] as num?)?.toDouble() ?? 0,
+    holidayWorkHours: (map['holiday_work_hours'] as num?)?.toDouble() ?? 0,
+    holidayWorkAmount: (map['holiday_work_amount'] as num?)?.toDouble() ?? 0,
+    missionDays: (map['mission_days'] as num?)?.toDouble() ?? 0,
+    missionAmount: (map['mission_amount'] as num?)?.toDouble() ?? 0,
     useCustomOvertimeBase: (map['use_custom_overtime_base'] as int? ?? 0) == 1,
     overtimeBaseDaily: (map['overtime_base_daily'] as num?)?.toDouble() ?? 0,
     shiftWork: (map['shift_work'] as num?)?.toDouble() ?? 0,
@@ -128,12 +172,17 @@ class SalaryDraft {
     advance: (map['advance'] as num?)?.toDouble() ?? 0,
     autoAdvances: (map['auto_advances'] as int? ?? 1) == 1,
     otherDeductions: (map['other_deductions'] as num?)?.toDouble() ?? 0,
+    absenceDays: (map['absence_days'] as num?)?.toDouble() ?? 0,
+    absenceHours: (map['absence_hours'] as num?)?.toDouble() ?? 0,
+    absenceDeduction: (map['absence_deduction'] as num?)?.toDouble() ?? 0,
     includeLeaveInPayslip: (map['include_leave_in_payslip'] as int? ?? 1) == 1,
     insuranceExempt: (map['insurance_exempt'] as int? ?? 0) == 1,
     taxExempt: (map['tax_exempt'] as int? ?? 0) == 1,
     housingExempt: (map['housing_exempt'] as int? ?? 0) == 1,
     foodExempt: (map['food_exempt'] as int? ?? 0) == 1,
     seniorityExempt: (map['seniority_exempt'] as int? ?? 0) == 1,
+    payrollCalculationDetailsJson:
+        map['payroll_calculation_details_json']?.toString() ?? '{}',
   );
 
   SalaryDraft copyForPeriod({required int year, required int month}) {
@@ -145,6 +194,14 @@ class SalaryDraft {
       leaveDays: leaveDays,
       sickLeaveDays: sickLeaveDays,
       overtimeHours: overtimeHours,
+      nightWorkHours: nightWorkHours,
+      nightWorkAmount: nightWorkAmount,
+      fridayWorkHours: fridayWorkHours,
+      fridayWorkAmount: fridayWorkAmount,
+      holidayWorkHours: holidayWorkHours,
+      holidayWorkAmount: holidayWorkAmount,
+      missionDays: missionDays,
+      missionAmount: missionAmount,
       useCustomOvertimeBase: useCustomOvertimeBase,
       overtimeBaseDaily: overtimeBaseDaily,
       shiftWork: shiftWork,
@@ -162,12 +219,16 @@ class SalaryDraft {
       advance: advance,
       autoAdvances: autoAdvances,
       otherDeductions: otherDeductions,
+      absenceDays: absenceDays,
+      absenceHours: absenceHours,
+      absenceDeduction: absenceDeduction,
       includeLeaveInPayslip: includeLeaveInPayslip,
       insuranceExempt: insuranceExempt,
       taxExempt: taxExempt,
       housingExempt: housingExempt,
       foodExempt: foodExempt,
       seniorityExempt: seniorityExempt,
+      payrollCalculationDetailsJson: payrollCalculationDetailsJson,
     );
   }
 }

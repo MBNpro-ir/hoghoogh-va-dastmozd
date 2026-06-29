@@ -625,6 +625,10 @@ class PayslipScreen extends StatelessWidget {
       ('پایه سنوات', record.seniority),
       ('سایر مزایا', record.otherBenefits),
       ('اضافه کار', record.overtimeAmount),
+      ('شب کاری', record.nightWorkAmount),
+      ('جمعه کاری', record.fridayWorkAmount),
+      ('تعطیل کاری', record.holidayWorkAmount),
+      ('ماموریت', record.missionAmount),
       ('مزایای ساعتی', record.hourlyBenefitsAmount),
     ];
     return Column(
@@ -641,6 +645,7 @@ class PayslipScreen extends StatelessWidget {
       ('قسط وام', record.loanInstallment),
       ('مساعده', record.advance),
       ('سایر کسورات', record.otherDeductions),
+      ('کسر غیبت', record.absenceDeduction),
       ('کسر مرخصی مازاد', record.leaveDeduction),
     ];
     return Column(
@@ -1532,6 +1537,10 @@ class PayslipScreen extends StatelessWidget {
     ('پایه سنوات', record.seniority),
     ('سایر مزایا', record.otherBenefits),
     ('اضافه کار', record.overtimeAmount),
+    ('شب کاری', record.nightWorkAmount),
+    ('جمعه کاری', record.fridayWorkAmount),
+    ('تعطیل کاری', record.holidayWorkAmount),
+    ('ماموریت', record.missionAmount),
     ('مزایای ساعتی', record.hourlyBenefitsAmount),
   ];
 
@@ -1541,6 +1550,7 @@ class PayslipScreen extends StatelessWidget {
     ('قسط وام', record.loanInstallment),
     ('مساعده', record.advance),
     ('سایر کسورات', record.otherDeductions),
+    ('کسر غیبت', record.absenceDeduction),
     ('کسر مرخصی مازاد', record.leaveDeduction),
   ];
 

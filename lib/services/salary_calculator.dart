@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../models/app_settings.dart';
 import '../models/employee.dart';
 import '../models/salary_record.dart';
@@ -16,6 +18,10 @@ class SalaryCalculationResult {
   final double otherBenefits; // سایر مزایا
   final double shiftWork; // نوبت‌کاری
   final double overtimeAmount; // اضافه‌کاری
+  final double nightWorkAmount;
+  final double fridayWorkAmount;
+  final double holidayWorkAmount;
+  final double missionAmount;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double hourlyBenefitsAmount; // مزایای ساعتی
@@ -32,6 +38,7 @@ class SalaryCalculationResult {
   final double leaveAllowanceDays; // مرخصی مجاز ماهانه
   final double excessLeaveDays; // مرخصی مازاد
   final double leaveDeduction; // کسر مرخصی مازاد
+  final double absenceDeduction;
   final double totalDeductions; // جمع کسورات
 
   // محاسبات
@@ -47,6 +54,7 @@ class SalaryCalculationResult {
   final double netSalary; // خالص حقوق
   final int rounding; // رند
   final double finalPayment; // خالص دریافتی
+  final String payrollCalculationDetailsJson;
 
   SalaryCalculationResult({
     required this.baseSalary,
@@ -58,6 +66,10 @@ class SalaryCalculationResult {
     required this.otherBenefits,
     required this.shiftWork,
     required this.overtimeAmount,
+    required this.nightWorkAmount,
+    required this.fridayWorkAmount,
+    required this.holidayWorkAmount,
+    required this.missionAmount,
     required this.useCustomOvertimeBase,
     required this.overtimeBaseDaily,
     required this.hourlyBenefitsAmount,
@@ -72,6 +84,7 @@ class SalaryCalculationResult {
     required this.leaveAllowanceDays,
     required this.excessLeaveDays,
     required this.leaveDeduction,
+    required this.absenceDeduction,
     required this.totalDeductions,
     required this.insuranceBase,
     required this.taxBase,
@@ -81,6 +94,7 @@ class SalaryCalculationResult {
     required this.netSalary,
     required this.rounding,
     required this.finalPayment,
+    required this.payrollCalculationDetailsJson,
   });
 
   SalaryRecord toRecord({
@@ -96,6 +110,12 @@ class SalaryCalculationResult {
     required double sickLeaveDays,
     required double workDays,
     required double overtimeHours,
+    double nightWorkHours = 0,
+    double fridayWorkHours = 0,
+    double holidayWorkHours = 0,
+    double missionDays = 0,
+    double absenceDays = 0,
+    double absenceHours = 0,
     required double hourlyBenefitHours,
     required bool includeLeaveInPayslip,
     required bool housingExempt,
@@ -116,6 +136,14 @@ class SalaryCalculationResult {
     workDays: workDays,
     overtimeHours: overtimeHours,
     overtimeAmount: overtimeAmount,
+    nightWorkHours: nightWorkHours,
+    nightWorkAmount: nightWorkAmount,
+    fridayWorkHours: fridayWorkHours,
+    fridayWorkAmount: fridayWorkAmount,
+    holidayWorkHours: holidayWorkHours,
+    holidayWorkAmount: holidayWorkAmount,
+    missionDays: missionDays,
+    missionAmount: missionAmount,
     useCustomOvertimeBase: useCustomOvertimeBase,
     overtimeBaseDaily: overtimeBaseDaily,
     shiftWork: shiftWork,
@@ -134,6 +162,9 @@ class SalaryCalculationResult {
     loanInstallment: loanInstallment,
     advance: advance,
     otherDeductions: otherDeductions,
+    absenceDays: absenceDays,
+    absenceHours: absenceHours,
+    absenceDeduction: absenceDeduction,
     includeLeaveInPayslip: includeLeaveInPayslip,
     housingExempt: housingExempt,
     foodExempt: foodExempt,
@@ -148,6 +179,7 @@ class SalaryCalculationResult {
     netSalary: netSalary,
     rounding: rounding,
     finalPayment: finalPayment,
+    payrollCalculationDetailsJson: payrollCalculationDetailsJson,
     notes: notes,
   );
 }
@@ -160,6 +192,10 @@ class SalaryCalculationInput {
   final double leaveDays; // مرخصی
   final double sickLeaveDays; // مرخصی استعلاجی تاییدشده
   final double overtimeHours; // ساعت اضافه‌کاری
+  final double nightWorkHours;
+  final double fridayWorkHours;
+  final double holidayWorkHours;
+  final double missionDays;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double shiftWork; // مبلغ نوبت‌کاری
@@ -178,6 +214,8 @@ class SalaryCalculationInput {
   final double loanInstallment; // قسط وام
   final double advance; // مساعده
   final double otherDeductions; // سایر کسورات (مابه‌تفاوت)
+  final double absenceDays;
+  final double absenceHours;
 
   SalaryCalculationInput({
     this.year,
@@ -186,6 +224,10 @@ class SalaryCalculationInput {
     this.leaveDays = 0,
     this.sickLeaveDays = 0,
     this.overtimeHours = 0,
+    this.nightWorkHours = 0,
+    this.fridayWorkHours = 0,
+    this.holidayWorkHours = 0,
+    this.missionDays = 0,
     this.useCustomOvertimeBase = false,
     this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
@@ -204,6 +246,8 @@ class SalaryCalculationInput {
     this.loanInstallment = 0,
     this.advance = 0,
     this.otherDeductions = 0,
+    this.absenceDays = 0,
+    this.absenceHours = 0,
   });
 
   double get normalizedLeaveDays =>
@@ -331,6 +375,20 @@ class SalaryCalculator {
     final overtimeHourlyRate = overtimeBaseDaily / AppConstants.dailyWorkHours;
     final overtimeRate = overtimeHourlyRate * AppConstants.overtimeMultiplier;
     final overtimeAmount = input.overtimeHours * overtimeRate;
+    final regularHourlyRate =
+        employee.dailyWage1405 / AppConstants.dailyWorkHours;
+    final nightWorkAmount =
+        input.nightWorkHours * regularHourlyRate * settings.nightWorkRate;
+    final fridayWorkAmount =
+        input.fridayWorkHours * regularHourlyRate * settings.fridayWorkRate;
+    final holidayWorkAmount =
+        input.holidayWorkHours *
+        regularHourlyRate *
+        settings.holidayWorkMultiplier;
+    final missionAmount =
+        input.missionDays *
+        employee.dailyWage1405 *
+        settings.missionDailyMultiplier;
     final hourlyBenefitHours = input.autoHourlyBenefits
         ? (input.hourlyBenefitHours > 0
               ? input.hourlyBenefitHours
@@ -359,6 +417,10 @@ class SalaryCalculator {
         otherBenefits +
         shiftWork +
         overtimeAmount +
+        nightWorkAmount +
+        fridayWorkAmount +
+        holidayWorkAmount +
+        missionAmount +
         hourlyBenefitsAmount;
 
     // 11) مبنای بیمه مطابق اکسل:
@@ -398,6 +460,11 @@ class SalaryCalculator {
               .toDouble()
         : 0.0;
     final leaveDeduction = excessLeaveDays * employee.dailyWage1405;
+    final absenceDeduction =
+        input.absenceDays * employee.dailyWage1405 +
+        input.absenceHours *
+            regularHourlyRate *
+            settings.absenceHourlyMultiplier;
 
     // 14) جمع کسورات
     final totalDeductions =
@@ -406,6 +473,7 @@ class SalaryCalculator {
         input.loanInstallment +
         input.advance +
         input.otherDeductions +
+        absenceDeduction +
         leaveDeduction;
 
     // 15) خالص حقوق
@@ -419,6 +487,18 @@ class SalaryCalculator {
     final employerInsurance = insuranceBase * settings.employerInsuranceRate;
     final unemploymentInsurance =
         insuranceBase * settings.unemploymentInsuranceRate;
+    final calculationDetailsJson = jsonEncode({
+      'formula_version': 'salary-1405-v2',
+      'law_year': settings.year,
+      'rates': {
+        'overtime_multiplier': AppConstants.overtimeMultiplier,
+        'night_work_rate': settings.nightWorkRate,
+        'friday_work_rate': settings.fridayWorkRate,
+        'holiday_work_multiplier': settings.holidayWorkMultiplier,
+        'mission_daily_multiplier': settings.missionDailyMultiplier,
+        'absence_hourly_multiplier': settings.absenceHourlyMultiplier,
+      },
+    });
 
     return SalaryCalculationResult(
       baseSalary: baseSalary,
@@ -430,6 +510,10 @@ class SalaryCalculator {
       otherBenefits: otherBenefits,
       shiftWork: shiftWork,
       overtimeAmount: overtimeAmount,
+      nightWorkAmount: nightWorkAmount,
+      fridayWorkAmount: fridayWorkAmount,
+      holidayWorkAmount: holidayWorkAmount,
+      missionAmount: missionAmount,
       useCustomOvertimeBase: input.useCustomOvertimeBase,
       overtimeBaseDaily: overtimeBaseDaily,
       hourlyBenefitsAmount: hourlyBenefitsAmount,
@@ -444,6 +528,7 @@ class SalaryCalculator {
       leaveAllowanceDays: leaveAllowanceDays,
       excessLeaveDays: excessLeaveDays,
       leaveDeduction: leaveDeduction,
+      absenceDeduction: absenceDeduction,
       totalDeductions: totalDeductions,
       insuranceBase: insuranceBase,
       taxBase: taxBase,
@@ -453,6 +538,7 @@ class SalaryCalculator {
       netSalary: netSalary,
       rounding: rounding,
       finalPayment: roundedFinal.toDouble(),
+      payrollCalculationDetailsJson: calculationDetailsJson,
     );
   }
 }

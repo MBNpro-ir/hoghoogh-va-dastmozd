@@ -1031,6 +1031,24 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           ),
         ),
         _textColumn(
+          'سنوات سال قبل',
+          160,
+          (d) => d.lastYearSeniority,
+          numeric: true,
+          separateThousands: true,
+        ),
+        _textColumn(
+          'پایه سنوات روزانه',
+          170,
+          (d) => d.dailySeniority,
+          numeric: true,
+          separateThousands: true,
+          onChanged: (draft, _) => draft.syncMonthlyFromDaily(
+            draft.dailySeniority,
+            draft.monthlySeniority,
+          ),
+        ),
+        _textColumn(
           'سایر مزایای روزانه',
           170,
           (d) => d.otherBenefitsDaily,
@@ -1054,6 +1072,29 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           (d) => d.hasShiftWork,
           (d, value) => d.hasShiftWork = value,
         ),
+        _boolColumn(
+          'مبنای سفارشی اضافه‌کاری',
+          170,
+          (d) => d.useCustomOvertimeBase,
+          (d, value) {
+            d.useCustomOvertimeBase = value;
+            if (value &&
+                (EmployeeBatchDraft.parseNumber(d.overtimeBaseDaily.text) ??
+                        0) <=
+                    0) {
+              d.overtimeBaseDaily.text = EmployeeBatchDraft.formatNumber(
+                EmployeeBatchDraft.parseNumber(d.dailyWage1405.text) ?? 0,
+              );
+            }
+          },
+        ),
+        _textColumn(
+          'مبنای روزانه اضافه‌کاری',
+          180,
+          (d) => d.overtimeBaseDaily,
+          numeric: true,
+          separateThousands: true,
+        ),
       ],
       _EmployeeGridSection.monthlyBenefits => [
         _monthlyBenefitColumn(
@@ -1075,6 +1116,11 @@ class _EmployeeBatchEntryViewState extends State<EmployeeBatchEntryView> {
           'حق هر فرزند ماهانه',
           (d) => d.monthlyChildAllowance,
           (d) => d.dailyChildAllowance,
+        ),
+        _monthlyBenefitColumn(
+          'پایه سنوات ماهانه',
+          (d) => d.monthlySeniority,
+          (d) => d.dailySeniority,
         ),
         _monthlyBenefitColumn(
           'سایر مزایا ماهانه',
@@ -1639,6 +1685,7 @@ class EmployeeBatchDraft {
     dailySeniority.text = formatNumber(employee.dailySeniority);
     otherBenefitsDaily.text = formatNumber(employee.otherBenefitsDaily);
     hourlyBenefits.text = formatNumber(employee.hourlyBenefits);
+    overtimeBaseDaily.text = formatNumber(employee.overtimeBaseDaily);
     startDate.text = PersianNumberFormatter.toPersian(employee.startDate);
     endDate.text = PersianNumberFormatter.toPersian(employee.endDate);
     cardNumber.text = PersianNumberFormatter.toPersian(employee.cardNumber);
@@ -1677,6 +1724,7 @@ class EmployeeBatchDraft {
     isActive = employee.isActive;
     hardAndHarmfulJob = employee.hardAndHarmfulJob;
     hasShiftWork = employee.hasShiftWork;
+    useCustomOvertimeBase = employee.useCustomOvertimeBase;
     syncMonthlyFromDaily(dailyHousing, monthlyHousing);
     syncMonthlyFromDaily(dailyFood, monthlyFood);
     syncMonthlyFromDaily(dailyMarriage, monthlyMarriage);
@@ -1713,6 +1761,7 @@ class EmployeeBatchDraft {
   final dailySeniority = TextEditingController();
   final otherBenefitsDaily = TextEditingController();
   final hourlyBenefits = TextEditingController();
+  final overtimeBaseDaily = TextEditingController();
   final monthlyHousing = TextEditingController();
   final monthlyFood = TextEditingController();
   final monthlyMarriage = TextEditingController();
@@ -1739,6 +1788,7 @@ class EmployeeBatchDraft {
   bool isActive = true;
   bool hardAndHarmfulJob = false;
   bool hasShiftWork = false;
+  bool useCustomOvertimeBase = false;
   bool touched = false;
   List<String> errors = [];
 
@@ -1768,6 +1818,7 @@ class EmployeeBatchDraft {
     dailySeniority,
     otherBenefitsDaily,
     hourlyBenefits,
+    overtimeBaseDaily,
     monthlyHousing,
     monthlyFood,
     monthlyMarriage,
@@ -1813,6 +1864,7 @@ class EmployeeBatchDraft {
     isActive = true;
     hardAndHarmfulJob = false;
     hasShiftWork = false;
+    useCustomOvertimeBase = false;
     errors = [];
     employeeId = null;
 
@@ -1825,8 +1877,10 @@ class EmployeeBatchDraft {
     );
     childrenCount.text = '۰';
     lastYearSeniority.text = formatNumber(0);
+    setDailyAndMonthly(dailySeniority, monthlySeniority, 0);
     otherBenefitsDaily.text = formatNumber(0);
     hourlyBenefits.text = formatNumber(0);
+    overtimeBaseDaily.text = formatNumber(0);
     dailyWage1404.text = formatNumber(AppConstants.defaultDailyWage1404);
     syncExperienceAndSeniority(settings);
     autoCalculate(settings);
@@ -1937,8 +1991,6 @@ class EmployeeBatchDraft {
       settings: settings,
     );
     hasPriorExperience = eligible;
-    setDailyAndMonthly(dailySeniority, monthlySeniority, 0);
-    lastYearSeniority.text = formatNumber(0);
   }
 
   void syncChildAllowance(AppSettings settings) {
@@ -2055,6 +2107,7 @@ class EmployeeBatchDraft {
       ('سنوات', dailySeniority),
       ('سایر مزایا', otherBenefitsDaily),
       ('مزایای ساعتی', hourlyBenefits),
+      ('مبنای روزانه اضافه‌کاری', overtimeBaseDaily),
       ('مسکن ماهانه', monthlyHousing),
       ('خواروبار ماهانه', monthlyFood),
       ('حق تاهل ماهانه', monthlyMarriage),
@@ -2069,6 +2122,10 @@ class EmployeeBatchDraft {
       } else if (value < 0) {
         result.add('${field.$1} نمی‌تواند منفی باشد');
       }
+    }
+    if (useCustomOvertimeBase &&
+        (parseNumber(overtimeBaseDaily.text) ?? 0) <= 0) {
+      result.add('مبنای روزانه اضافه‌کاری باید بزرگ‌تر از صفر باشد');
     }
     return result;
   }
@@ -2094,7 +2151,7 @@ class EmployeeBatchDraft {
     hasPriorExperience: hasPriorExperience,
     isMarried: isMarried,
     childrenCount: parseInt(childrenCount.text) ?? 0,
-    lastYearSeniority: 0,
+    lastYearSeniority: parseNumber(lastYearSeniority.text) ?? 0,
     baseSalary30Days: parseNumber(baseSalary30Days.text) ?? 0,
     dailyWage1405: parseNumber(dailyWage1405.text) ?? 0,
     dailyWage1404: parseNumber(dailyWage1404.text) ?? 0,
@@ -2102,10 +2159,14 @@ class EmployeeBatchDraft {
     dailyFood: parseNumber(dailyFood.text) ?? 0,
     dailyMarriage: parseNumber(dailyMarriage.text) ?? 0,
     dailyChildAllowance: parseNumber(dailyChildAllowance.text) ?? 0,
-    dailySeniority: 0,
+    dailySeniority: parseNumber(dailySeniority.text) ?? 0,
     otherBenefitsDaily: parseNumber(otherBenefitsDaily.text) ?? 0,
     hourlyBenefits: parseNumber(hourlyBenefits.text) ?? 0,
     hasShiftWork: hasShiftWork,
+    useCustomOvertimeBase: useCustomOvertimeBase,
+    overtimeBaseDaily: useCustomOvertimeBase
+        ? parseNumber(overtimeBaseDaily.text) ?? 0
+        : 0,
     startDate: textOf(startDate),
     isActive: isActive,
     endDate: textOf(endDate),

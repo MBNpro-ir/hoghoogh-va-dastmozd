@@ -74,6 +74,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _initTwoSevenBaseRate = 0;
   double _initMonthlyLeaveAllowance = 0;
   double _initAnnualLeaveAllowance = 0;
+  double _initNightWorkRate = 0;
+  double _initFridayWorkRate = 0;
+  double _initHolidayWorkMultiplier = 0;
+  double _initMissionDailyMultiplier = 0;
+  double _initAbsenceHourlyMultiplier = 0;
 
   late TextEditingController _companyNameCtrl;
 
@@ -92,6 +97,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _twoSevenBaseRate = 0;
   double _monthlyLeaveAllowance = 0;
   double _annualLeaveAllowance = 0;
+  double _nightWorkRate = 0;
+  double _fridayWorkRate = 0;
+  double _holidayWorkMultiplier = 0;
+  double _missionDailyMultiplier = 0;
+  double _absenceHourlyMultiplier = 0;
 
   @override
   void initState() {
@@ -123,6 +133,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _twoSevenBaseRate = _settings!.twoSevenBaseRate;
     _monthlyLeaveAllowance = _settings!.monthlyLeaveAllowance;
     _annualLeaveAllowance = _settings!.annualLeaveAllowance;
+    _nightWorkRate = _settings!.nightWorkRate;
+    _fridayWorkRate = _settings!.fridayWorkRate;
+    _holidayWorkMultiplier = _settings!.holidayWorkMultiplier;
+    _missionDailyMultiplier = _settings!.missionDailyMultiplier;
+    _absenceHourlyMultiplier = _settings!.absenceHourlyMultiplier;
 
     _initDailyWage = _settings!.dailyWage;
     _initMonthlyFood = _settings!.monthlyFood;
@@ -139,6 +154,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _initTwoSevenBaseRate = _settings!.twoSevenBaseRate;
     _initMonthlyLeaveAllowance = _settings!.monthlyLeaveAllowance;
     _initAnnualLeaveAllowance = _settings!.annualLeaveAllowance;
+    _initNightWorkRate = _settings!.nightWorkRate;
+    _initFridayWorkRate = _settings!.fridayWorkRate;
+    _initHolidayWorkMultiplier = _settings!.holidayWorkMultiplier;
+    _initMissionDailyMultiplier = _settings!.missionDailyMultiplier;
+    _initAbsenceHourlyMultiplier = _settings!.absenceHourlyMultiplier;
 
     _hasLocalCredential = await _security.hasCredential();
     _localMethod = await _security.getMethod();
@@ -167,7 +187,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _unemploymentInsuranceRate != _initUnemploymentInsuranceRate ||
         _twoSevenBaseRate != _initTwoSevenBaseRate ||
         _monthlyLeaveAllowance != _initMonthlyLeaveAllowance ||
-        _annualLeaveAllowance != _initAnnualLeaveAllowance;
+        _annualLeaveAllowance != _initAnnualLeaveAllowance ||
+        _nightWorkRate != _initNightWorkRate ||
+        _fridayWorkRate != _initFridayWorkRate ||
+        _holidayWorkMultiplier != _initHolidayWorkMultiplier ||
+        _missionDailyMultiplier != _initMissionDailyMultiplier ||
+        _absenceHourlyMultiplier != _initAbsenceHourlyMultiplier;
     if (changed != _hasChanges) setState(() => _hasChanges = changed);
   }
 
@@ -247,6 +272,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         twoSevenBaseRate: _twoSevenBaseRate,
         monthlyLeaveAllowance: _monthlyLeaveAllowance,
         annualLeaveAllowance: _annualLeaveAllowance,
+        nightWorkRate: _nightWorkRate,
+        fridayWorkRate: _fridayWorkRate,
+        holidayWorkMultiplier: _holidayWorkMultiplier,
+        missionDailyMultiplier: _missionDailyMultiplier,
+        absenceHourlyMultiplier: _absenceHourlyMultiplier,
       );
       await _service.update(updated);
       _initDailyWage = updated.dailyWage;
@@ -264,6 +294,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _initTwoSevenBaseRate = updated.twoSevenBaseRate;
       _initMonthlyLeaveAllowance = updated.monthlyLeaveAllowance;
       _initAnnualLeaveAllowance = updated.annualLeaveAllowance;
+      _initNightWorkRate = updated.nightWorkRate;
+      _initFridayWorkRate = updated.fridayWorkRate;
+      _initHolidayWorkMultiplier = updated.holidayWorkMultiplier;
+      _initMissionDailyMultiplier = updated.missionDailyMultiplier;
+      _initAbsenceHourlyMultiplier = updated.absenceHourlyMultiplier;
       _hasChanges = false;
       if (!mounted) return;
       AppNotification.success(context, 'تنظیمات با موفقیت ذخیره شد');
@@ -890,6 +925,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 onChanged: (v) {
                                   _unemploymentInsuranceRate =
                                       v?.toDouble() ?? 0;
+                                  _checkChanges();
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        FadeInUp(
+                          delay: const Duration(milliseconds: 270),
+                          child: _section(
+                            title: 'ضرایب کارکرد و ماموریت',
+                            subtitle:
+                                'نرخ‌های قابل ویرایش برای شب کاری، جمعه کاری، تعطیل کاری، ماموریت و غیبت',
+                            icon: Icons.event_repeat_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                            initiallyExpanded: false,
+                            children: [
+                              _row([
+                                PersianNumberField(
+                                  label: 'شب کاری (۰.۳۵ = ۳۵٪)',
+                                  prefixIcon: Icons.dark_mode_rounded,
+                                  initialValue: _nightWorkRate,
+                                  onChanged: (v) {
+                                    _nightWorkRate = v?.toDouble() ?? 0;
+                                    _checkChanges();
+                                  },
+                                ),
+                                PersianNumberField(
+                                  label: 'جمعه کاری (۰.۴۰ = ۴۰٪)',
+                                  prefixIcon: Icons.weekend_rounded,
+                                  initialValue: _fridayWorkRate,
+                                  onChanged: (v) {
+                                    _fridayWorkRate = v?.toDouble() ?? 0;
+                                    _checkChanges();
+                                  },
+                                ),
+                              ]),
+                              const SizedBox(height: 14),
+                              _row([
+                                PersianNumberField(
+                                  label: 'ضریب تعطیل کاری',
+                                  prefixIcon: Icons.event_busy_rounded,
+                                  initialValue: _holidayWorkMultiplier,
+                                  onChanged: (v) {
+                                    _holidayWorkMultiplier = v?.toDouble() ?? 0;
+                                    _checkChanges();
+                                  },
+                                ),
+                                PersianNumberField(
+                                  label: 'ضریب روز ماموریت',
+                                  prefixIcon: Icons.business_center_rounded,
+                                  initialValue: _missionDailyMultiplier,
+                                  onChanged: (v) {
+                                    _missionDailyMultiplier =
+                                        v?.toDouble() ?? 0;
+                                    _checkChanges();
+                                  },
+                                ),
+                              ]),
+                              const SizedBox(height: 14),
+                              PersianNumberField(
+                                label: 'ضریب کسر ساعت غیبت',
+                                prefixIcon: Icons.timer_off_rounded,
+                                initialValue: _absenceHourlyMultiplier,
+                                onChanged: (v) {
+                                  _absenceHourlyMultiplier = v?.toDouble() ?? 0;
                                   _checkChanges();
                                 },
                               ),

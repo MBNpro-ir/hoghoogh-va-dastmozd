@@ -188,12 +188,23 @@ class BusinessValidation {
       record.childAllowance,
       record.seniority,
       record.otherBenefits,
+      record.nightWorkHours,
+      record.nightWorkAmount,
+      record.fridayWorkHours,
+      record.fridayWorkAmount,
+      record.holidayWorkHours,
+      record.holidayWorkAmount,
+      record.missionDays,
+      record.missionAmount,
       record.totalEarnings,
       record.insurance,
       record.tax,
       record.loanInstallment,
       record.advance,
       record.otherDeductions,
+      record.absenceDays,
+      record.absenceHours,
+      record.absenceDeduction,
       record.totalDeductions,
       record.insuranceBase,
       record.taxBase,
@@ -205,6 +216,12 @@ class BusinessValidation {
     _payrollPeriod(draft.employeeId, draft.year, draft.month, draft.totalDays);
     _attendance(draft.totalDays, draft.leaveDays, draft.sickLeaveDays);
     if (draft.overtimeHours < 0 ||
+        draft.nightWorkHours < 0 ||
+        draft.fridayWorkHours < 0 ||
+        draft.holidayWorkHours < 0 ||
+        draft.missionDays < 0 ||
+        draft.absenceDays < 0 ||
+        draft.absenceHours < 0 ||
         draft.hourlyBenefitHours < 0 ||
         draft.overtimeBaseDaily < 0) {
       throw const BusinessValidationException(
@@ -225,9 +242,14 @@ class BusinessValidation {
     _nonNegative('مبالغ پیش‌نویس حقوق', [
       draft.shiftWork,
       draft.hourlyBenefitsAmount,
+      draft.nightWorkAmount,
+      draft.fridayWorkAmount,
+      draft.holidayWorkAmount,
+      draft.missionAmount,
       draft.loanInstallment,
       draft.advance,
       draft.otherDeductions,
+      draft.absenceDeduction,
     ]);
   }
 
@@ -248,6 +270,11 @@ class BusinessValidation {
       settings.twoSevenBaseRate,
       settings.monthlyLeaveAllowance,
       settings.annualLeaveAllowance,
+      settings.nightWorkRate,
+      settings.fridayWorkRate,
+      settings.holidayWorkMultiplier,
+      settings.missionDailyMultiplier,
+      settings.absenceHourlyMultiplier,
     ]);
     for (final rate in [
       settings.employeeInsuranceRate,

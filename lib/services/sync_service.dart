@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../database/database_helper.dart';
 import '../models/advance_payment.dart';
 import '../models/app_settings.dart';
+import '../models/calculator_run.dart';
 import '../models/employee.dart';
 import '../models/employee_leave.dart';
 import '../models/loan.dart';
@@ -77,6 +78,7 @@ class SyncService {
     'salary_records',
     'salary_payment_statuses',
     'salary_drafts',
+    'calculator_runs',
     'app_settings',
   ];
 
@@ -89,10 +91,12 @@ class SyncService {
     'salary_drafts',
     'salary_records',
     'salary_payment_statuses',
+    'calculator_runs',
   ];
 
   static const _deleteOrder = <String>[
     'salary_payment_statuses',
+    'calculator_runs',
     'salary_records',
     'salary_drafts',
     'leaves',
@@ -188,7 +192,13 @@ class SyncService {
 
   Future<bool> hasLocalBusinessData() async {
     final db = await _db.database;
-    for (final table in ['employees', 'loans', 'advances', 'salary_records']) {
+    for (final table in [
+      'employees',
+      'loans',
+      'advances',
+      'salary_records',
+      'calculator_runs',
+    ]) {
       final rows = await db.rawQuery(
         'SELECT COUNT(*) AS count FROM $table WHERE deleted_at IS NULL',
       );
@@ -718,7 +728,8 @@ class SyncService {
         table == 'leaves' ||
         table == 'salary_records' ||
         table == 'salary_payment_statuses' ||
-        table == 'salary_drafts') {
+        table == 'salary_drafts' ||
+        table == 'calculator_runs') {
       final employeeId = payload['employee_id'];
       if (employeeId != null) {
         final employeeRows = await db.query(
@@ -764,6 +775,7 @@ class SyncService {
         payload,
       ),
       'salary_drafts' => await _remoteSalaryDraftPayload(db, payload),
+      'calculator_runs' => await _remoteCalculatorRunPayload(db, payload),
       'app_settings' => AppSettings.fromMap(payload).toMap()..remove('id'),
       _ => null,
     };
@@ -848,6 +860,24 @@ class SyncService {
         'seniority_exempt',
       }),
       'employee_id': employeeId,
+    }).toMap()..remove('id');
+  }
+
+  Future<Map<String, dynamic>?> _remoteCalculatorRunPayload(
+    Database db,
+    Map<String, dynamic> payload,
+  ) async {
+    int? employeeId;
+    final hasEmployeeRef =
+        payload['employee_sync_id'] != null || payload['employee_id'] != null;
+    if (hasEmployeeRef) {
+      employeeId = await _localEmployeeId(db, payload);
+      if (employeeId == null) return null;
+    }
+    return CalculatorRun.fromMap({
+      ...payload,
+      'employee_id': employeeId,
+      'created_at': payload['created_at']?.toString() ?? _nowIso(),
     }).toMap()..remove('id');
   }
 
