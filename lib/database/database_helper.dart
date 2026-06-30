@@ -7,10 +7,11 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../models/app_settings.dart';
 import '../models/company_profile.dart';
 import '../services/company_service.dart';
+import '../utils/constants.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 21;
+  static const int _dbVersion = 22;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -587,6 +588,18 @@ class DatabaseHelper {
     if (oldVersion < 21) {
       await _addBidbargPartTimeColumns(db);
     }
+    if (oldVersion < 22) {
+      await _migrateInsuranceTaxDeductionRate(db);
+    }
+  }
+
+  Future<void> _migrateInsuranceTaxDeductionRate(Database db) async {
+    await db.update(
+      'app_settings',
+      {'two_seven_base_rate': AppConstants.twoSevenBaseRate},
+      where: 'two_seven_base_rate >= ? AND two_seven_base_rate <= ?',
+      whereArgs: [0.28, 0.29],
+    );
   }
 
   Future<void> _addBidbargPartTimeColumns(Database db) async {

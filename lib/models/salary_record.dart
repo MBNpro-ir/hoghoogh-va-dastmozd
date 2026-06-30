@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import '../utils/constants.dart';
+
 /// مدل فیش حقوق ماهانه
 class SalaryRecord {
   final int? id;
@@ -81,8 +85,49 @@ class SalaryRecord {
   final String? notes;
   final DateTime createdAt;
 
-  double get payableDays =>
-      (totalDays - sickLeaveDays).clamp(0.0, totalDays.toDouble()).toDouble();
+  double get payableDays {
+    final fromDetails = _numberFromDetails([
+      'payable_days',
+      'part_time_equivalent_days',
+    ]);
+    if (fromDetails != null) {
+      return fromDetails.clamp(0.0, totalDays.toDouble()).toDouble();
+    }
+    if (usePartTimeWage && partTimeWorkHours > 0) {
+      final mandatoryHours = AppConstants.mandatoryMonthlyHoursFor(
+        year: year,
+        month: month,
+        totalDays: totalDays,
+      );
+      if (mandatoryHours > 0) {
+        return ((partTimeWorkHours.clamp(0.0, mandatoryHours) /
+                    mandatoryHours) *
+                totalDays)
+            .clamp(0.0, (totalDays - sickLeaveDays).toDouble())
+            .toDouble();
+      }
+    }
+    return (totalDays - sickLeaveDays)
+        .clamp(0.0, totalDays.toDouble())
+        .toDouble();
+  }
+
+  double? _numberFromDetails(List<String> keys) {
+    try {
+      final decoded = jsonDecode(payrollCalculationDetailsJson);
+      if (decoded is! Map<String, dynamic>) return null;
+      for (final key in keys) {
+        final direct = decoded[key];
+        if (direct is num) return direct.toDouble();
+        final rates = decoded['rates'];
+        if (rates is Map<String, dynamic>) {
+          final value = rates[key];
+          if (value is num) return value.toDouble();
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
 
   SalaryRecord({
     this.id,

@@ -139,6 +139,11 @@ class SalaryRecordUpdateService {
       missionDays: record.missionDays,
       usePartTimeWage: record.usePartTimeWage,
       partTimeWorkHours: record.partTimeWorkHours,
+      mandatoryMonthlyHours: AppConstants.mandatoryMonthlyHoursFor(
+        year: record.year,
+        month: record.month,
+        totalDays: record.totalDays,
+      ),
       useCustomOvertimeBase: record.useCustomOvertimeBase,
       overtimeBaseDaily: record.overtimeBaseDaily,
       shiftWork: record.shiftWork,
@@ -155,8 +160,8 @@ class SalaryRecordUpdateService {
       housingExempt: record.housingExempt,
       foodExempt: record.foodExempt,
       seniorityExempt: record.seniorityExempt,
-      otherBenefitsOverride: record.workDays > 0
-          ? record.otherBenefits / record.workDays
+      otherBenefitsOverride: record.payableDays > 0
+          ? record.otherBenefits / record.payableDays
           : record.otherBenefits,
       jobRelatedBenefits: record.jobRelatedBenefits,
       employeeRelatedBenefits: record.employeeRelatedBenefits,

@@ -319,15 +319,15 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _useAutoShiftWork =
           (_selectedEmployee?.hasShiftWork ?? false) && record.shiftWork > 0;
       _useAutoHourlyBenefits = record.hourlyBenefitHours > 0;
-      _otherBenefitsOverride = record.workDays > 0
-          ? record.otherBenefits / record.workDays
+      _otherBenefitsOverride = record.payableDays > 0
+          ? record.otherBenefits / record.payableDays
           : record.otherBenefits;
       _useAutoOtherBenefits = false;
       _jobRelatedBenefits = record.jobRelatedBenefits;
       _employeeRelatedBenefits = record.employeeRelatedBenefits;
       _welfareBenefits = record.welfareBenefits;
       final isCurrentPeriod = record.year == _year && record.month == _month;
-      final recordPayableDays = record.totalDays - record.sickLeaveDays;
+      final recordPayableDays = record.payableDays;
       final defaultSeniority = _defaultDailySeniority * recordPayableDays;
       _useAutoSeniority =
           !isCurrentPeriod ||
@@ -509,6 +509,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       missionDays: _missionDays,
       usePartTimeWage: _usePartTimeWage,
       partTimeWorkHours: _partTimeWorkHours,
+      mandatoryMonthlyHours: _mandatoryMonthlyHours,
       useCustomOvertimeBase: _useCustomOvertimeBase,
       overtimeBaseDaily: _overtimeBaseDaily,
       shiftWork: _shiftWork,
@@ -649,7 +650,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
         .clamp(0.0, _totalDays.toDouble())
         .toDouble();
     if (!_usePartTimeWage) return regularPayableDays;
-    return (_effectivePartTimeWorkHours / AppConstants.dailyWorkHours)
+    if (_mandatoryMonthlyHours <= 0) return 0;
+    return ((_effectivePartTimeWorkHours.clamp(0.0, _mandatoryMonthlyHours) /
+                _mandatoryMonthlyHours) *
+            _totalDays)
         .clamp(0.0, regularPayableDays)
         .toDouble();
   }
@@ -657,6 +661,12 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   int get _defaultTotalDays => PersianDateHelper.daysInMonth(_year, _month);
 
   double get _defaultOvertimeBaseDaily => _selectedEmployee?.dailyWage1405 ?? 0;
+
+  double get _mandatoryMonthlyHours => AppConstants.mandatoryMonthlyHoursFor(
+    year: _year,
+    month: _month,
+    totalDays: _totalDays,
+  );
 
   bool get _selectedEmployeeHasPartTimeContract {
     final employee = _selectedEmployee;
@@ -671,7 +681,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   double get _defaultPartTimeWorkHours {
     final hours = _selectedEmployee?.contractMonthlyHours ?? 0;
     if (hours > 0) return hours;
-    return AppConstants.standardMonthlyHours;
+    return _mandatoryMonthlyHours;
   }
 
   double get _effectivePartTimeWorkHours => _usePartTimeWage
@@ -2447,7 +2457,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       children: [
         _resultRow('مبنای بیمه', _result!.insuranceBase),
         _resultRow('مبنای مالیات', _result!.taxBase),
-        _resultRow('معافیت دو هفتم', _result!.twoSevenExemption),
+        _resultRow('کسر بیمه از مالیات', _result!.twoSevenExemption),
+        _resultRow('مزد مبنای روزانه', _result!.wageBasisDaily),
         _resultRow('تخفیف مالیات', _result!.taxReliefAmount),
         _plainDetailRow(
           'نرخ نوبت‌کاری',
@@ -2479,6 +2490,21 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           _plainDetailRow(
             'ساعت کارکرد پاره‌وقت',
             '${PersianNumberFormatter.formatDecimal(_result!.partTimeWorkHours)} ساعت',
+          ),
+        if (_result!.usePartTimeWage)
+          _plainDetailRow(
+            'ساعت موظفی ماه',
+            '${PersianNumberFormatter.formatDecimal(_result!.mandatoryMonthlyHours)} ساعت',
+          ),
+        if (_result!.usePartTimeWage)
+          _plainDetailRow(
+            'ساعت عادی پاره‌وقت',
+            '${PersianNumberFormatter.formatDecimal(_result!.regularPartTimeWorkHours)} ساعت',
+          ),
+        if (_result!.partTimeOvertimeHours > 0)
+          _plainDetailRow(
+            'اضافه‌کاری خودکار پاره‌وقت',
+            '${PersianNumberFormatter.formatDecimal(_result!.partTimeOvertimeHours)} ساعت',
           ),
         const Divider(),
         _resultRow('سهم کارفرما (۲۰٪)', _result!.employerInsurance),

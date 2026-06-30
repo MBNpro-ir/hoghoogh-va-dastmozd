@@ -992,8 +992,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
       _section(
-        title: 'معافیت مالیاتی دو هفتم',
-        subtitle: 'ضریب معافیت قابل اعمال برای صنایع سخت',
+        title: 'کسر حق بیمه از مالیات',
+        subtitle: 'ضریب کسر حق بیمه سهم کارگر از مبنای مالیات حقوق',
         icon: Icons.discount_rounded,
         color: scheme.tertiary,
         children: [
@@ -1011,7 +1011,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'این معافیت برای شاغلین در صنایع سخت اعمال می‌شود. طبق فایل اکسل، مبلغ معافیت برابر دو هفتم حق بیمه کارگر است.',
+                    'طبق رای دیوان عدالت اداری، کل حق بیمه سهم کارگر از مبنای مشمول مالیات حقوق کسر می‌شود. برای سازگاری با فایل‌های قبلی، نام داخلی ستون تغییر نکرده است.',
                     style: TextStyle(
                       fontFamily: 'Vazirmatn',
                       fontSize: 13,
@@ -1024,7 +1024,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 14),
           PersianNumberField(
-            label: 'ضریب معافیت دو هفتم بیمه (مثلاً ۰.۲۸۵۷)',
+            label: 'ضریب کسر حق بیمه سهم کارگر (پیش‌فرض ۱)',
             prefixIcon: Icons.percent_rounded,
             initialValue: _twoSevenBaseRate,
             onChanged: (v) {

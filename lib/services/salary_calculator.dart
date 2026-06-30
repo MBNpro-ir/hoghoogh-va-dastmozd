@@ -24,8 +24,12 @@ class SalaryCalculationResult {
   final double missionAmount;
   final bool usePartTimeWage;
   final double partTimeWorkHours;
+  final double regularPartTimeWorkHours;
+  final double partTimeOvertimeHours;
+  final double mandatoryMonthlyHours;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
+  final double wageBasisDaily;
   final double shiftWorkRate;
   final double hourlyBenefitsAmount; // مزایای ساعتی
   final double hourlyBenefitHours; // ساعت مزایای ساعتی
@@ -51,7 +55,7 @@ class SalaryCalculationResult {
   // محاسبات
   final double insuranceBase; // مبنای بیمه (حقوق مشمول بیمه)
   final double taxBase; // مبنای مالیات
-  final double twoSevenExemption; // معافیت دو هفتم
+  final double twoSevenExemption; // کسر حق بیمه سهم کارگر از مالیات
   final double taxReliefRate;
   final double taxReliefAmount;
 
@@ -81,8 +85,12 @@ class SalaryCalculationResult {
     required this.missionAmount,
     required this.usePartTimeWage,
     required this.partTimeWorkHours,
+    required this.regularPartTimeWorkHours,
+    required this.partTimeOvertimeHours,
+    required this.mandatoryMonthlyHours,
     required this.useCustomOvertimeBase,
     required this.overtimeBaseDaily,
+    required this.wageBasisDaily,
     required this.shiftWorkRate,
     required this.hourlyBenefitsAmount,
     required this.hourlyBenefitHours,
@@ -226,6 +234,7 @@ class SalaryCalculationInput {
   final double missionDays;
   final bool usePartTimeWage;
   final double partTimeWorkHours;
+  final double mandatoryMonthlyHours;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double shiftWork; // مبلغ نوبت‌کاری
@@ -266,6 +275,7 @@ class SalaryCalculationInput {
     this.missionDays = 0,
     this.usePartTimeWage = false,
     this.partTimeWorkHours = 0,
+    this.mandatoryMonthlyHours = 0,
     this.useCustomOvertimeBase = false,
     this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
@@ -303,16 +313,49 @@ class SalaryCalculationInput {
   double get workDays =>
       totalDays - normalizedLeaveDays - normalizedSickLeaveDays;
 
-  double get partTimeEquivalentDays => usePartTimeWage && partTimeWorkHours > 0
-      ? (partTimeWorkHours / AppConstants.dailyWorkHours)
-      : 0;
+  double effectiveMandatoryMonthlyHours() {
+    if (mandatoryMonthlyHours > 0) return mandatoryMonthlyHours;
+    return AppConstants.mandatoryMonthlyHoursFor(
+      year: year,
+      month: month,
+      totalDays: totalDays,
+    );
+  }
+
+  double get regularPayableDays =>
+      (totalDays - normalizedSickLeaveDays).toDouble();
+
+  double partTimeRegularHoursFor(double mandatoryHours) {
+    if (!usePartTimeWage || partTimeWorkHours <= 0 || mandatoryHours <= 0) {
+      return 0;
+    }
+    return partTimeWorkHours.clamp(0.0, mandatoryHours).toDouble();
+  }
+
+  double partTimeOvertimeHoursFor(double mandatoryHours) {
+    if (!usePartTimeWage || partTimeWorkHours <= 0 || mandatoryHours <= 0) {
+      return 0;
+    }
+    return (partTimeWorkHours - mandatoryHours)
+        .clamp(0.0, double.infinity)
+        .toDouble();
+  }
+
+  double partTimeEquivalentDaysFor(double mandatoryHours) {
+    if (!usePartTimeWage || partTimeWorkHours <= 0 || mandatoryHours <= 0) {
+      return 0;
+    }
+    final regularHours = partTimeRegularHoursFor(mandatoryHours);
+    final equivalentDays = (regularHours / mandatoryHours) * totalDays;
+    return equivalentDays.clamp(0.0, regularPayableDays).toDouble();
+  }
+
+  double get partTimeEquivalentDays =>
+      partTimeEquivalentDaysFor(effectiveMandatoryMonthlyHours());
 
   double get payableDays {
-    final regularPayableDays = totalDays - normalizedSickLeaveDays;
     if (!usePartTimeWage) return regularPayableDays;
-    return partTimeEquivalentDays
-        .clamp(0.0, regularPayableDays.toDouble())
-        .toDouble();
+    return partTimeEquivalentDaysFor(effectiveMandatoryMonthlyHours());
   }
 }
 
@@ -343,7 +386,7 @@ class SalaryCalculator {
   }
 
   /// محاسبه مالیات بر حقوق بر اساس جدول پلکانی 1405
-  /// مبنای مالیات: جمع حقوق و مزایا منهای معافیت دو هفتم
+  /// مبنای مالیات: جمع حقوق و مزایا منهای حق بیمه سهم کارگر
   static double calculateTax(double monthlyTaxableIncome) {
     if (monthlyTaxableIncome <= 0) return 0;
     double tax = 0;
@@ -361,8 +404,7 @@ class SalaryCalculator {
     return tax;
   }
 
-  /// محاسبه معافیت دو هفتم
-  /// در فایل ارسالی نسبت تقریبی 1.86٪ از جمع حقوق و مزایا است
+  /// محاسبه کسر حق بیمه سهم کارگر از مبنای مالیات
   static double calculateTwoSevenExemption({
     required double insurance,
     required double exemptionRate,
@@ -376,10 +418,17 @@ class SalaryCalculator {
     required AppSettings settings,
     required SalaryCalculationInput input,
   }) {
+    final mandatoryMonthlyHours = input.effectiveMandatoryMonthlyHours();
     final payableDays = input.payableDays;
     final partTimeWorkHours = input.usePartTimeWage
         ? input.partTimeWorkHours.clamp(0.0, double.infinity).toDouble()
         : 0.0;
+    final regularPartTimeWorkHours = input.partTimeRegularHoursFor(
+      mandatoryMonthlyHours,
+    );
+    final partTimeOvertimeHours = input.partTimeOvertimeHoursFor(
+      mandatoryMonthlyHours,
+    );
     final benefitDays = payableDays.clamp(
       0.0,
       AppConstants.standardMonthDays.toDouble(),
@@ -388,10 +437,7 @@ class SalaryCalculator {
 
     // غرامت ایام بیماری را تامین اجتماعی جداگانه می‌پردازد؛ این فیش فقط
     // روزهایی را محاسبه می‌کند که پرداخت آن‌ها بر عهده کارفرماست.
-    final baseSalary = input.usePartTimeWage
-        ? (employee.dailyWage1405 / AppConstants.dailyWorkHours) *
-              partTimeWorkHours
-        : employee.dailyWage1405 * payableDays;
+    final baseSalary = employee.dailyWage1405 * payableDays;
 
     // 2) مزایای ثابت در اکسل با سقف 30 روز محاسبه می‌شوند.
     final housing = input.housingExempt
@@ -411,21 +457,22 @@ class SalaryCalculator {
         employee.dailyChildAllowance * employee.childrenCount * benefitDays;
 
     // 6) پایه سنوات از تاریخ شروع کار و دوره فیش محاسبه می‌شود.
-    final seniority = input.seniorityExempt
+    final effectiveDailySeniority = input.seniorityExempt
         ? 0.0
         : input.dailySeniorityOverride >= 0
-        ? input.dailySeniorityOverride * payableDays
-        : SeniorityHelper.calculateMonthlySeniority(
+        ? input.dailySeniorityOverride
+        : SeniorityHelper.calculateEffectiveDailySeniorityForMonth(
             startDate: employee.startDate,
             settings: settings,
             year: input.year ?? settings.year,
             month: input.month ?? 1,
-            payableDays: payableDays,
           );
+    final seniority = effectiveDailySeniority * payableDays;
 
     // 7) سایر مزایا دستی = مبلغ روزانه × کارکرد خالص؛ خودکار مطابق قرارداد/اکسل.
+    final otherBenefitDays = input.usePartTimeWage ? payableDays : workDays;
     final otherBenefits = input.otherBenefitsOverride >= 0
-        ? input.otherBenefitsOverride * workDays
+        ? input.otherBenefitsOverride * otherBenefitDays
         : employee.otherBenefitsDaily * payableDays;
     final jobRelatedBenefits = input.jobRelatedBenefits
         .clamp(0.0, double.infinity)
@@ -436,16 +483,23 @@ class SalaryCalculator {
     final welfareBenefits = input.welfareBenefits
         .clamp(0.0, double.infinity)
         .toDouble();
+    final jobRelatedBenefitsDaily = payableDays > 0
+        ? jobRelatedBenefits / payableDays
+        : 0.0;
+    final wageBasisDaily =
+        employee.dailyWage1405 +
+        effectiveDailySeniority +
+        jobRelatedBenefitsDaily;
 
     // 8) اضافه‌کاری و مزایای ساعتی = ساعت × (دستمزد ساعتی × 1.40)
     final overtimeBaseDaily = input.useCustomOvertimeBase
         ? input.overtimeBaseDaily
-        : employee.dailyWage1405;
+        : wageBasisDaily;
     final overtimeHourlyRate = overtimeBaseDaily / AppConstants.dailyWorkHours;
     final overtimeRate = overtimeHourlyRate * AppConstants.overtimeMultiplier;
-    final overtimeAmount = input.overtimeHours * overtimeRate;
-    final regularHourlyRate =
-        employee.dailyWage1405 / AppConstants.dailyWorkHours;
+    final overtimeHours = input.overtimeHours + partTimeOvertimeHours;
+    final overtimeAmount = overtimeHours * overtimeRate;
+    final regularHourlyRate = wageBasisDaily / AppConstants.dailyWorkHours;
     final nightWorkAmount =
         input.nightWorkHours * regularHourlyRate * settings.nightWorkRate;
     final fridayWorkAmount =
@@ -455,16 +509,14 @@ class SalaryCalculator {
         regularHourlyRate *
         settings.holidayWorkMultiplier;
     final missionAmount =
-        input.missionDays *
-        employee.dailyWage1405 *
-        settings.missionDailyMultiplier;
+        input.missionDays * wageBasisDaily * settings.missionDailyMultiplier;
     final hourlyBenefitHours = input.autoHourlyBenefits
         ? (input.hourlyBenefitHours > 0
               ? input.hourlyBenefitHours
               : employee.hourlyBenefits)
         : 0.0;
     final hourlyBenefitsRate =
-        (employee.dailyWage1405 / AppConstants.dailyWorkHours) *
+        (wageBasisDaily / AppConstants.dailyWorkHours) *
         AppConstants.overtimeMultiplier;
     final hourlyBenefitsAmount = input.autoHourlyBenefits
         ? hourlyBenefitHours * hourlyBenefitsRate
@@ -512,7 +564,7 @@ class SalaryCalculator {
 
     final insurance = insuranceBase * settings.employeeInsuranceRate;
 
-    // 12) معافیت دو هفتم = دو هفتم حق بیمه کارگر
+    // 12) کسر حق بیمه سهم کارگر از مبنای مالیات
     final twoSevenExemption = calculateTwoSevenExemption(
       insurance: insurance,
       exemptionRate: settings.twoSevenBaseRate,
@@ -538,9 +590,9 @@ class SalaryCalculator {
               .clamp(0.0, double.infinity)
               .toDouble()
         : 0.0;
-    final leaveDeduction = excessLeaveDays * employee.dailyWage1405;
+    final leaveDeduction = excessLeaveDays * wageBasisDaily;
     final absenceDeduction =
-        input.absenceDays * employee.dailyWage1405 +
+        input.absenceDays * wageBasisDaily +
         input.absenceHours *
             regularHourlyRate *
             settings.absenceHourlyMultiplier;
@@ -568,7 +620,7 @@ class SalaryCalculator {
     final unemploymentInsurance =
         insuranceBase * settings.unemploymentInsuranceRate;
     final calculationDetailsJson = jsonEncode({
-      'formula_version': 'salary-1405-v2',
+      'formula_version': 'salary-1405-v3-bidbarg',
       'law_year': settings.year,
       'rates': {
         'overtime_multiplier': AppConstants.overtimeMultiplier,
@@ -579,9 +631,16 @@ class SalaryCalculator {
         'absence_hourly_multiplier': settings.absenceHourlyMultiplier,
         'shift_work_rate': shiftWorkRate,
         'tax_relief_rate': taxReliefRate,
+        'insurance_tax_deduction_rate': settings.twoSevenBaseRate,
+        'mandatory_monthly_hours': mandatoryMonthlyHours,
+        'wage_basis_daily': wageBasisDaily,
+        'effective_daily_seniority': effectiveDailySeniority,
         'use_part_time_wage': input.usePartTimeWage,
         'part_time_work_hours': partTimeWorkHours,
-        'part_time_equivalent_days': input.partTimeEquivalentDays,
+        'part_time_regular_hours': regularPartTimeWorkHours,
+        'part_time_overtime_hours': partTimeOvertimeHours,
+        'part_time_equivalent_days': payableDays,
+        'payable_days': payableDays,
       },
     });
 
@@ -601,8 +660,12 @@ class SalaryCalculator {
       missionAmount: missionAmount,
       usePartTimeWage: input.usePartTimeWage,
       partTimeWorkHours: partTimeWorkHours,
+      regularPartTimeWorkHours: regularPartTimeWorkHours,
+      partTimeOvertimeHours: partTimeOvertimeHours,
+      mandatoryMonthlyHours: mandatoryMonthlyHours,
       useCustomOvertimeBase: input.useCustomOvertimeBase,
       overtimeBaseDaily: overtimeBaseDaily,
+      wageBasisDaily: wageBasisDaily,
       shiftWorkRate: shiftWorkRate,
       hourlyBenefitsAmount: hourlyBenefitsAmount,
       hourlyBenefitHours: hourlyBenefitHours,

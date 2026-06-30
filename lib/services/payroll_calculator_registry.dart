@@ -232,7 +232,11 @@ class PayrollCalculatorRegistry {
       formula: (inputs, settings) {
         final dailyWage = _value(inputs, 'daily_wage', settings.dailyWage);
         final days = _value(inputs, 'payable_days', 30);
-        final hourly = _hourly(dailyWage);
+        final jobRelatedBenefits = _positive(inputs, 'job_related_benefits');
+        final jobRelatedDaily = days > 0 ? jobRelatedBenefits / days : 0.0;
+        final wageBasisDaily =
+            dailyWage + settings.dailySeniority + jobRelatedDaily;
+        final hourly = _hourly(wageBasisDaily);
         final baseSalary = dailyWage * days;
         final fixedBenefits =
             ((settings.monthlyHousing +
@@ -262,7 +266,7 @@ class PayrollCalculatorRegistry {
             settings.holidayWorkMultiplier *
             _value(inputs, 'holiday_work_hours');
         final mission =
-            dailyWage *
+            wageBasisDaily *
             settings.missionDailyMultiplier *
             _value(inputs, 'mission_days');
         final absenceDeduction =
@@ -273,7 +277,6 @@ class PayrollCalculatorRegistry {
           _value(inputs, 'shift_rate', AppConstants.shiftWorkRate),
         );
         final shiftWork = baseSalary * shiftRate;
-        final jobRelatedBenefits = _positive(inputs, 'job_related_benefits');
         final employeeRelatedBenefits = _positive(
           inputs,
           'employee_related_benefits',
@@ -782,15 +785,68 @@ class PayrollCalculatorRegistry {
       ],
       fields: [
         _dailyWageField(),
+        _field(
+          'payable_days',
+          'روزهای ماه',
+          suffix: 'روز',
+          defaultValue: (_) => 30,
+        ),
+        _field(
+          'mandatory_hours',
+          'ساعت موظفی ماه',
+          suffix: 'ساعت',
+          defaultValue: (_) => AppConstants.standardMonthlyHours,
+        ),
         _field('work_hours', 'ساعت کارکرد', suffix: 'ساعت'),
       ],
       outputs: const [
+        CalculatorOutput(
+          key: 'equivalent_days',
+          label: 'روز معادل قابل پرداخت',
+          isCurrency: false,
+          suffix: 'روز',
+        ),
         CalculatorOutput(key: 'part_time_amount', label: 'مزد کارکرد'),
+        CalculatorOutput(
+          key: 'part_time_overtime_hours',
+          label: 'اضافه‌کاری مازاد موظفی',
+          isCurrency: false,
+          suffix: 'ساعت',
+        ),
+        CalculatorOutput(
+          key: 'part_time_overtime_amount',
+          label: 'مبلغ اضافه‌کاری',
+        ),
       ],
-      formula: (inputs, _) => {
-        'part_time_amount':
-            _hourly(_value(inputs, 'daily_wage')) *
-            _value(inputs, 'work_hours'),
+      formula: (inputs, _) {
+        final dailyWage = _value(inputs, 'daily_wage');
+        final days = _value(inputs, 'payable_days', 30);
+        final mandatoryHours = _value(
+          inputs,
+          'mandatory_hours',
+          AppConstants.standardMonthlyHours,
+        );
+        final workHours = _value(inputs, 'work_hours');
+        final regularHours = mandatoryHours > 0
+            ? workHours.clamp(0.0, mandatoryHours).toDouble()
+            : 0.0;
+        final overtimeHours = mandatoryHours > 0
+            ? (workHours - mandatoryHours)
+                  .clamp(0.0, double.infinity)
+                  .toDouble()
+            : 0.0;
+        final equivalentDays = mandatoryHours > 0
+            ? (regularHours / mandatoryHours) * days
+            : 0.0;
+        return {
+          'equivalent_days': equivalentDays,
+          'part_time_amount': dailyWage * equivalentDays,
+          'part_time_overtime_hours': overtimeHours,
+          'part_time_overtime_amount':
+              _hourly(dailyWage) *
+              AppConstants.overtimeMultiplier *
+              overtimeHours,
+        };
       },
     ),
     _simpleAmount(
@@ -880,6 +936,12 @@ class PayrollCalculatorRegistry {
       sourceUrls: const [mandatoryWorkingHoursUrl, salaryHubUrl, sitemapUrl],
       fields: [
         _field(
+          'year',
+          'سال',
+          defaultValue: (_) => AppConstants.currentYear.toDouble(),
+        ),
+        _field('month', 'ماه', defaultValue: (_) => 1),
+        _field(
           'work_days',
           'روز کاری ماه',
           suffix: 'روز',
@@ -894,15 +956,33 @@ class PayrollCalculatorRegistry {
       ],
       outputs: const [
         CalculatorOutput(
+          key: 'official_mandatory_hours',
+          label: 'ساعت موظفی جدول',
+          isCurrency: false,
+          suffix: 'ساعت',
+        ),
+        CalculatorOutput(
           key: 'mandatory_hours',
           label: 'ساعات موظفی',
           isCurrency: false,
           suffix: 'ساعت',
         ),
       ],
-      formula: (inputs, _) => {
-        'mandatory_hours':
-            _value(inputs, 'work_days') * _value(inputs, 'daily_hours'),
+      formula: (inputs, _) {
+        final year = _value(
+          inputs,
+          'year',
+          AppConstants.currentYear.toDouble(),
+        ).round();
+        final month = _value(inputs, 'month', 1).round();
+        return {
+          'official_mandatory_hours': AppConstants.mandatoryMonthlyHoursFor(
+            year: year,
+            month: month,
+          ),
+          'mandatory_hours':
+              _value(inputs, 'work_days') * _value(inputs, 'daily_hours'),
+        };
       },
     ),
     _simpleAmount(

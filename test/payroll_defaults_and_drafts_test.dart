@@ -131,6 +131,46 @@ void main() {
     expect(restoredDraft.partTimeWorkHours, closeTo(73.3, 0.01));
   });
 
+  test('1405 part-time wage uses monthly mandatory hours ratio', () {
+    final employee = Employee(
+      personnelCode: 1,
+      firstName: 'علی',
+      lastName: 'پاره‌وقت',
+      nationalId: '0012345678',
+      dailyWage1405: 1000000,
+      dailyHousing: 0,
+      dailyFood: 0,
+      dailyMarriage: 0,
+      dailyChildAllowance: 0,
+      dailySeniority: 0,
+      startDate: '1405/01/01',
+    );
+
+    final result = SalaryCalculator.calculate(
+      employee: employee,
+      settings: AppSettings(
+        employeeInsuranceRate: 0,
+        employerInsuranceRate: 0,
+        unemploymentInsuranceRate: 0,
+      ),
+      input: SalaryCalculationInput(
+        year: 1405,
+        month: 1,
+        totalDays: 31,
+        usePartTimeWage: true,
+        partTimeWorkHours: 73.5,
+        seniorityExempt: true,
+        insuranceExempt: true,
+        taxExempt: true,
+      ),
+    );
+
+    expect(result.mandatoryMonthlyHours, 147);
+    expect(result.regularPartTimeWorkHours, 73.5);
+    expect(result.payableDays, closeTo(15.5, 0.01));
+    expect(result.baseSalary, closeTo(15500000, 1));
+  });
+
   test('fixed benefit exemptions zero selected salary rows', () {
     final employee = Employee(
       personnelCode: 1,
@@ -255,7 +295,66 @@ void main() {
     expect(restored.nightWorkHours, 2);
     expect(restored.fridayWorkAmount, closeTo(120000, 1));
     expect(restored.absenceDeduction, closeTo(566500, 1));
-    expect(restored.payrollCalculationDetailsJson, contains('salary-1405-v2'));
+    expect(
+      restored.payrollCalculationDetailsJson,
+      contains('salary-1405-v3-bidbarg'),
+    );
+  });
+
+  test('Bidbarg wage basis feeds hourly work rows and absence', () {
+    final employee = Employee(
+      personnelCode: 1,
+      firstName: 'علی',
+      lastName: 'مبنایی',
+      nationalId: '0012345678',
+      dailyWage1405: 733000,
+      dailyHousing: 0,
+      dailyFood: 0,
+      dailyMarriage: 0,
+      dailyChildAllowance: 0,
+      dailySeniority: 0,
+      hourlyBenefits: 1,
+      startDate: '1405/01/01',
+    );
+    final result = SalaryCalculator.calculate(
+      employee: employee,
+      settings: AppSettings(
+        employeeInsuranceRate: 0,
+        employerInsuranceRate: 0,
+        unemploymentInsuranceRate: 0,
+        nightWorkRate: 0.35,
+        fridayWorkRate: 0.40,
+        holidayWorkMultiplier: 1.40,
+        missionDailyMultiplier: 1,
+        absenceHourlyMultiplier: 1,
+      ),
+      input: SalaryCalculationInput(
+        totalDays: 30,
+        overtimeHours: 1,
+        nightWorkHours: 1,
+        fridayWorkHours: 1,
+        holidayWorkHours: 1,
+        missionDays: 1,
+        absenceDays: 1,
+        absenceHours: 1,
+        autoHourlyBenefits: true,
+        dailySeniorityOverride: 100000,
+        jobRelatedBenefits: 6000000,
+        taxExempt: true,
+      ),
+    );
+
+    final wageBasisDaily = 733000 + 100000 + 200000;
+    final hourly = wageBasisDaily / AppConstants.dailyWorkHours;
+
+    expect(result.wageBasisDaily, closeTo(wageBasisDaily, 1));
+    expect(result.overtimeAmount, closeTo(hourly * 1.4, 1));
+    expect(result.nightWorkAmount, closeTo(hourly * 0.35, 1));
+    expect(result.fridayWorkAmount, closeTo(hourly * 0.40, 1));
+    expect(result.holidayWorkAmount, closeTo(hourly * 1.40, 1));
+    expect(result.missionAmount, closeTo(wageBasisDaily, 1));
+    expect(result.hourlyBenefitsAmount, closeTo(hourly * 1.40, 1));
+    expect(result.absenceDeduction, closeTo(wageBasisDaily + hourly, 1));
   });
 
   test('salary calculation derives seniority from the payslip period', () {

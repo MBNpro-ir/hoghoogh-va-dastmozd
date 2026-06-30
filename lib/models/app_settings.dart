@@ -18,7 +18,7 @@ class AppSettings {
   final double employerInsuranceRate; // درصد بیمه کارفرما
   final double unemploymentInsuranceRate; // درصد بیمه بیکاری
 
-  final double twoSevenBaseRate; // ضریب معافیت دو هفتم
+  final double twoSevenBaseRate; // ضریب کسر حق بیمه سهم کارگر از مالیات
   final double monthlyLeaveAllowance;
   final double annualLeaveAllowance;
   final double nightWorkRate;

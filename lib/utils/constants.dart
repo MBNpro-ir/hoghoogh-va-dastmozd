@@ -8,7 +8,7 @@ class AppConstants {
   /// ورژن برنامه - فقط از pubspec.yaml خوانده می‌شود.
   /// برای تغییر ورژن، فقط فایل pubspec.yaml را ویرایش کنید.
   static String get appVersion {
-    const fallback = '0.11.5 alpha';
+    const fallback = '0.12.8 alpha';
     try {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       final match = RegExp(
@@ -56,12 +56,14 @@ class AppConstants {
     {'from': 14000000000.0, 'to': double.infinity, 'rate': 0.30},
   ];
 
-  // ----- معافیت دو هفتم (برای صنایع سخت) -----
-  // در اکسل، معافیت مالیات برابر است با دو هفتم حق بیمه کارگر.
+  // ----- کسر حق بیمه سهم کارگر از مبنای مالیات -----
+  // طبق رای دیوان عدالت اداری، کل 7 درصد حق بیمه سهم کارگر از مبنای
+  // مشمول مالیات حقوق کسر می شود. نام ستون دیتابیس برای سازگاری قبلی
+  // two_seven_base_rate باقی مانده است.
   static const double twoSevenRate = 2 / 7;
 
   // ضریب قابل تغییر برای اعمال روی حق بیمه.
-  static const double twoSevenBaseRate = twoSevenRate;
+  static const double twoSevenBaseRate = 1.0;
 
   // ----- روزهای استاندارد ماه -----
   static const int standardMonthDays = 30;
@@ -70,6 +72,24 @@ class AppConstants {
 
   // ساعت کار استاندارد ماه
   static const double standardMonthlyHours = 176; // 22 روز * 8 ساعت
+
+  // جدول ساعت کار موظفی 1405 بیدبرگ، بر اساس روزهای کاری هر ماه.
+  static const Map<int, List<double>> mandatoryMonthlyHoursByYear = {
+    1405: [147, 191, 176, 183, 169, 191, 191, 183, 191, 176, 169, 154],
+  };
+
+  static double mandatoryMonthlyHoursFor({
+    required int? year,
+    required int? month,
+    int? totalDays,
+  }) {
+    if (year != null && month != null && month >= 1 && month <= 12) {
+      final hours = mandatoryMonthlyHoursByYear[year]?[month - 1];
+      if (hours != null && hours > 0) return hours;
+    }
+    if (totalDays != null && totalDays > 0) return totalDays * dailyWorkHours;
+    return standardMonthlyHours;
+  }
 
   // ----- ضرایب اضافه‌کاری و نوبت‌کاری -----
   static const double overtimeMultiplier = 1.40; // 140% اضافه‌کاری
