@@ -52,6 +52,7 @@ class BusinessValidation {
       employee.dailySeniority,
       employee.otherBenefitsDaily,
       employee.hourlyBenefits,
+      employee.contractMonthlyHours,
     ]);
     if (employee.useCustomOvertimeBase && employee.overtimeBaseDaily <= 0) {
       throw const BusinessValidationException(
@@ -170,9 +171,16 @@ class BusinessValidation {
     if (record.workDays < 0 || record.workDays > record.totalDays) {
       throw const BusinessValidationException('کارکرد خالص معتبر نیست.');
     }
-    if (record.overtimeHours < 0 || record.hourlyBenefitHours < 0) {
+    if (record.overtimeHours < 0 ||
+        record.hourlyBenefitHours < 0 ||
+        record.partTimeWorkHours < 0) {
       throw const BusinessValidationException(
         'ساعت اضافه‌کاری و مزایای ساعتی نمی‌تواند منفی باشد.',
+      );
+    }
+    if (record.usePartTimeWage && record.partTimeWorkHours <= 0) {
+      throw const BusinessValidationException(
+        'ساعت کارکرد پاره‌وقت باید بیشتر از صفر باشد.',
       );
     }
     if (record.useCustomOvertimeBase && record.overtimeBaseDaily <= 0) {
@@ -199,6 +207,7 @@ class BusinessValidation {
       record.holidayWorkAmount,
       record.missionDays,
       record.missionAmount,
+      record.partTimeWorkHours,
       record.totalEarnings,
       record.insurance,
       record.tax,
@@ -227,12 +236,18 @@ class BusinessValidation {
         draft.fridayWorkHours < 0 ||
         draft.holidayWorkHours < 0 ||
         draft.missionDays < 0 ||
+        draft.partTimeWorkHours < 0 ||
         draft.absenceDays < 0 ||
         draft.absenceHours < 0 ||
         draft.hourlyBenefitHours < 0 ||
         draft.overtimeBaseDaily < 0) {
       throw const BusinessValidationException(
         'مقادیر ساعت و مبنای اضافه‌کاری نمی‌تواند منفی باشد.',
+      );
+    }
+    if (draft.usePartTimeWage && draft.partTimeWorkHours <= 0) {
+      throw const BusinessValidationException(
+        'ساعت کارکرد پاره‌وقت باید بیشتر از صفر باشد.',
       );
     }
     if (draft.useCustomOvertimeBase && draft.overtimeBaseDaily <= 0) {
@@ -257,6 +272,7 @@ class BusinessValidation {
       draft.fridayWorkAmount,
       draft.holidayWorkAmount,
       draft.missionAmount,
+      draft.partTimeWorkHours,
       draft.loanInstallment,
       draft.advance,
       draft.supplementaryInsurance,

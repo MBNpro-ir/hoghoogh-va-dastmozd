@@ -56,6 +56,81 @@ void main() {
     expect(result.overtimeBaseDaily, 5176500);
   });
 
+  test('part-time wage uses worked hours and survives mapping', () {
+    final employee = Employee(
+      personnelCode: 1,
+      firstName: 'علی',
+      lastName: 'ساعتی',
+      nationalId: '0012345678',
+      dailyWage1405: 733000,
+      dailyHousing: 0,
+      dailyFood: 0,
+      dailyMarriage: 0,
+      dailyChildAllowance: 0,
+      dailySeniority: 0,
+      contractMonthlyHours: AppConstants.dailyWorkHours * 10,
+      employmentType: 'پاره‌وقت',
+      startDate: '1405/01/01',
+    );
+    final settings = AppSettings(
+      employeeInsuranceRate: 0,
+      employerInsuranceRate: 0,
+      unemploymentInsuranceRate: 0,
+    );
+    final result = SalaryCalculator.calculate(
+      employee: employee,
+      settings: settings,
+      input: SalaryCalculationInput(
+        totalDays: 30,
+        usePartTimeWage: true,
+        partTimeWorkHours: AppConstants.dailyWorkHours * 10,
+        seniorityExempt: true,
+        insuranceExempt: true,
+        taxExempt: true,
+      ),
+    );
+
+    expect(result.usePartTimeWage, isTrue);
+    expect(
+      result.partTimeWorkHours,
+      closeTo(AppConstants.dailyWorkHours * 10, 0.01),
+    );
+    expect(result.payableDays, closeTo(10, 0.01));
+    expect(result.baseSalary, closeTo(7330000, 1));
+
+    final record = result.toRecord(
+      employeeId: 1,
+      year: 1405,
+      month: 4,
+      totalDays: 30,
+      leaveDays: 0,
+      sickLeaveDays: 0,
+      workDays: 30,
+      overtimeHours: 0,
+      shiftWorkRate: AppConstants.shiftWorkRate,
+      hourlyBenefitHours: 0,
+      includeLeaveInPayslip: true,
+      housingExempt: false,
+      foodExempt: false,
+      seniorityExempt: true,
+    );
+    final restoredRecord = SalaryRecord.fromMap(record.toMap());
+    expect(restoredRecord.usePartTimeWage, isTrue);
+    expect(restoredRecord.partTimeWorkHours, closeTo(73.3, 0.01));
+
+    final draft = SalaryDraft(
+      employeeId: 1,
+      year: 1405,
+      month: 4,
+      totalDays: 30,
+      usePartTimeWage: true,
+      partTimeWorkHours: 73.3,
+    );
+    final restoredDraft = SalaryDraft.fromMap(draft.toMap());
+    expect(restoredDraft.usePartTimeWage, isTrue);
+    expect(restoredDraft.partTimeWorkHours, closeTo(73.3, 0.01));
+  });
+
   test('fixed benefit exemptions zero selected salary rows', () {
     final employee = Employee(
       personnelCode: 1,

@@ -10,7 +10,7 @@ import '../services/company_service.dart';
 
 /// مدیریت پایگاه داده SQLite برای ویندوز
 class DatabaseHelper {
-  static const int _dbVersion = 20;
+  static const int _dbVersion = 21;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -92,6 +92,7 @@ class DatabaseHelper {
         daily_seniority REAL DEFAULT 0,
         other_benefits_daily REAL DEFAULT 0,
         hourly_benefits REAL DEFAULT 0,
+        contract_monthly_hours REAL NOT NULL DEFAULT 176,
         has_shift_work INTEGER NOT NULL DEFAULT 0,
         use_custom_overtime_base INTEGER NOT NULL DEFAULT 0,
         overtime_base_daily REAL NOT NULL DEFAULT 0,
@@ -166,6 +167,8 @@ class DatabaseHelper {
         holiday_work_amount REAL DEFAULT 0,
         mission_days REAL DEFAULT 0,
         mission_amount REAL DEFAULT 0,
+        use_part_time_wage INTEGER NOT NULL DEFAULT 0,
+        part_time_work_hours REAL NOT NULL DEFAULT 0,
         use_custom_overtime_base INTEGER NOT NULL DEFAULT 0,
         overtime_base_daily REAL NOT NULL DEFAULT 0,
         shift_work REAL DEFAULT 0,
@@ -581,6 +584,30 @@ class DatabaseHelper {
     if (oldVersion < 20) {
       await _addComplementaryPayslipColumns(db);
     }
+    if (oldVersion < 21) {
+      await _addBidbargPartTimeColumns(db);
+    }
+  }
+
+  Future<void> _addBidbargPartTimeColumns(Database db) async {
+    await _safeAddColumn(
+      db,
+      'employees',
+      'contract_monthly_hours REAL NOT NULL DEFAULT 176',
+    );
+    const payrollTables = ['salary_records', 'salary_drafts'];
+    for (final table in payrollTables) {
+      await _safeAddColumn(
+        db,
+        table,
+        'use_part_time_wage INTEGER NOT NULL DEFAULT 0',
+      );
+      await _safeAddColumn(
+        db,
+        table,
+        'part_time_work_hours REAL NOT NULL DEFAULT 0',
+      );
+    }
   }
 
   Future<void> _addPayrollCalculatorColumns(Database db) async {
@@ -688,6 +715,8 @@ class DatabaseHelper {
         holiday_work_amount REAL NOT NULL DEFAULT 0,
         mission_days REAL NOT NULL DEFAULT 0,
         mission_amount REAL NOT NULL DEFAULT 0,
+        use_part_time_wage INTEGER NOT NULL DEFAULT 0,
+        part_time_work_hours REAL NOT NULL DEFAULT 0,
         use_custom_overtime_base INTEGER NOT NULL DEFAULT 0,
         overtime_base_daily REAL NOT NULL DEFAULT 0,
         shift_work REAL NOT NULL DEFAULT 0,

@@ -26,6 +26,8 @@ class SalaryRecord {
   final double holidayWorkAmount;
   final double missionDays;
   final double missionAmount;
+  final bool usePartTimeWage;
+  final double partTimeWorkHours;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double shiftWork; // نوبت‌کاری
@@ -105,6 +107,8 @@ class SalaryRecord {
     this.holidayWorkAmount = 0,
     this.missionDays = 0,
     this.missionAmount = 0,
+    this.usePartTimeWage = false,
+    this.partTimeWorkHours = 0,
     this.useCustomOvertimeBase = false,
     this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
@@ -175,6 +179,8 @@ class SalaryRecord {
     'holiday_work_amount': holidayWorkAmount,
     'mission_days': missionDays,
     'mission_amount': missionAmount,
+    'use_part_time_wage': usePartTimeWage ? 1 : 0,
+    'part_time_work_hours': partTimeWorkHours,
     'use_custom_overtime_base': useCustomOvertimeBase ? 1 : 0,
     'overtime_base_daily': overtimeBaseDaily,
     'shift_work': shiftWork,
@@ -247,6 +253,8 @@ class SalaryRecord {
     holidayWorkAmount: (map['holiday_work_amount'] as num?)?.toDouble() ?? 0,
     missionDays: (map['mission_days'] as num?)?.toDouble() ?? 0,
     missionAmount: (map['mission_amount'] as num?)?.toDouble() ?? 0,
+    usePartTimeWage: (map['use_part_time_wage'] as int? ?? 0) == 1,
+    partTimeWorkHours: (map['part_time_work_hours'] as num?)?.toDouble() ?? 0,
     useCustomOvertimeBase: (map['use_custom_overtime_base'] as int? ?? 0) == 1,
     overtimeBaseDaily: (map['overtime_base_daily'] as num?)?.toDouble() ?? 0,
     shiftWork: (map['shift_work'] as num?)?.toDouble() ?? 0,
@@ -323,6 +331,8 @@ class SalaryRecord {
     holidayWorkAmount: holidayWorkAmount,
     missionDays: missionDays,
     missionAmount: missionAmount,
+    usePartTimeWage: usePartTimeWage,
+    partTimeWorkHours: partTimeWorkHours,
     useCustomOvertimeBase: useCustomOvertimeBase,
     overtimeBaseDaily: overtimeBaseDaily,
     shiftWork: shiftWork,
@@ -398,6 +408,8 @@ class SalaryRecord {
     double? holidayWorkAmount,
     double? missionDays,
     double? missionAmount,
+    bool? usePartTimeWage,
+    double? partTimeWorkHours,
     bool? includeLeaveInPayslip,
     bool? housingExempt,
     bool? foodExempt,
@@ -441,6 +453,8 @@ class SalaryRecord {
     holidayWorkAmount: holidayWorkAmount ?? this.holidayWorkAmount,
     missionDays: missionDays ?? this.missionDays,
     missionAmount: missionAmount ?? this.missionAmount,
+    usePartTimeWage: usePartTimeWage ?? this.usePartTimeWage,
+    partTimeWorkHours: partTimeWorkHours ?? this.partTimeWorkHours,
     useCustomOvertimeBase: useCustomOvertimeBase ?? this.useCustomOvertimeBase,
     overtimeBaseDaily: overtimeBaseDaily ?? this.overtimeBaseDaily,
     shiftWork: shiftWork,

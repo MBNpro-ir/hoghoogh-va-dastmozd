@@ -22,6 +22,8 @@ class SalaryCalculationResult {
   final double fridayWorkAmount;
   final double holidayWorkAmount;
   final double missionAmount;
+  final bool usePartTimeWage;
+  final double partTimeWorkHours;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double shiftWorkRate;
@@ -77,6 +79,8 @@ class SalaryCalculationResult {
     required this.fridayWorkAmount,
     required this.holidayWorkAmount,
     required this.missionAmount,
+    required this.usePartTimeWage,
+    required this.partTimeWorkHours,
     required this.useCustomOvertimeBase,
     required this.overtimeBaseDaily,
     required this.shiftWorkRate,
@@ -159,6 +163,8 @@ class SalaryCalculationResult {
     holidayWorkAmount: holidayWorkAmount,
     missionDays: missionDays,
     missionAmount: missionAmount,
+    usePartTimeWage: usePartTimeWage,
+    partTimeWorkHours: partTimeWorkHours,
     useCustomOvertimeBase: useCustomOvertimeBase,
     overtimeBaseDaily: overtimeBaseDaily,
     shiftWork: shiftWork,
@@ -218,6 +224,8 @@ class SalaryCalculationInput {
   final double fridayWorkHours;
   final double holidayWorkHours;
   final double missionDays;
+  final bool usePartTimeWage;
+  final double partTimeWorkHours;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
   final double shiftWork; // مبلغ نوبت‌کاری
@@ -256,6 +264,8 @@ class SalaryCalculationInput {
     this.fridayWorkHours = 0,
     this.holidayWorkHours = 0,
     this.missionDays = 0,
+    this.usePartTimeWage = false,
+    this.partTimeWorkHours = 0,
     this.useCustomOvertimeBase = false,
     this.overtimeBaseDaily = 0,
     this.shiftWork = 0,
@@ -293,7 +303,17 @@ class SalaryCalculationInput {
   double get workDays =>
       totalDays - normalizedLeaveDays - normalizedSickLeaveDays;
 
-  double get payableDays => totalDays - normalizedSickLeaveDays;
+  double get partTimeEquivalentDays => usePartTimeWage && partTimeWorkHours > 0
+      ? (partTimeWorkHours / AppConstants.dailyWorkHours)
+      : 0;
+
+  double get payableDays {
+    final regularPayableDays = totalDays - normalizedSickLeaveDays;
+    if (!usePartTimeWage) return regularPayableDays;
+    return partTimeEquivalentDays
+        .clamp(0.0, regularPayableDays.toDouble())
+        .toDouble();
+  }
 }
 
 /// سرویس محاسبه حقوق - منطق اصلی برنامه
@@ -357,6 +377,9 @@ class SalaryCalculator {
     required SalaryCalculationInput input,
   }) {
     final payableDays = input.payableDays;
+    final partTimeWorkHours = input.usePartTimeWage
+        ? input.partTimeWorkHours.clamp(0.0, double.infinity).toDouble()
+        : 0.0;
     final benefitDays = payableDays.clamp(
       0.0,
       AppConstants.standardMonthDays.toDouble(),
@@ -365,7 +388,10 @@ class SalaryCalculator {
 
     // غرامت ایام بیماری را تامین اجتماعی جداگانه می‌پردازد؛ این فیش فقط
     // روزهایی را محاسبه می‌کند که پرداخت آن‌ها بر عهده کارفرماست.
-    final baseSalary = employee.dailyWage1405 * payableDays;
+    final baseSalary = input.usePartTimeWage
+        ? (employee.dailyWage1405 / AppConstants.dailyWorkHours) *
+              partTimeWorkHours
+        : employee.dailyWage1405 * payableDays;
 
     // 2) مزایای ثابت در اکسل با سقف 30 روز محاسبه می‌شوند.
     final housing = input.housingExempt
@@ -553,6 +579,9 @@ class SalaryCalculator {
         'absence_hourly_multiplier': settings.absenceHourlyMultiplier,
         'shift_work_rate': shiftWorkRate,
         'tax_relief_rate': taxReliefRate,
+        'use_part_time_wage': input.usePartTimeWage,
+        'part_time_work_hours': partTimeWorkHours,
+        'part_time_equivalent_days': input.partTimeEquivalentDays,
       },
     });
 
@@ -570,6 +599,8 @@ class SalaryCalculator {
       fridayWorkAmount: fridayWorkAmount,
       holidayWorkAmount: holidayWorkAmount,
       missionAmount: missionAmount,
+      usePartTimeWage: input.usePartTimeWage,
+      partTimeWorkHours: partTimeWorkHours,
       useCustomOvertimeBase: input.useCustomOvertimeBase,
       overtimeBaseDaily: overtimeBaseDaily,
       shiftWorkRate: shiftWorkRate,

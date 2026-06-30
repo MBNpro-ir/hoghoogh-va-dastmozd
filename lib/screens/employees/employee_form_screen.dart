@@ -86,6 +86,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
   double _lastYearSeniority = 0;
   double _otherBenefitsDaily = 0;
   double _hourlyBenefits = 0;
+  double _contractMonthlyHours = AppConstants.standardMonthlyHours;
   double _overtimeBaseDaily = 0;
 
   double _selectedRate = AppConstants.salaryRateA;
@@ -166,6 +167,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       _lastYearSeniority = e.lastYearSeniority;
       _otherBenefitsDaily = e.otherBenefitsDaily;
       _hourlyBenefits = e.hourlyBenefits;
+      _contractMonthlyHours = e.contractMonthlyHours;
       _overtimeBaseDaily = e.overtimeBaseDaily;
     }
     _init();
@@ -427,6 +429,10 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
       _showError('مبنای روزانه اضافه‌کاری باید بزرگ‌تر از صفر باشد');
       return;
     }
+    if (_contractMonthlyHours <= 0) {
+      _showError('ساعت کار ماهانه قرارداد باید بیشتر از صفر باشد');
+      return;
+    }
     _hasPriorExperience = _isEligibleForPriorExperience();
 
     setState(() => _saving = true);
@@ -482,6 +488,7 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
         dailySeniority: _dailySeniority,
         otherBenefitsDaily: _otherBenefitsDaily,
         hourlyBenefits: _hourlyBenefits,
+        contractMonthlyHours: _contractMonthlyHours,
         hasShiftWork: _hasShiftWork,
         useCustomOvertimeBase: _useCustomOvertimeBase,
         overtimeBaseDaily: _useCustomOvertimeBase ? _overtimeBaseDaily : 0,
@@ -821,6 +828,16 @@ class _EmployeeFormScreenState extends State<EmployeeFormScreen> {
               items: EmployeeReferenceData.employmentTypes,
               onChanged: (value) =>
                   setState(() => _employmentType = value ?? ''),
+            ),
+            PersianNumberField(
+              label: 'ساعت کار ماهانه قرارداد',
+              prefixIcon: Icons.schedule_rounded,
+              suffix: 'ساعت',
+              initialValue: _contractMonthlyHours,
+              onChanged: (value) => setState(
+                () => _contractMonthlyHours =
+                    value?.toDouble() ?? AppConstants.standardMonthlyHours,
+              ),
             ),
             _dropdown(
               label: 'تحصیلات',

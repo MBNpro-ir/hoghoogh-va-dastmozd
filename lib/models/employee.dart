@@ -1,4 +1,5 @@
 import '../utils/persian_number_formatter.dart';
+import '../utils/constants.dart';
 
 class Employee {
   final int? id;
@@ -32,6 +33,7 @@ class Employee {
   final double dailySeniority;
   final double otherBenefitsDaily;
   final double hourlyBenefits;
+  final double contractMonthlyHours;
   final bool hasShiftWork;
   final bool useCustomOvertimeBase;
   final double overtimeBaseDaily;
@@ -80,6 +82,7 @@ class Employee {
     this.dailySeniority = 0,
     this.otherBenefitsDaily = 0,
     this.hourlyBenefits = 0,
+    this.contractMonthlyHours = AppConstants.standardMonthlyHours,
     this.hasShiftWork = false,
     this.useCustomOvertimeBase = false,
     this.overtimeBaseDaily = 0,
@@ -145,6 +148,7 @@ class Employee {
     'daily_seniority': dailySeniority,
     'other_benefits_daily': otherBenefitsDaily,
     'hourly_benefits': hourlyBenefits,
+    'contract_monthly_hours': contractMonthlyHours,
     'has_shift_work': hasShiftWork ? 1 : 0,
     'use_custom_overtime_base': useCustomOvertimeBase ? 1 : 0,
     'overtime_base_daily': overtimeBaseDaily,
@@ -195,6 +199,9 @@ class Employee {
     dailySeniority: (map['daily_seniority'] as num?)?.toDouble() ?? 0,
     otherBenefitsDaily: (map['other_benefits_daily'] as num?)?.toDouble() ?? 0,
     hourlyBenefits: (map['hourly_benefits'] as num?)?.toDouble() ?? 0,
+    contractMonthlyHours:
+        (map['contract_monthly_hours'] as num?)?.toDouble() ??
+        AppConstants.standardMonthlyHours,
     hasShiftWork: (map['has_shift_work'] as int? ?? 0) == 1,
     useCustomOvertimeBase: (map['use_custom_overtime_base'] as int? ?? 0) == 1,
     overtimeBaseDaily: (map['overtime_base_daily'] as num?)?.toDouble() ?? 0,
@@ -244,6 +251,7 @@ class Employee {
     double? dailySeniority,
     double? otherBenefitsDaily,
     double? hourlyBenefits,
+    double? contractMonthlyHours,
     bool? hasShiftWork,
     bool? useCustomOvertimeBase,
     double? overtimeBaseDaily,
@@ -292,6 +300,7 @@ class Employee {
     dailySeniority: dailySeniority ?? this.dailySeniority,
     otherBenefitsDaily: otherBenefitsDaily ?? this.otherBenefitsDaily,
     hourlyBenefits: hourlyBenefits ?? this.hourlyBenefits,
+    contractMonthlyHours: contractMonthlyHours ?? this.contractMonthlyHours,
     hasShiftWork: hasShiftWork ?? this.hasShiftWork,
     useCustomOvertimeBase: useCustomOvertimeBase ?? this.useCustomOvertimeBase,
     overtimeBaseDaily: overtimeBaseDaily ?? this.overtimeBaseDaily,

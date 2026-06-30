@@ -82,6 +82,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   double _fridayWorkHours = 0;
   double _holidayWorkHours = 0;
   double _missionDays = 0;
+  bool _usePartTimeWage = false;
+  double _partTimeWorkHours = 0;
   bool _useCustomOvertimeBase = false;
   double _overtimeBaseDaily = 0;
   double _shiftWork = 0;
@@ -304,6 +306,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _fridayWorkHours = record.fridayWorkHours;
       _holidayWorkHours = record.holidayWorkHours;
       _missionDays = record.missionDays;
+      _usePartTimeWage = record.usePartTimeWage;
+      _partTimeWorkHours = record.partTimeWorkHours;
       _useCustomOvertimeBase = record.useCustomOvertimeBase;
       _overtimeBaseDaily = record.overtimeBaseDaily;
       _shiftWork = record.shiftWork;
@@ -373,6 +377,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _fridayWorkHours = draft.fridayWorkHours;
       _holidayWorkHours = draft.holidayWorkHours;
       _missionDays = draft.missionDays;
+      _usePartTimeWage = draft.usePartTimeWage;
+      _partTimeWorkHours = draft.partTimeWorkHours;
       _useCustomOvertimeBase = draft.useCustomOvertimeBase;
       _overtimeBaseDaily = draft.overtimeBaseDaily;
       _shiftWork = draft.shiftWork;
@@ -428,6 +434,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       _fridayWorkHours = 0;
       _holidayWorkHours = 0;
       _missionDays = 0;
+      _usePartTimeWage = _selectedEmployeeHasPartTimeContract;
+      _partTimeWorkHours = _usePartTimeWage ? _defaultPartTimeWorkHours : 0;
       _useCustomOvertimeBase =
           _selectedEmployee?.useCustomOvertimeBase ?? false;
       _overtimeBaseDaily = _selectedEmployee?.overtimeBaseDaily ?? 0;
@@ -499,6 +507,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       fridayWorkHours: _fridayWorkHours,
       holidayWorkHours: _holidayWorkHours,
       missionDays: _missionDays,
+      usePartTimeWage: _usePartTimeWage,
+      partTimeWorkHours: _partTimeWorkHours,
       useCustomOvertimeBase: _useCustomOvertimeBase,
       overtimeBaseDaily: _overtimeBaseDaily,
       shiftWork: _shiftWork,
@@ -563,6 +573,8 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       holidayWorkAmount: _result?.holidayWorkAmount ?? 0,
       missionDays: _missionDays,
       missionAmount: _result?.missionAmount ?? 0,
+      usePartTimeWage: _usePartTimeWage,
+      partTimeWorkHours: _partTimeWorkHours,
       useCustomOvertimeBase: _useCustomOvertimeBase,
       overtimeBaseDaily: _overtimeBaseDaily,
       shiftWork: _shiftWork,
@@ -632,12 +644,39 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
     _totalDays.toDouble(),
   );
 
-  double get _payableDays =>
-      (_totalDays - _sickLeaveDays).clamp(0.0, _totalDays.toDouble());
+  double get _payableDays {
+    final regularPayableDays = (_totalDays - _sickLeaveDays)
+        .clamp(0.0, _totalDays.toDouble())
+        .toDouble();
+    if (!_usePartTimeWage) return regularPayableDays;
+    return (_effectivePartTimeWorkHours / AppConstants.dailyWorkHours)
+        .clamp(0.0, regularPayableDays)
+        .toDouble();
+  }
 
   int get _defaultTotalDays => PersianDateHelper.daysInMonth(_year, _month);
 
   double get _defaultOvertimeBaseDaily => _selectedEmployee?.dailyWage1405 ?? 0;
+
+  bool get _selectedEmployeeHasPartTimeContract {
+    final employee = _selectedEmployee;
+    if (employee == null) return false;
+    final employmentType = employee.employmentType.replaceAll('\u200c', ' ');
+    return employmentType.contains('پاره') ||
+        employmentType.contains('ساعتی') ||
+        (employee.contractMonthlyHours > 0 &&
+            employee.contractMonthlyHours < AppConstants.standardMonthlyHours);
+  }
+
+  double get _defaultPartTimeWorkHours {
+    final hours = _selectedEmployee?.contractMonthlyHours ?? 0;
+    if (hours > 0) return hours;
+    return AppConstants.standardMonthlyHours;
+  }
+
+  double get _effectivePartTimeWorkHours => _usePartTimeWage
+      ? _partTimeWorkHours.clamp(0.0, double.infinity).toDouble()
+      : 0.0;
 
   double get _defaultShiftWork => (_result?.baseSalary ?? 0) * _shiftWorkRate;
 
@@ -738,6 +777,13 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       AppNotification.warning(
         context,
         'مبنای روزانه اضافه‌کاری باید بیشتر از صفر باشد',
+      );
+      return;
+    }
+    if (_usePartTimeWage && _partTimeWorkHours <= 0) {
+      AppNotification.warning(
+        context,
+        'ساعت کارکرد پاره‌وقت باید بیشتر از صفر باشد',
       );
       return;
     }
@@ -1719,6 +1765,53 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _timeEarningsPanel(
+          title: 'حقوق پاره‌وقت / ساعتی',
+          icon: Icons.hourglass_bottom_rounded,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('محاسبه مزد پایه با ساعت کارکرد'),
+              subtitle: Text(
+                'ساعت قرارداد: ${PersianNumberFormatter.formatDecimal(_defaultPartTimeWorkHours)} ساعت',
+              ),
+              value: _usePartTimeWage,
+              onChanged: (value) {
+                setState(() {
+                  _usePartTimeWage = value;
+                  if (value && _partTimeWorkHours <= 0) {
+                    _partTimeWorkHours = _defaultPartTimeWorkHours;
+                  }
+                  if (!value) _partTimeWorkHours = 0;
+                });
+                _calculate();
+              },
+            ),
+            if (_usePartTimeWage)
+              _withDefaultReset(
+                value: _partTimeWorkHours,
+                defaultValue: _defaultPartTimeWorkHours,
+                onReset: () {
+                  setState(
+                    () => _partTimeWorkHours = _defaultPartTimeWorkHours,
+                  );
+                  _calculate();
+                },
+                child: PersianNumberField(
+                  label: 'ساعت کارکرد پاره‌وقت',
+                  prefixIcon: Icons.schedule_rounded,
+                  suffix: 'ساعت',
+                  initialValue: _partTimeWorkHours,
+                  maxDecimalDigits: 2,
+                  onChanged: (value) {
+                    _partTimeWorkHours = value?.toDouble() ?? 0;
+                    _calculate();
+                  },
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _timeEarningsPanel(
           title: 'اضافه‌کاری',
           icon: Icons.timer_rounded,
           children: [
@@ -2382,6 +2475,11 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
           'روزهای قابل پرداخت کارفرما',
           '${_formatDays(_result!.payableDays)} روز',
         ),
+        if (_result!.usePartTimeWage)
+          _plainDetailRow(
+            'ساعت کارکرد پاره‌وقت',
+            '${PersianNumberFormatter.formatDecimal(_result!.partTimeWorkHours)} ساعت',
+          ),
         const Divider(),
         _resultRow('سهم کارفرما (۲۰٪)', _result!.employerInsurance),
         _resultRow('بیمه بیکاری (۳٪)', _result!.unemploymentInsurance),

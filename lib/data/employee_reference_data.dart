@@ -1,7 +1,7 @@
 class EmployeeReferenceData {
   static const genders = ['مرد', 'زن'];
 
-  static const employmentTypes = ['قراردادی', 'توافقی'];
+  static const employmentTypes = ['قراردادی', 'توافقی', 'پاره‌وقت', 'ساعتی'];
 
   static const educations = [
     'زیر دیپلم',

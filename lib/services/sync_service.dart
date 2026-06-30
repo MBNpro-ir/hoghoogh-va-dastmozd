@@ -826,6 +826,7 @@ class SyncService {
     return SalaryRecord.fromMap({
       ..._boolsToInts(payload, const {
         'include_leave_in_payslip',
+        'use_part_time_wage',
         'use_custom_overtime_base',
         'housing_exempt',
         'food_exempt',
@@ -845,6 +846,7 @@ class SyncService {
     return SalaryDraft.fromMap({
       ..._boolsToInts(payload, const {
         'use_custom_overtime_base',
+        'use_part_time_wage',
         'auto_shift_work',
         'auto_hourly_benefits',
         'auto_other_benefits',
