@@ -211,6 +211,18 @@ class SalaryPaymentService {
     return rows.map(PaymentSlipRow.fromMap).toList();
   }
 
+  Future<PaymentSlipRow?> getRow({
+    required int employeeId,
+    required int year,
+    required int month,
+  }) async {
+    final rows = await getRows(period: (year, month));
+    for (final row in rows) {
+      if (row.employeeId == employeeId) return row;
+    }
+    return null;
+  }
+
   Future<List<(int, int)>> getAvailablePeriods() async {
     final db = await _db.database;
     final rows = await db.rawQuery('''
@@ -227,7 +239,7 @@ class SalaryPaymentService {
         .toList();
   }
 
-  Future<void> saveStatus({
+  Future<PaymentSlipRow?> saveStatus({
     required int employeeId,
     required int year,
     required int month,
@@ -333,9 +345,10 @@ class SalaryPaymentService {
     }
     await _sync.markUpsert('salary_payment_statuses', id, schedule: false);
     await _sync.syncNow(silent: true, throwOnServerError: true);
+    return getRow(employeeId: employeeId, year: year, month: month);
   }
 
-  Future<void> setPaymentUnlocked({
+  Future<PaymentSlipRow?> setPaymentUnlocked({
     required int employeeId,
     required int year,
     required int month,
@@ -386,23 +399,27 @@ class SalaryPaymentService {
     }
     await _sync.markUpsert('salary_payment_statuses', id, schedule: false);
     await _sync.syncNow(silent: true, throwOnServerError: true);
+    return getRow(employeeId: employeeId, year: year, month: month);
   }
 
-  Future<void> setPaymentUnlockedForRows({
+  Future<List<PaymentSlipRow>> setPaymentUnlockedForRows({
     required Iterable<PaymentSlipRow> rows,
     required bool unlocked,
   }) async {
+    final updatedRows = <PaymentSlipRow>[];
     for (final row in rows) {
-      await setPaymentUnlocked(
+      final updated = await setPaymentUnlocked(
         employeeId: row.employeeId,
         year: row.year,
         month: row.month,
         unlocked: unlocked,
       );
+      if (updated != null) updatedRows.add(updated);
     }
+    return updatedRows;
   }
 
-  Future<void> deleteHistoryEntry({
+  Future<PaymentSlipRow?> deleteHistoryEntry({
     required PaymentSlipRow row,
     required int historyIndex,
   }) async {
@@ -412,9 +429,9 @@ class SalaryPaymentService {
         'فقط ادمین می‌تواند لاگ پرداخت را حذف کند.',
       );
     }
-    if (row.statusId == null) return;
+    if (row.statusId == null) return null;
     final history = [...row.history];
-    if (historyIndex < 0 || historyIndex >= history.length) return;
+    if (historyIndex < 0 || historyIndex >= history.length) return null;
     history.removeAt(historyIndex);
 
     final db = await _db.database;
@@ -461,6 +478,7 @@ class SalaryPaymentService {
       schedule: false,
     );
     await _sync.syncNow(silent: true, throwOnServerError: true);
+    return getRow(employeeId: row.employeeId, year: row.year, month: row.month);
   }
 
   Future<PaymentPayslipData?> payslipData(PaymentSlipRow row) async {

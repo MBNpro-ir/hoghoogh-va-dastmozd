@@ -383,15 +383,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
       _error = '';
     });
     try {
-      await _service.saveStatus(
+      final updated = await _service.saveStatus(
         employeeId: row.employeeId,
         year: row.year,
         month: row.month,
         isPaid: isPaid,
         unpaidReason: reason,
       );
-      await _load();
       if (!mounted) return;
+      _replaceRows([updated]);
       AppNotification.success(
         context,
         isPaid ? 'پرداخت ثبت شد' : 'پرداخت‌نشدن ثبت شد',
@@ -429,6 +429,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
     });
   }
 
+  void _replaceRows(Iterable<PaymentSlipRow?> updatedRows) {
+    final replacements = {
+      for (final row in updatedRows.whereType<PaymentSlipRow>())
+        _keyOf(row): row,
+    };
+    if (replacements.isEmpty) return;
+    setState(() {
+      _rows = [for (final row in _rows) replacements[_keyOf(row)] ?? row];
+      _selectedKeys.removeWhere(
+        (key) => !_rows.any((row) => _keyOf(row) == key),
+      );
+    });
+  }
+
   Future<void> _setPaymentUnlocked(PaymentSlipRow row, bool unlocked) async {
     final key = _keyOf(row);
     setState(() {
@@ -436,13 +450,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
       _error = '';
     });
     try {
-      await _service.setPaymentUnlocked(
+      final updated = await _service.setPaymentUnlocked(
         employeeId: row.employeeId,
         year: row.year,
         month: row.month,
         unlocked: unlocked,
       );
-      await _load();
+      if (!mounted) return;
+      _replaceRows([updated]);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString().replaceAll('Exception: ', ''));
@@ -464,12 +479,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
       _error = '';
     });
     try {
-      await _service.setPaymentUnlockedForRows(
+      final updatedRows = await _service.setPaymentUnlockedForRows(
         rows: selectedRows,
         unlocked: unlocked,
       );
-      await _load();
       if (!mounted) return;
+      _replaceRows(updatedRows);
       setState(() => _selectedKeys.clear());
       AppNotification.success(
         context,
@@ -510,8 +525,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
       _error = '';
     });
     try {
-      await _service.deleteHistoryEntry(row: row, historyIndex: index);
-      await _load();
+      final updated = await _service.deleteHistoryEntry(
+        row: row,
+        historyIndex: index,
+      );
+      if (!mounted) return;
+      _replaceRows([updated]);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString().replaceAll('Exception: ', ''));

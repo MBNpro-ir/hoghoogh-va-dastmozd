@@ -522,25 +522,55 @@ class UpdateService {
       p.join(helperDir.path, _windowsUpdaterExe),
     );
 
+    await _startWindowsUpdater(helper.path, [
+      'apply',
+      '--zip',
+      filePath,
+      '--target',
+      appDir,
+      '--exe',
+      p.basename(exePath),
+      '--wait-pid',
+      pid.toString(),
+      '--marker',
+      markerPath,
+      '--restart',
+    ], workingDirectory: helperDir.path);
+  }
+
+  Future<void> _startWindowsUpdater(
+    String executable,
+    List<String> arguments, {
+    required String workingDirectory,
+  }) async {
+    if (!Platform.isWindows) {
+      await Process.start(
+        executable,
+        arguments,
+        workingDirectory: workingDirectory,
+        mode: ProcessStartMode.detached,
+      );
+      return;
+    }
+
+    final argumentList = arguments.map(_powerShellSingleQuoted).join(', ');
+    final script =
+        'Start-Process '
+        '-FilePath ${_powerShellSingleQuoted(executable)} '
+        '-ArgumentList @($argumentList) '
+        '-WorkingDirectory ${_powerShellSingleQuoted(workingDirectory)} '
+        '-Verb RunAs '
+        '-WindowStyle Hidden';
     await Process.start(
-      helper.path,
-      [
-        'apply',
-        '--zip',
-        filePath,
-        '--target',
-        appDir,
-        '--exe',
-        p.basename(exePath),
-        '--wait-pid',
-        pid.toString(),
-        '--marker',
-        markerPath,
-        '--restart',
-      ],
-      workingDirectory: helperDir.path,
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      workingDirectory: workingDirectory,
       mode: ProcessStartMode.detached,
     );
+  }
+
+  String _powerShellSingleQuoted(String value) {
+    return "'${value.replaceAll("'", "''")}'";
   }
 
   void _showWindowsInstallingDialog(BuildContext context, String version) {

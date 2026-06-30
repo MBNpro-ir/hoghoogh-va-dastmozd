@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
@@ -53,6 +54,8 @@ class SalaryCalculationScreen extends StatefulWidget {
 }
 
 class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
+  static const _draftSaveDebounce = Duration(milliseconds: 2500);
+
   final _employeeService = EmployeeService();
   final _leaveService = EmployeeLeaveService();
   final _loanService = LoanService();
@@ -119,6 +122,9 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   bool _restoringInputs = false;
   int _restoreGeneration = 0;
   Timer? _draftSaveTimer;
+  bool _draftSaveInFlight = false;
+  bool _draftSaveQueued = false;
+  String? _lastSavedDraftSignature;
 
   SalaryCalculationResult? _result;
   SalaryRecord? get _editRecord => widget.editRecord;
@@ -549,13 +555,18 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
   }
 
   void _scheduleDraftSave() {
+    if (!mounted) return;
     if (_loading || _restoringInputs) return;
     if (_selectedEmployee?.id == null) return;
     _draftSaveTimer?.cancel();
-    _draftSaveTimer = Timer(const Duration(milliseconds: 700), _saveDraft);
+    _draftSaveTimer = Timer(_draftSaveDebounce, () => unawaited(_saveDraft()));
   }
 
   Future<void> _saveDraft() async {
+    if (_draftSaveInFlight) {
+      _draftSaveQueued = true;
+      return;
+    }
     final employeeId = _selectedEmployee?.id;
     if (employeeId == null || _restoringInputs) return;
     final draft = SalaryDraft(
@@ -611,11 +622,26 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       payrollCalculationDetailsJson:
           _result?.payrollCalculationDetailsJson ?? '{}',
     );
+    final signature = _draftSignature(draft);
+    if (signature == _lastSavedDraftSignature) return;
+    _draftSaveInFlight = true;
     try {
       await _salaryDraftService.upsert(draft, scheduleSync: false);
+      _lastSavedDraftSignature = signature;
     } catch (_) {
       // Draft saving is best-effort and must not interrupt salary entry.
+    } finally {
+      _draftSaveInFlight = false;
+      if (mounted && _draftSaveQueued) {
+        _draftSaveQueued = false;
+        _scheduleDraftSave();
+      }
     }
+  }
+
+  String _draftSignature(SalaryDraft draft) {
+    final map = draft.toMap()..remove('id');
+    return jsonEncode(map);
   }
 
   @override

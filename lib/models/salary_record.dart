@@ -85,6 +85,15 @@ class SalaryRecord {
   final String? notes;
   final DateTime createdAt;
 
+  double get mandatoryMonthlyHours {
+    return _numberFromDetails(['mandatory_monthly_hours']) ??
+        AppConstants.mandatoryMonthlyHoursFor(
+          year: year,
+          month: month,
+          totalDays: totalDays,
+        );
+  }
+
   double get payableDays {
     final fromDetails = _numberFromDetails([
       'payable_days',
