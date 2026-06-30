@@ -74,7 +74,7 @@ class SalaryRecord {
   // محاسبات نهایی
   final double insuranceBase; // حقوق مشمول بیمه
   final double taxBase; // مبنای مالیات
-  final double twoSevenExemption; // معافیت دو هفتم
+  final double twoSevenExemption; // کسر حق بیمه سهم کارگر از مالیات
   final double taxReliefRate;
   final double taxReliefAmount;
   final double netSalary; // خالص حقوق

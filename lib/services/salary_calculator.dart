@@ -500,8 +500,16 @@ class SalaryCalculator {
     final overtimeHours = input.overtimeHours + partTimeOvertimeHours;
     final overtimeAmount = overtimeHours * overtimeRate;
     final regularHourlyRate = wageBasisDaily / AppConstants.dailyWorkHours;
-    final nightWorkAmount =
-        input.nightWorkHours * regularHourlyRate * settings.nightWorkRate;
+    final shiftWorkRate = input.shiftWorkRate.clamp(0.0, 1.0).toDouble();
+    final shiftWorkBase = wageBasisDaily * payableDays;
+    final shiftWork = input.autoShiftWork
+        ? shiftWorkBase * shiftWorkRate
+        : input.shiftWork.clamp(0.0, double.infinity).toDouble();
+    final hasRotatingShift =
+        (input.autoShiftWork && shiftWorkRate > 0) || shiftWork > 0;
+    final nightWorkAmount = hasRotatingShift
+        ? 0.0
+        : input.nightWorkHours * regularHourlyRate * settings.nightWorkRate;
     final fridayWorkAmount =
         input.fridayWorkHours * regularHourlyRate * settings.fridayWorkRate;
     final holidayWorkAmount =
@@ -523,11 +531,6 @@ class SalaryCalculator {
         : input.hourlyBenefitsAmount;
 
     // 9) نوبت‌کاری بسته به نوع گردش شیفت می‌تواند 10٪، 15٪ یا 22.5٪ باشد.
-    final shiftWorkRate = input.shiftWorkRate.clamp(0.0, 1.0).toDouble();
-    final shiftWork = input.autoShiftWork
-        ? baseSalary * shiftWorkRate
-        : input.shiftWork;
-
     // 10) جمع کل حقوق و مزایا
     final totalEarnings =
         baseSalary +
@@ -620,7 +623,7 @@ class SalaryCalculator {
     final unemploymentInsurance =
         insuranceBase * settings.unemploymentInsuranceRate;
     final calculationDetailsJson = jsonEncode({
-      'formula_version': 'salary-1405-v3-bidbarg',
+      'formula_version': 'salary-1405-v4-bidbarg',
       'law_year': settings.year,
       'rates': {
         'overtime_multiplier': AppConstants.overtimeMultiplier,
@@ -630,6 +633,9 @@ class SalaryCalculator {
         'mission_daily_multiplier': settings.missionDailyMultiplier,
         'absence_hourly_multiplier': settings.absenceHourlyMultiplier,
         'shift_work_rate': shiftWorkRate,
+        'shift_work_base': shiftWorkBase,
+        'has_rotating_shift': hasRotatingShift,
+        'night_work_applied': !hasRotatingShift,
         'tax_relief_rate': taxReliefRate,
         'insurance_tax_deduction_rate': settings.twoSevenBaseRate,
         'mandatory_monthly_hours': mandatoryMonthlyHours,

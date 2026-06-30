@@ -97,7 +97,7 @@ class PayrollCalculatorDefinition {
 }
 
 class PayrollCalculatorRegistry {
-  static const formulaVersion = 'bidbarg-local-1405-v1';
+  static const formulaVersion = 'bidbarg-local-1405-v2';
 
   static const onlinePayslipUrl = 'https://bidbarg.net/blog/online-payslip/';
   static const baseAnnuitiesUrl = 'https://bidbarg.net/blog/base-annuities/';
@@ -253,10 +253,17 @@ class PayrollCalculatorRegistry {
             hourly *
             AppConstants.overtimeMultiplier *
             _value(inputs, 'overtime_hours');
-        final nightWork =
-            hourly *
-            settings.nightWorkRate *
-            _value(inputs, 'night_work_hours');
+        final shiftRate = _rate(
+          _value(inputs, 'shift_rate', AppConstants.shiftWorkRate),
+        );
+        final shiftWorkBase = wageBasisDaily * days;
+        final shiftWork = shiftWorkBase * shiftRate;
+        final hasRotatingShift = shiftWork > 0;
+        final nightWork = hasRotatingShift
+            ? 0.0
+            : hourly *
+                  settings.nightWorkRate *
+                  _value(inputs, 'night_work_hours');
         final fridayWork =
             hourly *
             settings.fridayWorkRate *
@@ -273,10 +280,6 @@ class PayrollCalculatorRegistry {
             hourly *
             settings.absenceHourlyMultiplier *
             _value(inputs, 'absence_hours');
-        final shiftRate = _rate(
-          _value(inputs, 'shift_rate', AppConstants.shiftWorkRate),
-        );
-        final shiftWork = baseSalary * shiftRate;
         final employeeRelatedBenefits = _positive(
           inputs,
           'employee_related_benefits',
@@ -331,6 +334,7 @@ class PayrollCalculatorRegistry {
         return {
           'gross_salary': gross,
           'shift_work': shiftWork,
+          'shift_work_base': shiftWorkBase,
           'job_related_benefits': jobRelatedBenefits,
           'employee_related_benefits': employeeRelatedBenefits,
           'welfare_benefits': welfareBenefits,
@@ -420,8 +424,9 @@ class PayrollCalculatorRegistry {
       fields: [
         _moneyField(
           'base_salary',
-          'حقوق ثابت ماهانه',
-          defaultValue: (settings) => settings.dailyWage * 30,
+          'مزد مبنای ماهانه',
+          defaultValue: (settings) =>
+              (settings.dailyWage + settings.dailySeniority) * 30,
         ),
         _field(
           'shift_rate',
@@ -1426,14 +1431,26 @@ class PayrollCalculatorRegistry {
       appliesToPayslip: appliesToPayslip,
       fields: [
         _dailyWageField(),
+        _moneyField(
+          'daily_seniority',
+          'پایه سنوات روزانه',
+          defaultValue: (settings) => settings.dailySeniority,
+        ),
+        _moneyField('job_related_benefits_daily', 'مزایای به تبع شغل روزانه'),
         _field(inputKey, inputLabel, suffix: 'ساعت'),
       ],
       outputs: [CalculatorOutput(key: outputKey, label: outputLabel)],
-      formula: (inputs, settings) => {
-        outputKey:
-            _hourly(_value(inputs, 'daily_wage')) *
-            multiplier(settings) *
-            _value(inputs, inputKey),
+      formula: (inputs, settings) {
+        final wageBasisDaily =
+            _value(inputs, 'daily_wage') +
+            _value(inputs, 'daily_seniority') +
+            _value(inputs, 'job_related_benefits_daily');
+        return {
+          outputKey:
+              _hourly(wageBasisDaily) *
+              multiplier(settings) *
+              _value(inputs, inputKey),
+        };
       },
     );
   }

@@ -297,7 +297,7 @@ void main() {
     expect(restored.absenceDeduction, closeTo(566500, 1));
     expect(
       restored.payrollCalculationDetailsJson,
-      contains('salary-1405-v3-bidbarg'),
+      contains('salary-1405-v4-bidbarg'),
     );
   });
 
@@ -427,6 +427,7 @@ void main() {
         settings: settings,
         input: SalaryCalculationInput(
           totalDays: 30,
+          nightWorkHours: 8,
           autoShiftWork: true,
           shiftWorkRate: 0.225,
           jobRelatedBenefits: 3000000,
@@ -439,7 +440,7 @@ void main() {
       );
 
       final expectedBaseSalary = 300000000.0;
-      final expectedShiftWork = expectedBaseSalary * 0.225;
+      final expectedShiftWork = (expectedBaseSalary + 3000000) * 0.225;
       final expectedGross =
           expectedBaseSalary + expectedShiftWork + 3000000 + 2000000 + 1000000;
       final expectedInsurance = expectedGross * settings.employeeInsuranceRate;
@@ -449,6 +450,7 @@ void main() {
 
       expect(result.shiftWorkRate, 0.225);
       expect(result.shiftWork, closeTo(expectedShiftWork, 1));
+      expect(result.nightWorkAmount, 0);
       expect(result.totalEarnings, closeTo(expectedGross, 1));
       expect(result.jobRelatedBenefits, 3000000);
       expect(result.employeeRelatedBenefits, 2000000);
@@ -487,7 +489,7 @@ void main() {
     }, settings);
 
     expect(online.appliesToPayslip, isTrue);
-    expect(outputs['shift_work'], 30000000);
+    expect(outputs['shift_work'], closeTo(30600000, 2));
     expect(outputs['job_related_benefits'], 1000000);
     expect(outputs['employee_related_benefits'], 2000000);
     expect(outputs['welfare_benefits'], 3000000);

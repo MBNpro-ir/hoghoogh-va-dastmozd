@@ -688,7 +688,10 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
       ? _partTimeWorkHours.clamp(0.0, double.infinity).toDouble()
       : 0.0;
 
-  double get _defaultShiftWork => (_result?.baseSalary ?? 0) * _shiftWorkRate;
+  double get _defaultShiftWork =>
+      ((_result?.wageBasisDaily ?? _selectedEmployee?.dailyWage1405 ?? 0) *
+          _payableDays) *
+      _shiftWorkRate;
 
   String _formatPercent(double value) {
     final percent = value * 100;
@@ -1959,7 +1962,7 @@ class _SalaryCalculationScreenState extends State<SalaryCalculationScreen> {
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('نوبت‌کاری خودکار'),
-              subtitle: Text('${_formatPercent(_shiftWorkRate)} حقوق ثابت'),
+              subtitle: Text('${_formatPercent(_shiftWorkRate)} مزد مبنا'),
               value: _useAutoShiftWork,
               onChanged: _onAutoShiftWorkChanged,
             ),
